@@ -345,16 +345,64 @@ If no specific structure is mentioned, assume standard 4-volume structure.`,
         };
       }
 
-      // Store in document metadata
+      return structure;
+    });
+
+    // Extract solicitation number from document
+    const solicitationNumber = await step.run('extract-solicitation-number', async () => {
+      const response = await anthropic.messages.create({
+        model: MODEL,
+        max_tokens: 256,
+        messages: [
+          {
+            role: 'user',
+            content: `Extract the solicitation/RFP number from this government contracting document.
+
+Look for patterns like:
+- Solicitation Number: XXXXX
+- RFP Number: XXXXX
+- RFQ Number: XXXXX
+- Contract/Order Number: XXXXX
+- FA####-##-X-####
+- W####-##-X-####
+- GS-##X-#####
+
+Document content (first 5000 chars):
+${fileContent.substring(0, 5000)}
+
+Respond in JSON format:
+{
+  "solicitation_number": "the number you found or null if not found",
+  "confidence": "high|medium|low|none"
+}`,
+          },
+        ],
+      });
+
+      const content = response.content[0];
+      if (content.type !== 'text') {
+        return null;
+      }
+
+      try {
+        const jsonText = extractJSON(content.text);
+        const result = JSON.parse(jsonText);
+        return result.solicitation_number || null;
+      } catch (e) {
+        return null;
+      }
+    });
+
+    // Store metadata and solicitation number in document
+    await step.run('save-document-metadata', async () => {
       const supabase = getServerClient();
       await supabase
         .from('documents')
         .update({
-          metadata: structure,
+          metadata: volumeStructure,
+          solicitation_number: solicitationNumber,
         })
         .eq('id', documentId);
-
-      return structure;
     });
 
     // Update document status to completed

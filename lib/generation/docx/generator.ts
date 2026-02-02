@@ -64,6 +64,8 @@ export async function generateProposalVolume(
               bottom: 1440,
               left: 1440,
               right: 1440,
+              header: 720, // 0.5 inch from top of page to header
+              footer: 720, // 0.5 inch from bottom of page to footer
             },
           },
         },

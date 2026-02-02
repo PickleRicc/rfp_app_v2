@@ -123,6 +123,16 @@ export function createProposalHeader(
           { type: TabStopType.CENTER, position: TAB_STOPS.CENTER },
           { type: TabStopType.RIGHT, position: TAB_STOPS.RIGHT },
         ],
+        spacing: {
+          after: 200, // Add space after header (200 twips ≈ 0.14 inch)
+        },
+        border: {
+          bottom: {
+            style: 'single' as const,
+            size: 6, // thin line
+            color: 'CCCCCC', // light gray
+          },
+        },
       }),
     ],
   });
