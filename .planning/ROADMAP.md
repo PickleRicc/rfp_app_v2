@@ -1,0 +1,97 @@
+# Roadmap: RFP Proposal Generator
+
+## Overview
+
+This roadmap completes full framework alignment for the RFP Proposal Generator, taking it from 70% to 100% compliance with the Proposal Response Generation Framework. The journey moves from visual polish (logos and branding) through professional styling (comprehensive text and table styles), to actual exhibit generation (org charts, diagrams, timelines), and culminates in production-ready output (page tracking, PDF export, quality checks, submission packages).
+
+## Phases
+
+**Phase Numbering:**
+- Integer phases (1, 2, 3, 4): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+
+Decimal phases appear between their surrounding integers in numeric order.
+
+- [ ] **Phase 1: Logos & Branding** - Professional visual identity across all proposal documents
+- [ ] **Phase 2: Styles & Content** - Complete text styling and structured content sections
+- [ ] **Phase 3: Exhibit Generation** - Actual diagram generation (org charts, process flows, timelines)
+- [ ] **Phase 4: Pipeline & Output** - Production-ready tracking, export, and packaging
+
+## Phase Details
+
+### Phase 1: Logos & Branding
+**Goal**: Proposals have professional branding with company logos and solicitation information visible throughout
+**Depends on**: Nothing (first phase)
+**Requirements**: ARCH-02, ARCH-04, ARCH-05, FORMAT-04, FORMAT-05, FORMAT-06
+**Success Criteria** (what must be TRUE):
+  1. Company logo appears on cover page with professional placement and sizing
+  2. Company logo appears in headers on every page after cover
+  3. Solicitation number appears in headers alongside company name
+  4. Proprietary notice appears in footers on every page
+  5. Table of Contents auto-updates with field codes when user refreshes in Word
+  6. Table of Exhibits is listed in TOC and auto-updates
+**Plans**: TBD
+
+Plans:
+- TBD
+
+### Phase 2: Styles & Content
+**Goal**: Proposals use complete professional styling system and include deliverables/benefits sections
+**Depends on**: Phase 1
+**Requirements**: STYLE-02, STYLE-04, STYLE-06, STYLE-07, STYLE-08, CONTENT-05, CONTENT-06, TRACE-04
+**Success Criteria** (what must be TRUE):
+  1. Headings support Same Page, New Page, and Unnumbered variants per framework spec
+  2. Emphasis styles (Bold Intro, Intense Quote, Intense Reference) are applied correctly in generated content
+  3. Lists support 3-level bullets and numbered lists with 4 levels matching framework styles
+  4. Tables use proper heading, body, bold, and centered variant styles
+  5. Every task area includes a Deliverables subsection with structured output descriptions
+  6. Every approach section includes a Benefits callout box highlighting value propositions
+  7. Compliance matrix shows accurate page numbers (not TBD placeholders)
+**Plans**: TBD
+
+Plans:
+- TBD
+
+### Phase 3: Exhibit Generation
+**Goal**: Proposals include actual generated diagrams (org charts, process flows, timelines) instead of placeholders
+**Depends on**: Phase 2
+**Requirements**: EXHIBIT-04, EXHIBIT-05, EXHIBIT-06, PIPE-05
+**Success Criteria** (what must be TRUE):
+  1. Org chart exhibits show actual team structure with names, roles, and reporting lines
+  2. Process diagram exhibits visualize workflows with steps, decision points, and flows
+  3. Timeline/Gantt chart exhibits display project phases with durations and milestones
+  4. All exhibit references in text correspond to actual generated exhibits (no placeholders)
+**Plans**: TBD
+
+Plans:
+- TBD
+
+### Phase 4: Pipeline & Output
+**Goal**: System tracks page allocation, exports to multiple formats, and produces submission-ready packages
+**Depends on**: Phase 3
+**Requirements**: PIPE-02, OUTPUT-02, OUTPUT-04, OUTPUT-05, OUTPUT-06
+**Success Criteria** (what must be TRUE):
+  1. System tracks page counts per volume and warns when approaching RFP limits
+  2. Proposals can be exported as PDF files ready for electronic submission
+  3. Outline view export shows proposal structure for quick review
+  4. Pre-submission quality checklist is auto-generated with framework compliance items
+  5. Organized package structure creates folders for volumes, graphics, and final submissions
+**Plans**: TBD
+
+Plans:
+- TBD
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 1 → 2 → 3 → 4
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Logos & Branding | 0/TBD | Not started | - |
+| 2. Styles & Content | 0/TBD | Not started | - |
+| 3. Exhibit Generation | 0/TBD | Not started | - |
+| 4. Pipeline & Output | 0/TBD | Not started | - |
+
+---
+*Roadmap created: 2026-02-02*

@@ -145,8 +145,8 @@ Deferred to future release.
 - v1 requirements: 42 total
 - Already complete: 24 (57%)
 - Remaining: 18 (43%)
-- Mapped to phases: 18
+- Mapped to phases: 18/18 (100%)
 
 ---
 *Requirements defined: 2026-02-01*
-*Last updated: 2026-02-01 after fresh codebase audit*
+*Last updated: 2026-02-02 after roadmap creation*
