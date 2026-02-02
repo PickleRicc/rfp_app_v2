@@ -30,10 +30,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Proprietary notice appears in footers on every page
   5. Table of Contents auto-updates with field codes when user refreshes in Word
   6. Table of Exhibits is listed in TOC and auto-updates
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
 
 Plans:
-- TBD
+- [ ] 01-01-PLAN.md — Foundation utilities (images.ts, toc.ts)
+- [ ] 01-02-PLAN.md — Header and footer generators
+- [ ] 01-03-PLAN.md — Generator integration with branding
 
 ### Phase 2: Styles & Content
 **Goal**: Proposals use complete professional styling system and include deliverables/benefits sections
@@ -88,7 +90,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Logos & Branding | 0/TBD | Not started | - |
+| 1. Logos & Branding | 0/3 | Ready | - |
 | 2. Styles & Content | 0/TBD | Not started | - |
 | 3. Exhibit Generation | 0/TBD | Not started | - |
 | 4. Pipeline & Output | 0/TBD | Not started | - |
