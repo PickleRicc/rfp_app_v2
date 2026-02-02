@@ -1,0 +1,101 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerClient } from '@/lib/supabase/client';
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = getServerClient();
+
+    const { data: contract, error } = await supabase
+      .from('past_performance')
+      .select('*')
+      .eq('id', params.id)
+      .single();
+
+    if (error || !contract) {
+      return NextResponse.json(
+        { error: 'Contract not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ contract });
+  } catch (error) {
+    console.error('Contract fetch error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const body = await request.json();
+    const supabase = getServerClient();
+
+    const { data: contract, error } = await supabase
+      .from('past_performance')
+      .update({
+        ...body,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating contract:', error);
+      return NextResponse.json(
+        { error: 'Failed to update contract' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      contract,
+    });
+  } catch (error) {
+    console.error('Contract update error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const supabase = getServerClient();
+
+    const { error } = await supabase
+      .from('past_performance')
+      .delete()
+      .eq('id', params.id);
+
+    if (error) {
+      console.error('Error deleting contract:', error);
+      return NextResponse.json(
+        { error: 'Failed to delete contract' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Contract deletion error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
