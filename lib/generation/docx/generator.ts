@@ -9,10 +9,19 @@ import {
   PageNumber,
   NumberFormat,
   HeadingLevel,
+  ImageRun,
 } from 'docx';
 import { PROPOSAL_STYLES } from './styles';
 import { generateCoverLetter } from '../templates/cover-letter';
 import { HEADING_NUMBERING, getHeadingNumbering, shouldOmitNumbering } from './numbering';
+import { fetchLogoAsBuffer, COVER_LOGO_SIZE } from './images';
+import {
+  createProposalHeader,
+  createProposalFooter,
+  createEmptyHeader,
+  createEmptyFooter,
+} from './headers-footers';
+import { generateTOCSection, TOCSectionChild } from './toc';
 
 /**
  * Generate a professional proposal volume in Word format
@@ -28,7 +37,18 @@ export async function generateProposalVolume(
 ): Promise<Document> {
   const volumeTitle = formatVolumeTitle(volumeType);
 
+  // Fetch company logo for cover page and headers
+  const logoUrl = companyProfile?.logo_url;
+  const logoBuffer = logoUrl ? await fetchLogoAsBuffer(logoUrl) : null;
+
+  // Get solicitation number from document, fallback to 'TBD' if not present
+  // User can update this placeholder in the generated Word document
+  const solicitationNumber = document?.solicitation_number || 'TBD';
+
   const doc = new Document({
+    features: {
+      updateFields: true, // Enable TOC auto-update on document open
+    },
     styles: PROPOSAL_STYLES,
     numbering: {
       config: [HEADING_NUMBERING],
@@ -36,6 +56,7 @@ export async function generateProposalVolume(
     sections: [
       {
         properties: {
+          titlePage: true, // Different first page (cover has no header/footer)
           page: {
             // Page setup (Part 7.1) - 1 inch = 1440 twips
             margin: {
@@ -47,65 +68,29 @@ export async function generateProposalVolume(
           },
         },
         headers: {
-          default: new Header({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: `${companyProfile.company_name} | ${volumeTitle}`,
-                    size: 18,
-                    font: 'Arial',
-                  }),
-                ],
-                alignment: AlignmentType.LEFT,
-                spacing: { after: 120 },
-              }),
-            ],
-          }),
+          first: createEmptyHeader(), // Cover page - no header
+          default: createProposalHeader(
+            logoBuffer,
+            volumeTitle,
+            solicitationNumber
+          ),
         },
         footers: {
-          default: new Footer({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: 'Page ',
-                    size: 18,
-                    font: 'Arial',
-                  }),
-                  new TextRun({
-                    children: [PageNumber.CURRENT],
-                    size: 18,
-                    font: 'Arial',
-                  }),
-                  new TextRun({
-                    text: ' of ',
-                    size: 18,
-                    font: 'Arial',
-                  }),
-                  new TextRun({
-                    children: [PageNumber.TOTAL_PAGES],
-                    size: 18,
-                    font: 'Arial',
-                  }),
-                ],
-                alignment: AlignmentType.CENTER,
-              }),
-            ],
-          }),
+          first: createEmptyFooter(), // Cover page - no footer
+          default: createProposalFooter(),
         },
         children: [
           // Cover page (Part 1.1)
-          ...generateCoverPage(volumeTitle, companyProfile),
+          ...generateCoverPage(volumeTitle, companyProfile, logoBuffer),
           new Paragraph({ children: [new PageBreak()] }),
 
           // Cover Letter (Part 1.1)
           ...(await generateCoverLetterSection(document, companyProfile, companyData)),
           new Paragraph({ children: [new PageBreak()] }),
 
-          // Table of Contents (Part 1.1) - Static generation
-          ...generateTOC(content),
-          new Paragraph({ children: [new PageBreak()] }),
+          // Table of Contents with dynamic field codes (Part 1.1)
+          // Includes main TOC (3 levels) and Table of Exhibits
+          ...(generateTOCSection() as Paragraph[]),
 
           // Content sections
           ...generateSections(content),
@@ -122,13 +107,42 @@ export async function generateProposalVolume(
 
 /**
  * Generate cover page (Part 1.1 - COVER_PAGE)
+ * @param volumeTitle - Formatted volume title
+ * @param companyProfile - Company profile with branding info
+ * @param logoBuffer - Logo image buffer (null if no logo)
  */
-function generateCoverPage(volumeTitle: string, companyProfile: any): Paragraph[] {
-  return [
-    // Vertical spacing
-    new Paragraph({ text: '', spacing: { before: 2880 } }), // 2 inches
-    
-    // Title
+function generateCoverPage(
+  volumeTitle: string,
+  companyProfile: any,
+  logoBuffer: Buffer | null
+): Paragraph[] {
+  const paragraphs: Paragraph[] = [];
+
+  // Vertical spacing
+  paragraphs.push(new Paragraph({ text: '', spacing: { before: 2880 } })); // 2 inches
+
+  // Company logo (centered, above title block)
+  if (logoBuffer) {
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new ImageRun({
+            data: logoBuffer,
+            transformation: {
+              width: COVER_LOGO_SIZE.width,
+              height: COVER_LOGO_SIZE.height,
+            },
+            type: 'png',
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 480 }, // Space between logo and title
+      })
+    );
+  }
+
+  // Title
+  paragraphs.push(
     new Paragraph({
       children: [
         new TextRun({
@@ -141,9 +155,11 @@ function generateCoverPage(volumeTitle: string, companyProfile: any): Paragraph[
       ],
       alignment: AlignmentType.CENTER,
       spacing: { after: 480 },
-    }),
+    })
+  );
 
-    // Volume identifier
+  // Volume identifier
+  paragraphs.push(
     new Paragraph({
       children: [
         new TextRun({
@@ -155,9 +171,11 @@ function generateCoverPage(volumeTitle: string, companyProfile: any): Paragraph[
       ],
       alignment: AlignmentType.CENTER,
       spacing: { after: 960 },
-    }),
+    })
+  );
 
-    // Company name
+  // Company name
+  paragraphs.push(
     new Paragraph({
       children: [
         new TextRun({
@@ -169,9 +187,11 @@ function generateCoverPage(volumeTitle: string, companyProfile: any): Paragraph[
       ],
       alignment: AlignmentType.CENTER,
       spacing: { after: 240 },
-    }),
+    })
+  );
 
-    // Contact info
+  // Contact info
+  paragraphs.push(
     new Paragraph({
       children: [
         new TextRun({
@@ -182,9 +202,11 @@ function generateCoverPage(volumeTitle: string, companyProfile: any): Paragraph[
       ],
       alignment: AlignmentType.CENTER,
       spacing: { after: 240 },
-    }),
+    })
+  );
 
-    // Date
+  // Date
+  paragraphs.push(
     new Paragraph({
       children: [
         new TextRun({
@@ -198,8 +220,10 @@ function generateCoverPage(volumeTitle: string, companyProfile: any): Paragraph[
         }),
       ],
       alignment: AlignmentType.CENTER,
-    }),
-  ];
+    })
+  );
+
+  return paragraphs;
 }
 
 /**
@@ -221,128 +245,6 @@ async function generateCoverLetterSection(
     .map((vp: any) => vp.statement) || [];
 
   return await generateCoverLetter(document, companyProfile, discriminators);
-}
-
-/**
- * Generate Table of Contents (Part 1.1 - TABLE_OF_CONTENTS)
- * Static generation - professional appearance, no manual updates needed
- */
-function generateTOC(content: any): Paragraph[] {
-  const paragraphs: Paragraph[] = [];
-  
-  paragraphs.push(
-    new Paragraph({
-      text: 'TABLE OF CONTENTS',
-      heading: HeadingLevel.HEADING_1,
-      spacing: { after: 360 },
-    })
-  );
-
-  let currentPage = 3; // Start after cover + cover letter + TOC
-
-  // Extract sections from content
-  if (content && content.sections) {
-    for (const section of content.sections) {
-      // Main section (H1)
-      paragraphs.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: section.title,
-              size: 22,
-              bold: true,
-            }),
-            new TextRun({
-              text: '\t',
-            }),
-            new TextRun({
-              text: currentPage.toString(),
-              size: 22,
-            }),
-          ],
-          spacing: { after: 120 },
-          tabStops: [
-            {
-              type: 'right',
-              position: 9000,
-            },
-          ],
-        })
-      );
-
-      currentPage += Math.max(1, Math.floor((section.content?.length || 10) / 15));
-
-      // Subsections (H2) - if available
-      if (section.subsections && section.subsections.length > 0) {
-        for (const subsection of section.subsections) {
-          paragraphs.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: `  ${subsection.title}`,
-                  size: 20,
-                }),
-                new TextRun({
-                  text: '\t',
-                }),
-                new TextRun({
-                  text: currentPage.toString(),
-                  size: 20,
-                }),
-              ],
-              spacing: { after: 80 },
-              tabStops: [
-                {
-                  type: 'right',
-                  position: 9000,
-                },
-              ],
-            })
-          );
-          currentPage += 1;
-        }
-      }
-    }
-  } else {
-    // Fallback generic sections
-    const genericSections = [
-      'Executive Summary',
-      'Technical Approach',
-      'Management Approach',
-      'Past Performance',
-      'Appendices',
-    ];
-
-    for (let i = 0; i < genericSections.length; i++) {
-      paragraphs.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: genericSections[i],
-              size: 22,
-              bold: true,
-            }),
-            new TextRun({
-              text: '\t',
-            }),
-            new TextRun({
-              text: (currentPage + i * 3).toString(),
-              size: 22,
-            }),
-          ],
-          spacing: { after: 120 },
-          tabStops: [
-            {
-              type: 'right',
-              position: 9000,
-            },
-          ],
-        })
-      );
-    }
-  }
-
-  return paragraphs;
 }
 
 /**
