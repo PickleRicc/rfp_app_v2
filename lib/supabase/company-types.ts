@@ -35,6 +35,9 @@ export interface CompanyProfile {
   sam_status: 'Active' | 'Pending' | 'Expired' | 'Not Registered';
   sam_expiration: string;
 
+  // Branding
+  logo_url?: string;
+
   // Company details
   year_founded: number;
   headquarters_address: Address;

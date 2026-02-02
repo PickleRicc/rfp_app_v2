@@ -19,6 +19,9 @@ export default function EditCompanyProfile() {
     legal_name: '',
     dba_names: [] as string[],
 
+    // Branding
+    logo_url: '',
+
     // Registration
     cage_code: '',
     uei_number: '',
@@ -88,6 +91,7 @@ export default function EditCompanyProfile() {
       if (data.profile) {
         setFormData({
           ...data.profile,
+          logo_url: data.profile.logo_url || '',
           annual_revenue: data.profile.annual_revenue || 0,
           fiscal_year_end: data.profile.fiscal_year_end || '',
           contracts_poc: data.profile.contracts_poc || { name: '', title: '', email: '', phone: '' },
@@ -233,6 +237,33 @@ export default function EditCompanyProfile() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="If different from company name"
               />
+            </div>
+
+            {/* Company Logo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Company Logo URL
+              </label>
+              <input
+                type="url"
+                value={formData.logo_url}
+                onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="https://example.com/logo.png"
+              />
+              <p className="text-xs text-gray-500 mt-1">URL to your company logo (PNG or JPG). Used on proposal cover pages and headers.</p>
+              {formData.logo_url && (
+                <div className="mt-2 p-2 bg-gray-50 rounded-md inline-block">
+                  <img
+                    src={formData.logo_url}
+                    alt="Logo preview"
+                    className="max-h-16 max-w-48 object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             {/* DBA Names */}
