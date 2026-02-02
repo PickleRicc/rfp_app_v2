@@ -103,17 +103,24 @@ export function createProposalHeader(
     })
   );
 
-  // Tab to right position and add solicitation number
-  children.push(
-    new TextRun({
-      text: '\t',
-    }),
-    new TextRun({
-      text: solicitationNumber,
-      font: HEADER_FOOTER_FONT,
-      size: HEADER_FOOTER_SIZE,
-    })
-  );
+  // Only add solicitation number if it's provided and not a placeholder
+  const hasSolicitation = solicitationNumber &&
+    solicitationNumber !== 'TBD' &&
+    solicitationNumber.trim() !== '';
+
+  if (hasSolicitation) {
+    // Tab to right position and add solicitation number
+    children.push(
+      new TextRun({
+        text: '\t',
+      }),
+      new TextRun({
+        text: solicitationNumber,
+        font: HEADER_FOOTER_FONT,
+        size: HEADER_FOOTER_SIZE,
+      })
+    );
+  }
 
   return new Header({
     children: [
