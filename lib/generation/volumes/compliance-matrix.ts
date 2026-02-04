@@ -5,6 +5,7 @@
  */
 
 import { Paragraph, Table, TableRow, TableCell, WidthType, TextRun, HeadingLevel, BorderStyle, AlignmentType, VerticalAlign } from 'docx';
+import { calculateSectionPageNumbers, getSectionPageNumber } from '../planning/page-estimator';
 
 export interface RequirementMapping {
   requirementNumber: string;
@@ -22,7 +23,8 @@ export interface RequirementMapping {
 export function generateComplianceMatrix(
   requirements: any[],
   sectionMappings: any[],
-  volumeType: string
+  volumeType: string,
+  sections?: Array<{ title: string; content: any }> // Optional sections for page estimation
 ): { paragraphs: Paragraph[]; table: Table } {
   const paragraphs: Paragraph[] = [];
 
@@ -48,14 +50,27 @@ export function generateComplianceMatrix(
     })
   );
 
+  // Calculate page numbers if sections provided
+  const pageMap = sections ? calculateSectionPageNumbers(sections) : null;
+
   // Build mapping data
   const mappings: RequirementMapping[] = [];
-  
+
   for (const req of requirements) {
     // Find which sections address this requirement
     const addressingSections = sectionMappings
       .filter((m) => m.requirements.includes(req.id))
       .map((m) => m.sectionName);
+
+    // Get page number for first addressing section
+    let estimatedPage: number | undefined = undefined;
+    if (pageMap && addressingSections.length > 0) {
+      const firstSection = addressingSections[0];
+      const pageNumber = getSectionPageNumber(firstSection, pageMap);
+      if (pageNumber !== null) {
+        estimatedPage = pageNumber;
+      }
+    }
 
     mappings.push({
       requirementNumber: req.requirement_number || req.id,
@@ -63,6 +78,7 @@ export function generateComplianceMatrix(
       sourceSection: req.source_section || '',
       addressedIn: addressingSections,
       volume: volumeType,
+      estimatedPage,
       status: addressingSections.length > 0 ? 'Addressed' : 'Not Addressed',
     });
   }
@@ -137,6 +153,29 @@ export function generateComplianceMatrix(
 }
 
 /**
+ * Format "Addressed In" cell content with page numbers
+ */
+function formatAddressedIn(sections: string[], estimatedPage?: number): string {
+  if (sections.length === 0) {
+    return 'TBD';
+  }
+
+  // Format first section with page number if available
+  const firstSection = sections[0];
+  let result = estimatedPage
+    ? `${firstSection} (pg ${estimatedPage})`
+    : firstSection;
+
+  // Add remaining sections without page numbers
+  if (sections.length > 1) {
+    const remainingSections = sections.slice(1).join('; ');
+    result += `; ${remainingSections}`;
+  }
+
+  return result;
+}
+
+/**
  * Create the compliance matrix table
  */
 function createComplianceTable(mappings: RequirementMapping[]): Table {
@@ -170,9 +209,7 @@ function createComplianceTable(mappings: RequirementMapping[]): Table {
             40
           ),
           createDataCell(
-            mapping.addressedIn.length > 0
-              ? mapping.addressedIn.join('; ')
-              : 'TBD',
+            formatAddressedIn(mapping.addressedIn, mapping.estimatedPage),
             25
           ),
           createStatusCell(mapping.status, 13),
@@ -180,6 +217,35 @@ function createComplianceTable(mappings: RequirementMapping[]): Table {
       })
     );
   }
+
+  // Add note row for page numbers
+  rows.push(
+    new TableRow({
+      children: [
+        new TableCell({
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: 'Note: Page numbers are estimates. Update field codes in Word for final page numbers.',
+                  size: 18,
+                  italics: true,
+                  color: '666666',
+                }),
+              ],
+            }),
+          ],
+          columnSpan: 5,
+          margins: {
+            top: 100,
+            bottom: 100,
+            left: 100,
+            right: 100,
+          },
+        }),
+      ],
+    })
+  );
 
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
