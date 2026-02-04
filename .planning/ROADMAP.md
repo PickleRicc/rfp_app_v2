@@ -49,10 +49,12 @@ Plans:
   5. Every task area includes a Deliverables subsection with structured output descriptions
   6. Every approach section includes a Benefits callout box highlighting value propositions
   7. Compliance matrix shows accurate page numbers (not TBD placeholders)
-**Plans**: TBD
+**Plans**: 3 plans in 2 waves
 
 Plans:
-- TBD
+- [ ] 02-01-PLAN.md — Complete styling system (heading variants, emphasis, lists, tables)
+- [ ] 02-02-PLAN.md — Deliverables subsections and Benefits callout boxes
+- [ ] 02-03-PLAN.md — Compliance matrix page number estimation
 
 ### Phase 3: Exhibit Generation
 **Goal**: Proposals include actual generated diagrams (org charts, process flows, timelines) instead of placeholders
@@ -91,9 +93,10 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Logos & Branding | 3/3 | ✓ Complete | 2026-02-02 |
-| 2. Styles & Content | 0/TBD | Not started | - |
+| 2. Styles & Content | 0/3 | Not started | - |
 | 3. Exhibit Generation | 0/TBD | Not started | - |
 | 4. Pipeline & Output | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-02-02*
+*Phase 2 planned: 2026-02-04*
