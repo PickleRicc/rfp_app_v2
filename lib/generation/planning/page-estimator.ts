@@ -22,6 +22,14 @@ export const PAGE_CONSTANTS = {
   HEADING_PAGE_FRACTION: 0.08, // H1 takes ~8% of page with spacing
   TABLE_PAGE_ESTIMATE: 0.3, // Average table takes 30% of page
   CALLOUT_BOX_PAGE_ESTIMATE: 0.25, // Callout box takes 25% of page
+
+  // Page number calculation constants
+  CHARS_PER_PAGE: 3000, // Approximate characters per page with margins
+  LINES_PER_PAGE: 45,   // Approximate lines per page
+  PARAGRAPHS_PER_PAGE: 3, // Approximate paragraphs per page
+  COVER_PAGES: 1,       // Cover page
+  TOC_PAGES: 2,         // TOC + Table of Exhibits
+  COVER_LETTER_PAGES: 1, // Cover letter
 };
 
 /**
@@ -210,4 +218,98 @@ export function generatePageAllocationSummary(
   lines.push('');
 
   return lines.join('\n');
+}
+
+/**
+ * Estimate number of pages for a section based on content
+ * Used for calculating page numbers in compliance matrix
+ */
+export function estimateSectionPages(
+  sectionContent: string | Paragraph[],
+  hasExhibits: boolean = false
+): number {
+  let pages = 0;
+
+  if (typeof sectionContent === 'string') {
+    // Estimate from character count
+    pages = sectionContent.length / PAGE_CONSTANTS.CHARS_PER_PAGE;
+  } else if (Array.isArray(sectionContent)) {
+    // Estimate from paragraph count
+    pages = sectionContent.length / PAGE_CONSTANTS.PARAGRAPHS_PER_PAGE;
+  }
+
+  // Add extra space for exhibits
+  if (hasExhibits) {
+    pages += 0.5;
+  }
+
+  // Round up to nearest 0.5
+  return Math.ceil(pages * 2) / 2;
+}
+
+/**
+ * Calculate page numbers for all sections based on cumulative content
+ * Returns a map of section title to starting page number
+ */
+export function calculateSectionPageNumbers(
+  sections: Array<{ title: string; content: any; hasExhibits?: boolean }>
+): Map<string, number> {
+  const pageMap = new Map<string, number>();
+
+  // Starting page after front matter
+  let currentPage =
+    PAGE_CONSTANTS.COVER_PAGES +
+    PAGE_CONSTANTS.TOC_PAGES +
+    PAGE_CONSTANTS.COVER_LETTER_PAGES +
+    1;
+
+  for (const section of sections) {
+    // Store the starting page for this section
+    pageMap.set(section.title, currentPage);
+
+    // Calculate pages for this section
+    const sectionPages = estimateSectionPages(
+      section.content,
+      section.hasExhibits || false
+    );
+
+    // Move to next section's starting page
+    currentPage += sectionPages;
+  }
+
+  return pageMap;
+}
+
+/**
+ * Get page number for a section, with fuzzy matching
+ * Returns null if no match found
+ */
+export function getSectionPageNumber(
+  sectionTitle: string,
+  pageMap: Map<string, number>
+): number | null {
+  // Direct match
+  if (pageMap.has(sectionTitle)) {
+    return pageMap.get(sectionTitle)!;
+  }
+
+  // Fuzzy match - normalize both strings and compare
+  const normalizedTitle = sectionTitle.toLowerCase().trim();
+
+  for (const [mapTitle, pageNumber] of pageMap.entries()) {
+    const normalizedMapTitle = mapTitle.toLowerCase().trim();
+
+    // Check if titles match (ignoring case and whitespace)
+    if (normalizedMapTitle === normalizedTitle) {
+      return pageNumber;
+    }
+
+    // Check if section title contains the map title or vice versa
+    if (normalizedTitle.includes(normalizedMapTitle) ||
+        normalizedMapTitle.includes(normalizedTitle)) {
+      return pageNumber;
+    }
+  }
+
+  return null;
 }
