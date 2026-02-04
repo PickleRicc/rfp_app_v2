@@ -123,6 +123,12 @@ export async function generateTechnicalApproach(
       })
     );
 
+    // Benefits callout box (Framework Part 4.2)
+    if (approach.benefit) {
+      const benefitCallout = generateBenefitsCallout('Key Benefit', approach.benefit);
+      paragraphs.push(...benefitCallout);
+    }
+
     // Exhibit reference
     const exhibitNum = exhibits.length + 1;
     paragraphs.push(
@@ -307,6 +313,45 @@ function extractTaskAreas(requirements: any[]): string[] {
   }
 
   return Array.from(areas).slice(0, 10); // Limit to 10 task areas
+}
+
+/**
+ * Generate Benefits callout box (Framework Part 4.2)
+ */
+function generateBenefitsCallout(
+  benefitType: 'Key Benefit' | 'Proven Results' | 'Innovation Spotlight' | 'Risk Mitigation',
+  content: string
+): Paragraph[] {
+  const paragraphs: Paragraph[] = [];
+
+  // Heading paragraph with CalloutBoxHeading style
+  paragraphs.push(
+    new Paragraph({
+      text: benefitType,
+      style: 'CalloutBoxHeading',
+    })
+  );
+
+  // Content paragraph(s) with CalloutBox style
+  // Split content by newlines if present
+  const contentLines = content.split('\n').filter((line) => line.trim().length > 0);
+
+  for (const line of contentLines) {
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: line,
+            size: 20,
+            font: 'Arial',
+          }),
+        ],
+        style: 'CalloutBox',
+      })
+    );
+  }
+
+  return paragraphs;
 }
 
 /**

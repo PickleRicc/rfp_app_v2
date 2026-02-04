@@ -54,9 +54,16 @@ export async function generateManagementApproach(
           font: 'Arial',
         }),
       ],
-      spacing: { after: 360 },
+      spacing: { after: 240 },
     })
   );
+
+  // Benefits callout: Management Philosophy
+  const philosophyBenefit = generateBenefitsCallout(
+    'Key Benefit',
+    'Our management approach ensures seamless coordination, rapid issue resolution, and consistent delivery of high-quality results that exceed customer expectations.'
+  );
+  paragraphs.push(...philosophyBenefit);
 
   // Organizational structure with org chart exhibit
   paragraphs.push(
@@ -97,6 +104,13 @@ export async function generateManagementApproach(
     title: 'Proposed Organizational Chart',
     number: exhibitNum,
   });
+
+  // Benefits callout: Organizational Structure - reference past performance
+  const orgBenefit = generateBenefitsCallout(
+    'Proven Results',
+    `This organizational model has successfully delivered ${companyData.pastPerformance?.length || 'multiple'} federal contracts with consistent on-time, on-budget performance and high customer satisfaction ratings.`
+  );
+  paragraphs.push(...orgBenefit);
 
   // Key personnel section
   paragraphs.push(...generateKeyPersonnelSection(companyData.personnel));
@@ -170,7 +184,53 @@ export async function generateManagementApproach(
     })
   );
 
+  // Benefits callout: Quality Control - risk mitigation
+  const qcBenefit = generateBenefitsCallout(
+    'Risk Mitigation',
+    'Our rigorous quality control processes identify and resolve issues early, reducing risk of defects, schedule delays, and cost overruns.'
+  );
+  paragraphs.push(...qcBenefit);
+
   return { paragraphs, exhibits };
+}
+
+/**
+ * Generate Benefits callout box (Framework Part 4.2)
+ */
+function generateBenefitsCallout(
+  benefitType: 'Key Benefit' | 'Proven Results' | 'Innovation Spotlight' | 'Risk Mitigation',
+  content: string
+): Paragraph[] {
+  const paragraphs: Paragraph[] = [];
+
+  // Heading paragraph with CalloutBoxHeading style
+  paragraphs.push(
+    new Paragraph({
+      text: benefitType,
+      style: 'CalloutBoxHeading',
+    })
+  );
+
+  // Content paragraph(s) with CalloutBox style
+  // Split content by newlines if present
+  const contentLines = content.split('\n').filter((line) => line.trim().length > 0);
+
+  for (const line of contentLines) {
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: line,
+            size: 20,
+            font: 'Arial',
+          }),
+        ],
+        style: 'CalloutBox',
+      })
+    );
+  }
+
+  return paragraphs;
 }
 
 /**
