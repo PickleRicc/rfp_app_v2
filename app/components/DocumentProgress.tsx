@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { AlertTriangle, CheckCircle2, Loader2, PartyPopper } from 'lucide-react';
 
 type DocumentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'generating_proposal' | 'proposal_ready';
 
@@ -76,10 +77,10 @@ export default function DocumentProgress({ documentId, onComplete }: DocumentPro
 
   if (loading && !progress) {
     return (
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-600">Loading progress...</span>
+      <div className="rounded-xl border border-border bg-card p-6">
+        <div className="flex items-center justify-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="text-muted-foreground">Loading progress...</span>
         </div>
       </div>
     );
@@ -87,8 +88,11 @@ export default function DocumentProgress({ documentId, onComplete }: DocumentPro
 
   if (!progress) {
     return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p className="text-yellow-800">⚠️ Progress information temporarily unavailable. Document is still processing.</p>
+      <div className="rounded-xl border border-warning/30 bg-warning/5 p-4">
+        <p className="flex items-center gap-2 text-foreground">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-warning-foreground" />
+          Progress information temporarily unavailable. Document is still processing.
+        </p>
       </div>
     );
   }
@@ -113,21 +117,21 @@ export default function DocumentProgress({ documentId, onComplete }: DocumentPro
     if (!latestLog) return 'Initializing...';
 
     if (latestLog.stage === 'stage-1-rfp-intelligence') {
-      if (latestLog.status === 'completed') return '✅ Requirements extraction complete';
-      if (latestLog.status === 'started') return '🔄 Extracting requirements from RFP...';
+      if (latestLog.status === 'completed') return 'Requirements extraction complete';
+      if (latestLog.status === 'started') return 'Extracting requirements from RFP...';
     }
 
     if (latestLog.stage === 'stage-2-response-generator') {
-      if (latestLog.status === 'completed') return '✅ Proposal generation complete';
-      if (latestLog.status === 'started') return '🔄 Generating proposal volumes...';
+      if (latestLog.status === 'completed') return 'Proposal generation complete';
+      if (latestLog.status === 'started') return 'Generating proposal volumes...';
     }
 
-    return '🔄 Processing...';
+    return 'Processing...';
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h3 className="text-xl font-semibold mb-6">Generation Progress</h3>
+    <div className="rounded-xl border border-border bg-card p-6">
+      <h3 className="text-xl font-semibold text-foreground mb-6">Generation Progress</h3>
 
       {/* Progress Steps */}
       <div className="space-y-4 mb-6">
@@ -171,30 +175,37 @@ export default function DocumentProgress({ documentId, onComplete }: DocumentPro
 
       {/* Completion Actions - Show if volumes generated OR status is proposal_ready */}
       {(progressData.volumesGenerated > 0 || document.status === 'proposal_ready') && progressData.responseId && (
-        <div className="bg-green-50 border-2 border-green-500 rounded-lg p-6">
+        <div className="rounded-xl border-2 border-callout-border bg-callout p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-bold text-green-900 mb-1">🎉 Complete!</p>
-              <p className="text-green-700">
+              <p className="text-2xl font-bold text-foreground mb-1 flex items-center gap-2">
+                <PartyPopper className="h-7 w-7 text-primary" />
+                Complete!
+              </p>
+              <p className="text-muted-foreground">
                 {progressData.volumesGenerated} volumes generated • {progressData.coveragePercent}% requirements coverage
               </p>
             </div>
             <Link
               href={`/proposals/${documentId}`}
-              className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold shadow-lg"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
             >
-              View Proposal →
+              View Proposal
+              <span className="text-lg">→</span>
             </Link>
           </div>
         </div>
       )}
 
       {document.status === 'completed' && document.document_type === 'rfp' && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="rounded-xl border border-callout-border bg-callout p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-semibold text-green-900">Stage 1 Complete</p>
-              <p className="text-green-700 text-sm">{progressData.requirementsExtracted} requirements ready for proposal generation</p>
+              <p className="font-semibold text-foreground flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+                Stage 1 Complete
+              </p>
+              <p className="text-muted-foreground text-sm">{progressData.requirementsExtracted} requirements ready for proposal generation</p>
             </div>
           </div>
         </div>
@@ -204,23 +215,23 @@ export default function DocumentProgress({ documentId, onComplete }: DocumentPro
       {logs.length > 0 && (
         <div className="mt-6">
           <details className="cursor-pointer">
-            <summary className="text-sm font-medium text-gray-700 hover:text-gray-900">
+            <summary className="text-sm font-medium text-muted-foreground hover:text-foreground">
               Recent Activity Log ({logs.length})
             </summary>
             <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
               {logs.slice(0, 10).map((log) => (
-                <div key={log.id} className="text-xs bg-gray-50 rounded p-2">
+                <div key={log.id} className="rounded bg-muted/50 p-2 text-xs">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-900">{log.stage}</span>
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      log.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      log.status === 'started' ? 'bg-blue-100 text-blue-800' :
-                      'bg-gray-100 text-gray-800'
+                    <span className="font-medium text-foreground">{log.stage}</span>
+                    <span className={`rounded px-2 py-1 text-xs ${
+                      log.status === 'completed' ? 'bg-success/10 text-success' :
+                      log.status === 'started' ? 'bg-primary/10 text-primary' :
+                      'bg-muted text-muted-foreground'
                     }`}>
                       {log.status}
                     </span>
                   </div>
-                  <div className="text-gray-500 mt-1">
+                  <div className="mt-1 text-muted-foreground">
                     {new Date(log.created_at).toLocaleTimeString()}
                   </div>
                 </div>
@@ -249,36 +260,33 @@ function ProgressStep({
       {/* Status Icon */}
       <div className="flex-shrink-0 mr-4">
         {status === 'complete' && (
-          <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-            </svg>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
+            <CheckCircle2 className="h-5 w-5 text-primary-foreground" />
           </div>
         )}
         {status === 'active' && (
-          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
+            <Loader2 className="h-5 w-5 animate-spin text-primary-foreground" />
           </div>
         )}
         {status === 'pending' && (
-          <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-full bg-white"></div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+            <div className="h-3 w-3 rounded-full bg-muted-foreground/50" />
           </div>
         )}
       </div>
 
-      {/* Content */}
       <div className="flex-1">
         <h4 className={`font-semibold ${
-          status === 'complete' ? 'text-green-900' :
-          status === 'active' ? 'text-blue-900' :
-          'text-gray-500'
+          status === 'complete' ? 'text-foreground' :
+          status === 'active' ? 'text-foreground' :
+          'text-muted-foreground'
         }`}>
           {title}
         </h4>
-        <p className="text-sm text-gray-600 mt-1">{description}</p>
+        <p className="text-sm text-muted-foreground mt-1">{description}</p>
         {details && (
-          <p className="text-sm font-medium text-blue-600 mt-1">{details}</p>
+          <p className="text-sm font-medium text-primary mt-1">{details}</p>
         )}
       </div>
     </div>

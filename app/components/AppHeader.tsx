@@ -1,57 +1,43 @@
 'use client';
 
 import Link from 'next/link';
+import { FileText } from 'lucide-react';
 import CompanySelector from './CompanySelector';
 
 export default function AppHeader() {
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+    <header className="sticky top-0 z-40 bg-card border-b border-border shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo/Title */}
           <div className="flex items-center gap-8">
             <Link href="/" className="flex items-center gap-2">
-              <span className="text-2xl">📄</span>
+              <FileText className="h-8 w-8 text-primary" />
               <div>
-                <h1 className="text-lg font-bold text-gray-900">RFP Response Tool</h1>
-                <p className="text-xs text-gray-500">Multi-Company Management</p>
+                <h1 className="text-lg font-bold text-foreground">RFP Response Tool</h1>
+                <p className="text-xs text-muted-foreground">Multi-Company Management</p>
               </div>
             </Link>
           </div>
 
-          {/* Company Selector */}
           <div className="flex items-center gap-4">
             <CompanySelector />
           </div>
         </div>
       </div>
 
-      {/* Navigation */}
-      <div className="border-t border-gray-200 bg-gray-50">
+      <div className="border-t border-border bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex gap-6 py-3">
-            <Link
-              href="/"
-              className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-            >
+            <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               Upload RFP
             </Link>
-            <Link
-              href="/documents"
-              className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-            >
+            <Link href="/documents" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               Documents
             </Link>
-            <Link
-              href="/company"
-              className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-            >
+            <Link href="/company" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               Company Data
             </Link>
-            <Link
-              href="/companies"
-              className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-            >
+            <Link href="/companies" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               All Companies
             </Link>
           </nav>

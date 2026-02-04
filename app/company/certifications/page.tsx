@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { ScrollText, Building2, Car } from 'lucide-react';
 import { useCompany } from '@/lib/context/CompanyContext';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 
@@ -352,7 +353,9 @@ function CertificationsTab({ certifications, onDelete, onRefresh }: any) {
 
       {certifications.length === 0 ? (
         <div className="bg-white shadow-md rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">📜</div>
+          <div className="mb-4 flex justify-center">
+            <ScrollText className="h-16 w-16 text-primary" />
+          </div>
           <h2 className="text-2xl font-bold mb-2">No Certifications Yet</h2>
           <p className="text-gray-600 mb-4">
             Add your small business certifications and set-asides to qualify for specific opportunities.
@@ -519,7 +522,9 @@ function NaicsTab({ naicsCodes, onDelete, onRefresh }: any) {
 
       {naicsCodes.length === 0 ? (
         <div className="bg-white shadow-md rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">🏢</div>
+          <div className="mb-4 flex justify-center">
+            <Building2 className="h-16 w-16 text-primary" />
+          </div>
           <h2 className="text-2xl font-bold mb-2">No NAICS Codes Yet</h2>
           <p className="text-gray-600 mb-4">
             Add the NAICS codes your company is registered for in SAM.gov
@@ -708,7 +713,9 @@ function VehiclesTab({ vehicles, onDelete, onRefresh }: any) {
 
       {vehicles.length === 0 ? (
         <div className="bg-white shadow-md rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">🚗</div>
+          <div className="mb-4 flex justify-center">
+            <Car className="h-16 w-16 text-primary" />
+          </div>
           <h2 className="text-2xl font-bold mb-2">No Contract Vehicles Yet</h2>
           <p className="text-gray-600 mb-4">
             Add contract vehicles your company holds (GWACs, IDIQs, GSA Schedules, etc.)

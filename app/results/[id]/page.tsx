@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { PartyPopper, FileText, Rocket } from 'lucide-react';
 import DocumentProgress from '@/app/components/DocumentProgress';
 
 type DocumentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'generating_proposal' | 'proposal_ready';
@@ -122,112 +123,122 @@ export default function ResultsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen p-8 max-w-6xl mx-auto">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading results...</p>
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <div className="h-12 w-12 animate-spin rounded-full border-2 border-primary border-t-transparent mx-auto mb-4" />
+              <p className="text-muted-foreground">Loading results...</p>
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     );
   }
 
   if (error || !document) {
     return (
-      <main className="min-h-screen p-8 max-w-6xl mx-auto">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-red-900 mb-2">Error</h2>
-          <p className="text-red-700">{error || 'Document not found'}</p>
-        </div>
-      </main>
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-6">
+            <h2 className="text-xl font-semibold text-foreground mb-2">Error</h2>
+            <p className="text-destructive">{error || "Document not found"}</p>
+          </div>
+        </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen p-8 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <a href="/" className="text-blue-600 hover:underline mb-4 inline-block">
-          ← Back to Upload
-        </a>
-        <h1 className="text-4xl font-bold mb-2">Document Analysis</h1>
-        <p className="text-gray-600">{document.filename}</p>
-      </div>
-
-      {/* Document Info Card */}
-      <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Status</p>
-            <StatusBadge status={document.status} />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Document Type</p>
-            <TypeBadge type={document.document_type} />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Uploaded</p>
-            <p className="font-medium">{new Date(document.created_at).toLocaleDateString()}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Sections Analyzed</p>
-            <p className="font-medium">{sections.length} / 8</p>
-          </div>
+    <div className="min-h-screen bg-background">
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <a href="/" className="text-primary hover:underline mb-4 inline-block">
+            ← Back to Upload
+          </a>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl mb-2">
+            Document Analysis
+          </h1>
+          <p className="text-muted-foreground">{document.filename}</p>
         </div>
-      </div>
 
-      {/* View Proposal Button if it exists */}
-      {hasProposal && (
-        <div className="bg-green-50 border-2 border-green-500 rounded-lg p-6 mb-6">
-          <div className="flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-card p-6 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <h3 className="text-2xl font-bold text-green-900 mb-2">🎉 Proposal Ready!</h3>
-              <p className="text-green-700">
-                Your proposal has been generated successfully. Click to view and download.
-              </p>
+              <p className="text-sm text-muted-foreground mb-1">Status</p>
+              <StatusBadge status={document.status} />
             </div>
-            <a
-              href={`/proposals/${documentId}`}
-              className="bg-green-600 text-white px-8 py-4 rounded-lg hover:bg-green-700 font-semibold text-lg shadow-lg"
-            >
-              📄 View Proposal
-            </a>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Document Type</p>
+              <TypeBadge type={document.document_type} />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Uploaded</p>
+              <p className="font-medium text-foreground">{new Date(document.created_at).toLocaleDateString()}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Sections Analyzed</p>
+              <p className="font-medium text-foreground">{sections.length} / 8</p>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Generate Proposal Button */}
-      {!hasProposal && document.status === 'completed' && document.document_type === 'rfp' && sections.length > 0 && (
-        <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Ready to Generate Proposal</h3>
-              <p className="text-gray-700 mb-1">
-                RFP analysis complete with {sections.length} sections extracted.
-              </p>
-              <p className="text-sm text-gray-600">
+        {hasProposal && (
+          <div className="rounded-xl border-2 border-callout-border bg-callout p-6 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-foreground mb-2 flex items-center gap-2">
+                  <PartyPopper className="h-7 w-7 text-primary" />
+                  Proposal Ready!
+                </h3>
+                <p className="text-muted-foreground">
+                  Your proposal has been generated successfully. Click to view and download.
+                </p>
+              </div>
+              <a
+                href={`/proposals/${documentId}`}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-4 font-semibold text-lg text-primary-foreground shadow-md hover:bg-primary/90"
+              >
+                <FileText className="h-5 w-5" />
+                View Proposal
+              </a>
+            </div>
+          </div>
+        )}
+
+        {!hasProposal && document.status === "completed" && document.document_type === "rfp" && sections.length > 0 && (
+          <div className="rounded-xl border border-callout-border bg-callout p-6 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">Ready to Generate Proposal</h3>
+                <p className="text-muted-foreground mb-1">
+                  RFP analysis complete with {sections.length} sections extracted.
+                </p>
+                <p className="text-sm text-muted-foreground">
                 Click below to generate a complete proposal response using your company data.
               </p>
             </div>
             <button
               onClick={handleGenerateProposal}
               disabled={generatingProposal}
-              className="bg-green-600 text-white px-8 py-4 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold text-lg shadow-lg hover:shadow-xl transition-all"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-4 font-semibold text-lg text-primary-foreground shadow-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {generatingProposal ? (
-                <span className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <>
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
                   Generating...
-                </span>
+                </>
               ) : (
-                '🚀 Generate Proposal'
+                <>
+                  <Rocket className="h-5 w-5" />
+                  Generate Proposal
+                </>
               )}
             </button>
           </div>
           {proposalError && (
-            <div className="mt-4 bg-red-50 border border-red-200 rounded p-3">
-              <p className="text-red-800 text-sm">{proposalError}</p>
+            <div className="mt-4 rounded border border-destructive/30 bg-destructive/10 p-3">
+              <p className="text-destructive text-sm">{proposalError}</p>
             </div>
           )}
         </div>
@@ -242,19 +253,18 @@ export default function ResultsPage() {
       )}
 
       {/* Failed Status */}
-      {document.status === 'failed' && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
-          <h3 className="font-semibold text-red-900 mb-2">Processing Failed</h3>
-          <p className="text-red-700">
+      {document.status === "failed" && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-6 mb-6">
+          <h3 className="font-semibold text-foreground mb-2">Processing Failed</h3>
+          <p className="text-destructive">
             There was an error processing this document. Please try uploading again.
           </p>
         </div>
       )}
 
-      {/* Section Results */}
-      {document.status === 'completed' && sections.length > 0 && (
+      {document.status === "completed" && sections.length > 0 && (
         <div className="space-y-6">
-          <h2 className="text-2xl font-bold">Extracted Intelligence</h2>
+          <h2 className="text-2xl font-bold text-foreground">Extracted Intelligence</h2>
 
           {sections
             .sort((a, b) => a.section_number - b.section_number)
@@ -264,26 +274,26 @@ export default function ResultsPage() {
         </div>
       )}
 
-      {/* No results yet */}
-      {document.status === 'completed' && sections.length === 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <p className="text-yellow-800">
+      {document.status === "completed" && sections.length === 0 && (
+        <div className="rounded-xl border border-warning/30 bg-warning/5 p-6">
+          <p className="text-foreground">
             No sections were analyzed. This might not be an RFP document.
           </p>
         </div>
       )}
-    </main>
+      </main>
+    </div>
   );
 }
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
   const styles = {
-    pending: 'bg-gray-100 text-gray-800',
-    processing: 'bg-blue-100 text-blue-800',
-    completed: 'bg-green-100 text-green-800',
-    failed: 'bg-red-100 text-red-800',
-    generating_proposal: 'bg-yellow-100 text-yellow-800',
-    proposal_ready: 'bg-green-100 text-green-800',
+    pending: "bg-muted text-muted-foreground",
+    processing: "bg-primary/10 text-primary",
+    completed: "bg-success/10 text-success",
+    failed: "bg-destructive/10 text-destructive",
+    generating_proposal: "bg-warning/10 text-warning-foreground",
+    proposal_ready: "bg-success/10 text-success",
   };
 
   const labels = {
@@ -304,11 +314,11 @@ function StatusBadge({ status }: { status: DocumentStatus }) {
 
 function TypeBadge({ type }: { type: DocumentType | null }) {
   const styles = {
-    rfp: 'bg-purple-100 text-purple-800',
-    proposal: 'bg-blue-100 text-blue-800',
-    contract: 'bg-green-100 text-green-800',
-    other: 'bg-gray-100 text-gray-800',
-    unknown: 'bg-gray-100 text-gray-800',
+    rfp: "bg-primary/10 text-primary",
+    proposal: "bg-primary/10 text-primary",
+    contract: "bg-success/10 text-success",
+    other: "bg-muted text-muted-foreground",
+    unknown: "bg-muted text-muted-foreground",
   };
 
   // Handle null or undefined type
@@ -327,61 +337,53 @@ function SectionCard({ section }: { section: SectionResult }) {
 
   if (!content.found) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-        <h3 className="text-xl font-semibold text-gray-700 mb-2">
+      <div className="rounded-xl border border-border bg-muted/30 p-6">
+        <h3 className="text-xl font-semibold text-foreground mb-2">
           {section.section_number}. {section.section_name}
         </h3>
-        <p className="text-gray-500 italic">Section not found in document</p>
+        <p className="text-muted-foreground italic">Section not found in document</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-6">
-      <h3 className="text-xl font-semibold text-gray-900 mb-4">
+    <div className="rounded-xl border border-border bg-card p-6">
+      <h3 className="text-xl font-semibold text-foreground mb-4">
         {section.section_number}. {section.section_name}
       </h3>
 
-      {/* Summary */}
       <div className="mb-4">
-        <h4 className="font-medium text-gray-700 mb-2">Summary</h4>
-        <p className="text-gray-600 leading-relaxed">{content.summary}</p>
+        <h4 className="font-medium text-foreground mb-2">Summary</h4>
+        <p className="text-muted-foreground leading-relaxed">{content.summary}</p>
       </div>
 
-      {/* Key Points */}
       {content.key_points && content.key_points.length > 0 && (
         <div className="mb-4">
-          <h4 className="font-medium text-gray-700 mb-2">Key Points</h4>
-          <ul className="list-disc list-inside space-y-1">
+          <h4 className="font-medium text-foreground mb-2">Key Points</h4>
+          <ul className="list-disc list-inside space-y-1 text-muted-foreground">
             {content.key_points.map((point, idx) => (
-              <li key={idx} className="text-gray-600">
-                {point}
-              </li>
+              <li key={idx}>{point}</li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* Critical Info */}
       {content.critical_info && content.critical_info.length > 0 && (
         <div className="mb-4">
-          <h4 className="font-medium text-gray-700 mb-2">Critical Information</h4>
-          <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-            <ul className="list-disc list-inside space-y-1">
+          <h4 className="font-medium text-foreground mb-2">Critical Information</h4>
+          <div className="rounded border border-warning/30 bg-warning/5 p-3">
+            <ul className="list-disc list-inside space-y-1 text-foreground">
               {content.critical_info.map((info, idx) => (
-                <li key={idx} className="text-yellow-900">
-                  {info}
-                </li>
+                <li key={idx}>{info}</li>
               ))}
             </ul>
           </div>
         </div>
       )}
 
-      {/* Notes */}
       {content.notes && (
-        <div className="bg-blue-50 border border-blue-200 rounded p-3">
-          <p className="text-sm text-blue-800">
+        <div className="rounded border border-primary/20 bg-primary/5 p-3">
+          <p className="text-sm text-foreground">
             <span className="font-medium">Note:</span> {content.notes}
           </p>
         </div>

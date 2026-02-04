@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Briefcase, Wrench, BarChart3 } from 'lucide-react';
 import { useCompany } from '@/lib/context/CompanyContext';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 
@@ -381,7 +382,9 @@ function ServicesTab({ services, onDelete, onRefresh }: any) {
 
       {services.length === 0 ? (
         <div className="bg-white shadow-md rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">💼</div>
+          <div className="mb-4 flex justify-center">
+            <Briefcase className="h-16 w-16 text-primary" />
+          </div>
           <h2 className="text-2xl font-bold mb-2">No Service Areas Yet</h2>
           <p className="text-gray-600 mb-4">
             Add the primary services and capabilities your company provides
@@ -603,7 +606,9 @@ function ToolsTab({ tools, onDelete, onRefresh }: any) {
 
       {tools.length === 0 ? (
         <div className="bg-white shadow-md rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">🛠️</div>
+          <div className="mb-4 flex justify-center">
+            <Wrench className="h-16 w-16 text-primary" />
+          </div>
           <h2 className="text-2xl font-bold mb-2">No Tools/Technologies Yet</h2>
           <p className="text-gray-600 mb-4">
             Add the tools and technologies your company has expertise in
@@ -790,7 +795,9 @@ function MethodologiesTab({ methodologies, onDelete, onRefresh }: any) {
 
       {methodologies.length === 0 ? (
         <div className="bg-white shadow-md rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">📊</div>
+          <div className="mb-4 flex justify-center">
+            <BarChart3 className="h-16 w-16 text-primary" />
+          </div>
           <h2 className="text-2xl font-bold mb-2">No Methodologies/Frameworks Yet</h2>
           <p className="text-gray-600 mb-4">
             Add the methodologies and frameworks your company implements

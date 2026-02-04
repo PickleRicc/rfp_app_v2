@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { BarChart3 } from 'lucide-react';
 
 interface PastPerformance {
   id: string;
@@ -79,7 +80,9 @@ export default function PastPerformanceList() {
 
       {contracts.length === 0 ? (
         <div className="bg-white shadow-md rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">📊</div>
+          <div className="mb-4 flex justify-center">
+            <BarChart3 className="h-16 w-16 text-primary" />
+          </div>
           <h2 className="text-2xl font-bold mb-4">No Past Performance Yet</h2>
           <p className="text-gray-600 mb-6">
             Add at least 3 past performance contracts to generate competitive proposals.

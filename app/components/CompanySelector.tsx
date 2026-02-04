@@ -1,5 +1,6 @@
 'use client';
 
+import { Building2, AlertTriangle } from 'lucide-react';
 import { useCompany } from '@/lib/context/CompanyContext';
 import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
@@ -67,7 +68,7 @@ export default function CompanySelector() {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-3 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:border-blue-500 transition-colors min-w-[280px]"
       >
-        <span className="text-xl">🏢</span>
+        <Building2 className="h-5 w-5 text-primary" />
         <div className="flex-1 text-left">
           {selectedCompany ? (
             <>
@@ -142,8 +143,9 @@ export default function CompanySelector() {
                     )}
                   </div>
                   {company.completeness_score < 70 && (
-                    <div className="mt-1 text-xs text-yellow-600">
-                      ⚠ {company.completeness_score}% complete
+                    <div className="mt-1 flex items-center gap-1 text-xs text-warning-foreground">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      {company.completeness_score}% complete
                     </div>
                   )}
                 </button>

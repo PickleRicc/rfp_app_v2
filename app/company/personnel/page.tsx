@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Users, Mail, MapPin } from 'lucide-react';
 import { useCompany } from '@/lib/context/CompanyContext';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 
@@ -144,7 +145,9 @@ export default function PersonnelList() {
 
       {personnel.length === 0 ? (
         <div className="bg-white shadow-md rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">👥</div>
+          <div className="mb-4 flex justify-center">
+            <Users className="h-16 w-16 text-primary" />
+          </div>
           <h2 className="text-2xl font-bold mb-4">No Personnel Yet</h2>
           <p className="text-gray-600 mb-6">
             Add key personnel to include in your proposals. Most RFPs require detailed information
@@ -207,9 +210,15 @@ export default function PersonnelList() {
                     </div>
                   </div>
 
-                  <div className="flex gap-4 text-sm text-gray-600">
-                    <span>📧 {person.email}</span>
-                    <span>📍 {person.availability}</span>
+                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Mail className="h-4 w-4 shrink-0" />
+                      {person.email}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4 shrink-0" />
+                      {person.availability}
+                    </span>
                   </div>
                 </div>
 

@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { BookOpen, CheckCircle2, ListChecks, Target, PartyPopper, BarChart2, Download, FileText, type LucideIcon } from 'lucide-react';
 
 interface ProposalData {
   document: {
@@ -63,28 +64,28 @@ export default function ProposalPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-6xl mx-auto">
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
-        </div>
+        </main>
       </div>
     );
   }
 
   if (error || !proposal) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-red-900 mb-2">Error</h2>
-            <p className="text-red-700">{error || 'Proposal not found'}</p>
-            <Link href="/documents" className="text-blue-600 hover:underline mt-4 inline-block">
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-6">
+            <h2 className="text-xl font-semibold text-foreground mb-2">Error</h2>
+            <p className="text-destructive">{error || "Proposal not found"}</p>
+            <Link href="/documents" className="text-primary hover:underline mt-4 inline-block">
               ← Back to Documents
             </Link>
           </div>
-        </div>
+        </main>
       </div>
     );
   }
@@ -97,126 +98,130 @@ export default function ProposalPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
+    <div className="min-h-screen bg-background">
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <Link href="/documents" className="text-blue-600 hover:underline mb-4 inline-block">
+          <Link href="/documents" className="text-primary hover:underline mb-4 inline-block">
             ← Back to Documents
           </Link>
-          <h1 className="text-4xl font-bold mb-2">Proposal Response</h1>
-          <p className="text-gray-600">{proposal.document.filename}</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl mb-2">
+            Proposal Response
+          </h1>
+          <p className="text-muted-foreground">{proposal.document.filename}</p>
         </div>
 
-        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <SummaryCard
             label="Volumes Generated"
             value={proposal.volumes.length}
-            icon="📚"
-            color="blue"
+            icon={BookOpen}
+            variant="primary"
           />
           <SummaryCard
             label="Requirements Coverage"
             value={`${proposal.response.requirements_coverage_percent}%`}
-            icon="✅"
-            color="green"
+            icon={CheckCircle2}
+            variant="success"
           />
           <SummaryCard
             label="Total Requirements"
             value={proposal.requirements.total}
-            icon="📋"
-            color="purple"
+            icon={ListChecks}
+            variant="default"
           />
           <SummaryCard
             label="Status"
-            value={proposal.response.status === 'completed' ? 'Ready' : proposal.response.status}
-            icon="🎯"
-            color="yellow"
+            value={proposal.response.status === "completed" ? "Ready" : proposal.response.status}
+            icon={Target}
+            variant="warning"
           />
         </div>
 
-        {/* Completion Banner */}
-        <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-500 rounded-lg p-8 mb-8">
+        <div className="rounded-xl border-2 border-callout-border bg-callout p-8 mb-8">
           <div className="text-center">
-            <div className="text-6xl mb-4">🎉</div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">Proposal Complete!</h2>
-            <p className="text-gray-700 text-lg mb-6">
-              Your proposal has been generated with {proposal.volumes.length} volumes and {proposal.requirements.total} requirements addressed.
+            <div className="mb-4 flex justify-center">
+              <PartyPopper className="h-16 w-16 text-primary" />
+            </div>
+            <h2 className="text-3xl font-bold text-foreground mb-3">Proposal Complete!</h2>
+            <p className="text-muted-foreground text-lg mb-6">
+              Your proposal has been generated with {proposal.volumes.length} volumes and{" "}
+              {proposal.requirements.total} requirements addressed.
             </p>
             <div className="flex gap-4 justify-center flex-wrap">
               {proposal.response.compliance_matrix_url && (
                 <a
                   href={`/api/proposals/${documentId}/compliance?download=true`}
                   download
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold shadow-lg"
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
                 >
-                  📊 Download Compliance Matrix
+                  <BarChart2 className="h-5 w-5" />
+                  Download Compliance Matrix
                 </a>
               )}
               <a
                 href={`/api/proposals/${documentId}/download`}
-                className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-semibold shadow-lg"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
               >
-                ⬇️ Download All Volumes
+                <Download className="h-5 w-5" />
+                Download All Volumes
               </a>
             </div>
           </div>
         </div>
 
-        {/* Volumes List */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden mb-8">
-          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-            <h3 className="text-xl font-semibold">Proposal Volumes</h3>
+        <div className="overflow-hidden rounded-xl border border-border bg-card mb-8">
+          <div className="border-b border-border bg-muted/50 px-6 py-4">
+            <h3 className="text-xl font-semibold text-foreground">Proposal Volumes</h3>
           </div>
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-border">
             {proposal.volumes
               .sort((a, b) => a.volume_number - b.volume_number)
               .map((volume) => (
-                <div key={volume.id} className="px-6 py-4 hover:bg-gray-50">
+                <div key={volume.id} className="px-6 py-4 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="text-3xl mr-4">📄</div>
+                      <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                        <FileText className="h-6 w-6 text-primary" />
+                      </div>
                       <div>
-                        <h4 className="text-lg font-semibold text-gray-900">
-                          Volume {volume.volume_number}: {volumeTypeLabels[volume.volume_type] || volume.volume_type}
+                        <h4 className="text-lg font-semibold text-foreground">
+                          Volume {volume.volume_number}:{" "}
+                          {volumeTypeLabels[volume.volume_type] || volume.volume_type}
                         </h4>
-                        <p className="text-sm text-gray-500">
-                          {volume.page_count > 0 ? `${volume.page_count} pages` : 'Generated'} • 
+                        <p className="text-sm text-muted-foreground">
+                          {volume.page_count > 0 ? `${volume.page_count} pages` : "Generated"} •
                           Created {new Date(volume.created_at).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <a
-                        href={`/api/proposals/${documentId}/volumes?type=${volume.volume_type}`}
-                        download
-                        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-medium text-sm"
-                      >
-                        Download DOCX
-                      </a>
-                    </div>
+                    <a
+                      href={`/api/proposals/${documentId}/volumes?type=${volume.volume_type}`}
+                      download
+                      className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                    >
+                      Download DOCX
+                    </a>
                   </div>
                 </div>
               ))}
           </div>
         </div>
 
-        {/* Requirements Breakdown */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-xl font-semibold mb-4">Requirements Breakdown</h3>
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h3 className="text-xl font-semibold text-foreground mb-4">Requirements Breakdown</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {Object.entries(proposal.requirements.bycategory).map(([category, count]) => (
-              <div key={category} className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600 uppercase tracking-wide mb-1">{category}</p>
-                <p className="text-2xl font-bold text-gray-900">{count}</p>
+              <div key={category} className="rounded-lg border border-border bg-muted/30 p-4">
+                <p className="text-sm text-muted-foreground uppercase tracking-wide mb-1">
+                  {category}
+                </p>
+                <p className="text-2xl font-bold text-foreground">{count}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Metadata */}
-        <div className="mt-6 text-center text-sm text-gray-500">
+        <div className="mt-6 text-center text-sm text-muted-foreground">
           <p>
             Proposal generated on {new Date(proposal.response.created_at).toLocaleString()}
             {proposal.response.completed_at && (
@@ -224,7 +229,7 @@ export default function ProposalPage() {
             )}
           </p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
@@ -232,28 +237,28 @@ export default function ProposalPage() {
 function SummaryCard({
   label,
   value,
-  icon,
-  color,
+  icon: Icon,
+  variant,
 }: {
   label: string;
   value: string | number;
-  icon: string;
-  color: string;
+  icon: LucideIcon;
+  variant: "default" | "primary" | "success" | "warning";
 }) {
-  const colors = {
-    blue: 'bg-blue-50 border-blue-200',
-    green: 'bg-green-50 border-green-200',
-    purple: 'bg-purple-50 border-purple-200',
-    yellow: 'bg-yellow-50 border-yellow-200',
+  const styles = {
+    default: "border-border bg-card",
+    primary: "border-primary/20 bg-primary/5",
+    success: "border-callout-border bg-callout",
+    warning: "border-warning/20 bg-warning/5",
   };
 
   return (
-    <div className={`border rounded-lg p-4 ${colors[color as keyof typeof colors]}`}>
-      <div className="flex items-center mb-2">
-        <span className="text-2xl mr-2">{icon}</span>
-        <p className="text-sm text-gray-600 font-medium">{label}</p>
+    <div className={`rounded-xl border p-4 ${styles[variant]}`}>
+      <div className="flex items-center mb-2 gap-2">
+        <Icon className="h-5 w-5 text-primary" />
+        <p className="text-sm text-muted-foreground font-medium">{label}</p>
       </div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
+      <p className="text-2xl font-bold text-foreground">{value}</p>
     </div>
   );
 }

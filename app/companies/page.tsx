@@ -1,187 +1,131 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useCompany } from '@/lib/context/CompanyContext';
-
-interface CompanyListItem {
-  id: string;
-  company_name: string;
-  cage_code: string;
-  uei_number: string;
-  completeness_score: number;
-  elevator_pitch: string;
-}
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCompany } from "@/lib/context/CompanyContext";
+import { Button } from "@/app/components/ui/button";
+import { Badge } from "@/app/components/ui/badge";
+import { Input } from "@/app/components/ui/input";
+import { Building2, ChevronRight, Plus, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function CompaniesListPage() {
   const router = useRouter();
-  const { companies, selectCompany, selectedCompanyId, refreshCompanies } = useCompany();
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { companies, selectCompany, selectedCompanyId } = useCompany();
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredCompanies = companies.filter((company) =>
-    company.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    company.cage_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    company.uei_number.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredCompanies = companies.filter(
+    (company) =>
+      company.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      company.cage_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      company.uei_number.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleSelectAndView = (companyId: string) => {
     selectCompany(companyId);
-    router.push('/company');
+    router.push("/company");
   };
 
   return (
-    <main className="min-h-screen p-8 max-w-7xl mx-auto pt-4">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
+    <div className="min-h-screen bg-background">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-4xl font-bold mb-2">All Companies</h1>
-            <p className="text-gray-600">Manage all contractor companies in your system</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              All Companies
+            </h1>
+            <p className="mt-1 text-muted-foreground">
+              Manage and switch between your registered companies
+            </p>
           </div>
-          <button
-            onClick={() => router.push('/company/profile/new')}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-          >
-            + Add New Company
-          </button>
+          <Button className="gap-2" onClick={() => router.push("/company/profile/new")}>
+            <Plus className="h-4 w-4" />
+            Add Company
+          </Button>
         </div>
 
-        {/* Search */}
-        <div className="max-w-md">
-          <input
-            type="text"
-            placeholder="Search companies by name, CAGE, or UEI..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white shadow-md rounded-lg p-6">
-          <div className="text-sm text-gray-600 mb-1">Total Companies</div>
-          <div className="text-3xl font-bold text-gray-900">{companies.length}</div>
-        </div>
-        <div className="bg-white shadow-md rounded-lg p-6">
-          <div className="text-sm text-gray-600 mb-1">Fully Complete (90%+)</div>
-          <div className="text-3xl font-bold text-green-600">
-            {companies.filter(c => c.completeness_score >= 90).length}
+        <div className="mb-6">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search companies by name, CAGE, or UEI..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
           </div>
         </div>
-        <div className="bg-white shadow-md rounded-lg p-6">
-          <div className="text-sm text-gray-600 mb-1">Needs Attention (&lt;70%)</div>
-          <div className="text-3xl font-bold text-yellow-600">
-            {companies.filter(c => c.completeness_score < 70).length}
+
+        {filteredCompanies.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card p-12 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-muted">
+              <Building2 className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              {companies.length === 0 ? "No Companies Yet" : "No Matching Companies"}
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              {companies.length === 0
+                ? "Get started by creating your first company profile"
+                : "Try adjusting your search criteria"}
+            </p>
+            {companies.length === 0 && (
+              <Button onClick={() => router.push("/company/profile/new")} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Create First Company
+              </Button>
+            )}
           </div>
-        </div>
-      </div>
-
-      {/* Companies List */}
-      {filteredCompanies.length === 0 ? (
-        <div className="bg-white shadow-md rounded-lg p-12 text-center">
-          <div className="text-6xl mb-4">🏢</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {companies.length === 0 ? 'No Companies Yet' : 'No Matching Companies'}
-          </h2>
-          <p className="text-gray-600 mb-6">
-            {companies.length === 0
-              ? 'Get started by creating your first company profile'
-              : 'Try adjusting your search criteria'}
-          </p>
-          {companies.length === 0 && (
-            <button
-              onClick={() => router.push('/company/profile/new')}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-            >
-              Create First Company
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {filteredCompanies.map((company) => (
-            <div
-              key={company.id}
-              className={`bg-white shadow-md rounded-lg p-6 hover:shadow-lg transition-shadow ${
-                selectedCompanyId === company.id ? 'ring-2 ring-blue-500' : ''
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xl font-bold text-gray-900">
-                      {company.company_name}
-                    </h3>
-                    {selectedCompanyId === company.id && (
-                      <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-                        Currently Selected
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                    <span>CAGE: {company.cage_code}</span>
-                    <span>•</span>
-                    <span>UEI: {company.uei_number}</span>
-                  </div>
-                  <p className="text-gray-700 text-sm mb-4 line-clamp-2">
-                    {company.elevator_pitch}
-                  </p>
-
-                  {/* Completeness Bar */}
-                  <div>
-                    <div className="flex justify-between text-xs text-gray-600 mb-1">
-                      <span>Profile Completeness</span>
-                      <span>{company.completeness_score}%</span>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredCompanies.map((company) => (
+              <div
+                key={company.id}
+                className={cn(
+                  "group overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary/50 hover:shadow-md cursor-pointer",
+                  selectedCompanyId === company.id && "ring-2 ring-primary/30"
+                )}
+                onClick={() => handleSelectAndView(company.id)}
+              >
+                <div className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                      <Building2 className="h-6 w-6 text-primary" />
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${
-                          company.completeness_score >= 90
-                            ? 'bg-green-600'
-                            : company.completeness_score >= 70
-                            ? 'bg-blue-600'
-                            : company.completeness_score >= 40
-                            ? 'bg-yellow-600'
-                            : 'bg-red-600'
-                        }`}
-                        style={{ width: `${company.completeness_score}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="ml-6 flex flex-col gap-2">
-                  {selectedCompanyId !== company.id && (
-                    <button
-                      onClick={() => selectCompany(company.id)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium whitespace-nowrap"
+                    <Badge
+                      variant={company.completeness_score >= 70 ? "default" : "secondary"}
                     >
-                      Select Company
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleSelectAndView(company.id)}
-                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium whitespace-nowrap"
-                  >
-                    View/Edit Data
-                  </button>
+                      {company.completeness_score >= 90
+                        ? "Complete"
+                        : company.completeness_score >= 70
+                        ? "Good"
+                        : "Setup"}
+                    </Badge>
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold text-foreground">
+                    {company.company_name}
+                  </h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    CAGE: {company.cage_code}
+                  </p>
+                  <div className="mt-4 flex items-center gap-4 border-t border-border pt-4">
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <span>{company.completeness_score}% complete</span>
+                    </div>
+                    <ChevronRight className="ml-auto h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-1" />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {/* Results Count */}
-      {searchQuery && (
-        <div className="mt-4 text-center text-sm text-gray-600">
-          Showing {filteredCompanies.length} of {companies.length} companies
-        </div>
-      )}
-    </main>
+        {searchQuery && filteredCompanies.length > 0 && (
+          <div className="mt-4 text-center text-sm text-muted-foreground">
+            Showing {filteredCompanies.length} of {companies.length} companies
+          </div>
+        )}
+      </main>
+    </div>
   );
 }

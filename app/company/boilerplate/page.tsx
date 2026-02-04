@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { FileText } from 'lucide-react';
 import { useCompany } from '@/lib/context/CompanyContext';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 
@@ -262,7 +263,9 @@ export default function BoilerplatePage() {
       {/* Boilerplate List */}
       {boilerplate.length === 0 ? (
         <div className="bg-white shadow-md rounded-lg p-8 text-center">
-          <div className="text-6xl mb-4">📝</div>
+          <div className="mb-4 flex justify-center">
+            <FileText className="h-16 w-16 text-primary" />
+          </div>
           <h2 className="text-2xl font-bold mb-4">No Boilerplate Yet</h2>
           <p className="text-gray-600 mb-6">
             Add reusable text blocks for common proposal sections like company introductions,
