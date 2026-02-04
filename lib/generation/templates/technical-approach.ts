@@ -182,6 +182,12 @@ export async function generateTechnicalApproach(
         })
       );
     }
+
+    // Deliverables subsection (Framework Part 5.2)
+    if (relevantReqs.length > 0) {
+      const deliverablesParagraphs = await generateDeliverablesSubsection(taskArea, relevantReqs, companyData);
+      paragraphs.push(...deliverablesParagraphs);
+    }
   }
 
   return { paragraphs, exhibits };
@@ -301,6 +307,148 @@ function extractTaskAreas(requirements: any[]): string[] {
   }
 
   return Array.from(areas).slice(0, 10); // Limit to 10 task areas
+}
+
+/**
+ * Generate Deliverables subsection for a task area (Framework Part 5.2)
+ */
+async function generateDeliverablesSubsection(
+  taskArea: string,
+  requirements: any[],
+  companyData: any
+): Promise<Paragraph[]> {
+  const paragraphs: Paragraph[] = [];
+
+  // H3 heading: Deliverables
+  paragraphs.push(
+    new Paragraph({
+      text: 'Deliverables',
+      heading: HeadingLevel.HEADING_3,
+      numbering: getHeadingNumbering(3),
+      spacing: { before: 360, after: 120 },
+    })
+  );
+
+  try {
+    // Generate deliverables list using AI
+    const deliverables = await generateDeliverablesList(taskArea, requirements, companyData);
+
+    // Add deliverable items as bullets
+    for (const deliverable of deliverables) {
+      paragraphs.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `${deliverable.name}: `,
+              bold: true,
+              size: 22,
+              font: 'Arial',
+            }),
+            new TextRun({
+              text: `${deliverable.description} (${deliverable.format})`,
+              size: 22,
+              font: 'Arial',
+            }),
+          ],
+          style: 'Bullet_1',
+          spacing: { after: 120 },
+        })
+      );
+    }
+
+    // Reference to appendix if applicable
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Sample deliverables are provided in the Appendix for reference.',
+            size: 22,
+            font: 'Arial',
+            italics: true,
+          }),
+        ],
+        spacing: { before: 120, after: 360 },
+      })
+    );
+  } catch (error) {
+    console.error(`❌ Error generating deliverables for ${taskArea}:`, error);
+    // Fallback: generic deliverables
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Detailed deliverables will include documentation, reports, and work products as specified in the requirements.',
+            size: 22,
+            font: 'Arial',
+          }),
+        ],
+        spacing: { after: 360 },
+      })
+    );
+  }
+
+  return paragraphs;
+}
+
+/**
+ * Generate deliverables list using AI
+ */
+async function generateDeliverablesList(
+  taskArea: string,
+  requirements: any[],
+  companyData: any
+): Promise<Array<{ name: string; description: string; format: string }>> {
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 2048,
+      messages: [
+        {
+          role: 'user',
+          content: `Generate 3-5 specific deliverables for: ${taskArea}
+
+Requirements context:
+${requirements.slice(0, 5).map((r) => `- ${r.requirement_text.substring(0, 150)}`).join('\n')}
+
+For each deliverable, provide:
+- name: Short deliverable name (2-5 words)
+- description: What it contains/provides (1-2 sentences)
+- format: Document type (e.g., "Report", "Technical Document", "Database", "Presentation", "Plan")
+
+Respond in JSON array format:
+[
+  {
+    "name": "deliverable name",
+    "description": "what it provides",
+    "format": "document type"
+  }
+]`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type');
+    }
+
+    const parsed = parseClaudeJSON(content.text);
+
+    // Validate and limit to 3-5 items
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.slice(0, 5);
+    }
+
+    throw new Error('Invalid deliverables format');
+  } catch (error) {
+    console.warn(`⚠️  Failed to generate deliverables list for ${taskArea}, using fallback`);
+    // Generic fallback deliverables
+    return [
+      { name: 'Technical Documentation', description: 'Comprehensive documentation of approach and implementation', format: 'Technical Document' },
+      { name: 'Status Reports', description: 'Weekly progress reports with metrics and milestones', format: 'Report' },
+      { name: 'Deliverable Acceptance', description: 'Formal acceptance documentation for completed deliverables', format: 'Form' },
+    ];
+  }
 }
 
 /**
