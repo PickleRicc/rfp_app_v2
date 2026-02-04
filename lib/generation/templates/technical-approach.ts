@@ -36,10 +36,20 @@ export async function generateTechnicalApproach(
   // Generate section for each task area
   for (let i = 0; i < areas.length; i++) {
     const taskArea = areas[i];
-    const relevantReqs = techReqs.filter((r) =>
-      r.source_section.toLowerCase().includes(taskArea.toLowerCase()) ||
-      r.requirement_text.toLowerCase().includes(taskArea.toLowerCase())
+    // Try to match requirements to task area by text
+    let relevantReqs = techReqs.filter((r) =>
+      r.source_section?.toLowerCase().includes(taskArea.toLowerCase()) ||
+      r.requirement_text?.toLowerCase().includes(taskArea.toLowerCase())
     );
+
+    // Fallback: if no text match, use all techReqs for first area or distribute evenly
+    // This ensures deliverables are always generated (Framework Part 5.2)
+    if (relevantReqs.length === 0 && techReqs.length > 0) {
+      // Distribute requirements across task areas
+      const reqsPerArea = Math.ceil(techReqs.length / areas.length);
+      const startIdx = i * reqsPerArea;
+      relevantReqs = techReqs.slice(startIdx, startIdx + reqsPerArea);
+    }
 
     // Section heading with hierarchical numbering (1.1., 1.2., etc.)
     // Cross-references will be added by heading enhancer at volume level
