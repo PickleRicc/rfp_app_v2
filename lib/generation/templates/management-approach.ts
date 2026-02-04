@@ -45,14 +45,25 @@ export async function generateManagementApproach(
       spacing: { before: 240, after: 120 },
     })
   );
+  // Apply BoldIntro to first sentence (Framework Part 3.2)
+  const philosophySentences = philosophy.split(/(?<=\.)\s+/);
+  const firstPhilosophySentence = philosophySentences[0] || philosophy;
+  const remainingPhilosophy = philosophySentences.slice(1).join(' ');
+
   paragraphs.push(
     new Paragraph({
       children: [
         new TextRun({
-          text: philosophy,
+          text: firstPhilosophySentence + ' ',
+          bold: true, // BoldIntro effect
           size: 22,
           font: 'Arial',
         }),
+        ...(remainingPhilosophy ? [new TextRun({
+          text: remainingPhilosophy,
+          size: 22,
+          font: 'Arial',
+        })] : []),
       ],
       spacing: { after: 240 },
     })
@@ -115,7 +126,7 @@ export async function generateManagementApproach(
   // Key personnel section
   paragraphs.push(...generateKeyPersonnelSection(companyData.personnel));
 
-  // Staffing approach
+  // Staffing approach with BoldIntro (Framework Part 3.2)
   const staffing = await generateStaffingApproach(requirements, companyData);
   paragraphs.push(
     new Paragraph({
@@ -125,14 +136,25 @@ export async function generateManagementApproach(
       spacing: { before: 360, after: 120 },
     })
   );
+
+  const staffingSentences = staffing.split(/(?<=\.)\s+/);
+  const firstStaffingSentence = staffingSentences[0] || staffing;
+  const remainingStaffing = staffingSentences.slice(1).join(' ');
+
   paragraphs.push(
     new Paragraph({
       children: [
         new TextRun({
-          text: staffing,
+          text: firstStaffingSentence + ' ',
+          bold: true, // BoldIntro effect
           size: 22,
           font: 'Arial',
         }),
+        ...(remainingStaffing ? [new TextRun({
+          text: remainingStaffing,
+          size: 22,
+          font: 'Arial',
+        })] : []),
       ],
       spacing: { after: 240 },
     })

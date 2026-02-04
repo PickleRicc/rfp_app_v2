@@ -95,15 +95,25 @@ export async function generateTechnicalApproach(
     // Generate approach content with AI
     const approach = await generateTaskAreaApproach(taskArea, relevantReqs, companyData);
 
-    // Understanding paragraph
+    // Understanding paragraph with BoldIntro for first sentence (Framework Part 3.2)
+    const understandingSentences = approach.understanding.split(/(?<=\.)\s+/);
+    const firstSentence = understandingSentences[0] || approach.understanding;
+    const remainderSentences = understandingSentences.slice(1).join(' ');
+
     paragraphs.push(
       new Paragraph({
         children: [
           new TextRun({
-            text: approach.understanding,
+            text: firstSentence + ' ',
+            bold: true, // BoldIntro effect
             size: 22,
             font: 'Arial',
           }),
+          ...(remainderSentences ? [new TextRun({
+            text: remainderSentences,
+            size: 22,
+            font: 'Arial',
+          })] : []),
         ],
         spacing: { after: 240 },
       })
@@ -164,7 +174,7 @@ export async function generateTechnicalApproach(
       task_area: taskArea,
     });
 
-    // Proof point from past performance
+    // Proof point from past performance with IntenseReference for contract name (Framework Part 3.2)
     const relevantContract = findRelevantPastPerformance(taskArea, companyData.pastPerformance);
     if (relevantContract) {
       const achievement = relevantContract.achievements[0] || {};
@@ -178,7 +188,19 @@ export async function generateTechnicalApproach(
               font: 'Arial',
             }),
             new TextRun({
-              text: `On ${relevantContract.contract_nickname} for ${relevantContract.client_agency}, we ${achievement.statement || 'delivered exceptional results'}.`,
+              text: `On `,
+              size: 22,
+              font: 'Arial',
+            }),
+            new TextRun({
+              text: relevantContract.contract_nickname,
+              italics: true, // IntenseReference effect
+              color: '1e40af',
+              size: 22,
+              font: 'Arial',
+            }),
+            new TextRun({
+              text: ` for ${relevantContract.client_agency}, we ${achievement.statement || 'delivered exceptional results'}.`,
               size: 22,
               font: 'Arial',
             }),

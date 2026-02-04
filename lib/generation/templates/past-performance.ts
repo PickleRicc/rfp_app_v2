@@ -288,10 +288,9 @@ export async function generatePastPerformance(
 
 /**
  * Generate contract details table
+ * Uses TableText10pt style for consistent professional formatting (Framework Part 3.4)
  */
 function generateContractTable(contract: any): Paragraph[] {
-  // For simplicity, we'll generate a formatted text representation
-  // In a full implementation, you'd create an actual Table object
   const paragraphs: Paragraph[] = [];
 
   const details = [
@@ -320,6 +319,7 @@ function generateContractTable(contract: any): Paragraph[] {
               size: 20,
             }),
           ],
+          style: 'TableText10pt', // Use defined table text style
           spacing: { after: 60 },
         })
       );
