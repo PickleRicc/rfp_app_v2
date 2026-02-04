@@ -13,7 +13,7 @@ import {
 } from 'docx';
 import { PROPOSAL_STYLES } from './styles';
 import { generateCoverLetter } from '../templates/cover-letter';
-import { HEADING_NUMBERING, getHeadingNumbering, shouldOmitNumbering } from './numbering';
+import { HEADING_NUMBERING, NUMBERED_LIST_NUMBERING, TABLE_BULLET_NUMBERING, getHeadingNumbering, shouldOmitNumbering } from './numbering';
 import { fetchLogoAsBuffer, COVER_LOGO_SIZE } from './images';
 import {
   createProposalHeader,
@@ -51,7 +51,7 @@ export async function generateProposalVolume(
     },
     styles: PROPOSAL_STYLES,
     numbering: {
-      config: [HEADING_NUMBERING],
+      config: [HEADING_NUMBERING, NUMBERED_LIST_NUMBERING, TABLE_BULLET_NUMBERING],
     },
     sections: [
       {
@@ -241,12 +241,26 @@ async function generateCoverLetterSection(
     return [];
   }
 
+  const paragraphs: Paragraph[] = [];
+
+  // Cover Letter heading (unnumbered per Framework Part 1.1)
+  paragraphs.push(
+    new Paragraph({
+      text: 'COVER LETTER',
+      style: 'Heading1Unnumbered',
+      spacing: { after: 480 },
+    })
+  );
+
   // Extract discriminators from value propositions
   const discriminators = companyData?.valuePropositions
     ?.slice(0, 3)
     .map((vp: any) => vp.statement) || [];
 
-  return await generateCoverLetter(document, companyProfile, discriminators);
+  const coverLetterContent = await generateCoverLetter(document, companyProfile, discriminators);
+  paragraphs.push(...coverLetterContent);
+
+  return paragraphs;
 }
 
 /**
