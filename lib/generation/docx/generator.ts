@@ -10,6 +10,7 @@ import {
   NumberFormat,
   HeadingLevel,
   ImageRun,
+  Table,
 } from 'docx';
 import { PROPOSAL_STYLES } from './styles';
 import { generateCoverLetter } from '../templates/cover-letter';
@@ -22,6 +23,7 @@ import {
   createEmptyFooter,
 } from './headers-footers';
 import { generateTOCSection, TOCSectionChild } from './toc';
+import { generateComplianceMatrix } from '../volumes/compliance-matrix';
 
 /**
  * Generate a professional proposal volume in Word format
@@ -33,7 +35,9 @@ export async function generateProposalVolume(
   companyProfile: any,
   exhibits: any[],
   companyData?: any,
-  document?: any
+  document?: any,
+  requirements?: any[],
+  sectionMappings?: any[]
 ): Promise<Document> {
   const volumeTitle = formatVolumeTitle(volumeType);
 
@@ -98,7 +102,7 @@ export async function generateProposalVolume(
           ...generateSections(content),
 
           // Appendices (actual content)
-          ...generateAppendices(companyData),
+          ...generateAppendices(companyData, requirements, sectionMappings, volumeType, content?.sections),
         ],
       },
     ],
@@ -325,15 +329,22 @@ function generateSections(content: any): Paragraph[] {
 
 /**
  * Generate appendices with actual content
+ * Includes Compliance Matrix (Framework Part 2.3)
  */
-function generateAppendices(companyData?: any): Paragraph[] {
-  const paragraphs: Paragraph[] = [];
+function generateAppendices(
+  companyData?: any,
+  requirements?: any[],
+  sectionMappings?: any[],
+  volumeType?: string,
+  sections?: any[]
+): (Paragraph | Table)[] {
+  const elements: (Paragraph | Table)[] = [];
 
   // Page break before appendices
-  paragraphs.push(new Paragraph({ children: [new PageBreak()] }));
+  elements.push(new Paragraph({ children: [new PageBreak()] }));
 
   // Main appendices heading
-  paragraphs.push(
+  elements.push(
     new Paragraph({
       text: 'APPENDICES',
       heading: HeadingLevel.HEADING_1,
@@ -343,7 +354,7 @@ function generateAppendices(companyData?: any): Paragraph[] {
 
   // Only generate appendices if company data is provided
   if (!companyData) {
-    paragraphs.push(
+    elements.push(
       new Paragraph({
         children: [
           new TextRun({
@@ -355,7 +366,7 @@ function generateAppendices(companyData?: any): Paragraph[] {
         spacing: { before: 240 },
       })
     );
-    return paragraphs;
+    return elements;
   }
 
   try {
@@ -369,34 +380,52 @@ function generateAppendices(companyData?: any): Paragraph[] {
       const keyPersonnel = companyData.personnel.filter((p: any) =>
         p.proposed_roles?.some((r: any) => r.is_key_personnel)
       );
-      
+
       if (keyPersonnel.length > 0) {
-        paragraphs.push(new Paragraph({ children: [new PageBreak()] }));
+        elements.push(new Paragraph({ children: [new PageBreak()] }));
         const resumeAppendix = generateResumesAppendix(companyData.personnel);
-        paragraphs.push(...resumeAppendix);
+        elements.push(...resumeAppendix);
       }
     }
 
     // Appendix B: Company Certifications
     if (companyData.certifications && companyData.certifications.length > 0) {
-      paragraphs.push(new Paragraph({ children: [new PageBreak()] }));
+      elements.push(new Paragraph({ children: [new PageBreak()] }));
       const certsAppendix = generateCertificationsAppendix(
         companyData.certifications,
         companyData.naicsCodes,
         companyData.contractVehicles
       );
-      paragraphs.push(...certsAppendix);
+      elements.push(...certsAppendix);
     }
 
     // Appendix C: Detailed Past Performance
     if (companyData.pastPerformance && companyData.pastPerformance.length > 0) {
-      paragraphs.push(new Paragraph({ children: [new PageBreak()] }));
+      elements.push(new Paragraph({ children: [new PageBreak()] }));
       const ppAppendix = generateDetailedPastPerformanceAppendix(companyData.pastPerformance);
-      paragraphs.push(...ppAppendix);
+      elements.push(...ppAppendix);
+    }
+
+    // Appendix D: Compliance Matrix (Framework Part 2.3)
+    if (requirements && requirements.length > 0 && sectionMappings && sectionMappings.length > 0) {
+      elements.push(new Paragraph({ children: [new PageBreak()] }));
+
+      // Generate compliance matrix with page estimation
+      const { paragraphs: matrixParagraphs, table: matrixTable } = generateComplianceMatrix(
+        requirements,
+        sectionMappings,
+        volumeType || 'technical',
+        sections // Pass sections for page number calculation
+      );
+
+      // Add intro paragraphs
+      elements.push(...matrixParagraphs);
+      // Add the compliance matrix table
+      elements.push(matrixTable);
     }
   } catch (error) {
     console.error('Error generating appendices:', error);
-    paragraphs.push(
+    elements.push(
       new Paragraph({
         children: [
           new TextRun({
@@ -411,7 +440,7 @@ function generateAppendices(companyData?: any): Paragraph[] {
     );
   }
 
-  return paragraphs;
+  return elements;
 }
 
 /**

@@ -300,7 +300,9 @@ export const rfpResponseGenerator = inngest.createFunction(
             companyData.profile!,
             [],  // Exhibits will be added in next version
             companyData,  // Pass full company data for appendices
-            document  // Pass document for cover letter
+            document,  // Pass document for cover letter
+            requirements,  // Pass requirements for compliance matrix
+            allSectionMappings  // Pass section mappings for compliance matrix
           );
 
           // Convert to buffer
