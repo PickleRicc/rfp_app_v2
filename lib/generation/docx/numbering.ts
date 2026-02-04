@@ -89,8 +89,106 @@ export function shouldOmitNumbering(sectionTitle: string): boolean {
     'table of contents',
     'executive summary', // Sometimes unnumbered
   ];
-  
-  return unnumberedSections.some(s => 
+
+  return unnumberedSections.some(s =>
     sectionTitle.toLowerCase().includes(s)
   );
+}
+
+/**
+ * Numbered list numbering configuration (Part 3.3)
+ * 4-level numbered list system: 1., a., i., 1)
+ */
+export const NUMBERED_LIST_NUMBERING = {
+  reference: 'numbered-list',
+  levels: [
+    {
+      level: 0, // Level 1: "1.", "2.", "3."
+      format: LevelFormat.DECIMAL,
+      text: '%1.',
+      alignment: AlignmentType.LEFT,
+      style: {
+        paragraph: {
+          indent: { left: convertInchesToTwip(0.25), hanging: convertInchesToTwip(0.25) },
+        },
+      },
+    },
+    {
+      level: 1, // Level 2: "a.", "b.", "c."
+      format: LevelFormat.LOWER_LETTER,
+      text: '%2.',
+      alignment: AlignmentType.LEFT,
+      style: {
+        paragraph: {
+          indent: { left: convertInchesToTwip(0.5), hanging: convertInchesToTwip(0.25) },
+        },
+      },
+    },
+    {
+      level: 2, // Level 3: "i.", "ii.", "iii."
+      format: LevelFormat.LOWER_ROMAN,
+      text: '%3.',
+      alignment: AlignmentType.LEFT,
+      style: {
+        paragraph: {
+          indent: { left: convertInchesToTwip(0.75), hanging: convertInchesToTwip(0.25) },
+        },
+      },
+    },
+    {
+      level: 3, // Level 4: "1)", "2)", "3)"
+      format: LevelFormat.DECIMAL,
+      text: '%4)',
+      alignment: AlignmentType.LEFT,
+      style: {
+        paragraph: {
+          indent: { left: convertInchesToTwip(1.0), hanging: convertInchesToTwip(0.25) },
+        },
+      },
+    },
+  ],
+};
+
+/**
+ * Table bullet numbering configuration (Part 3.3)
+ * Single level bullet for use within table cells
+ */
+export const TABLE_BULLET_NUMBERING = {
+  reference: 'table-bullet',
+  levels: [
+    {
+      level: 0,
+      format: LevelFormat.BULLET,
+      text: '•',
+      alignment: AlignmentType.LEFT,
+      style: {
+        paragraph: {
+          indent: { left: convertInchesToTwip(0.25), hanging: convertInchesToTwip(0.25) },
+        },
+      },
+    },
+    {
+      level: 1,
+      format: LevelFormat.BULLET,
+      text: '○',
+      alignment: AlignmentType.LEFT,
+      style: {
+        paragraph: {
+          indent: { left: convertInchesToTwip(0.5), hanging: convertInchesToTwip(0.25) },
+        },
+      },
+    },
+  ],
+};
+
+/**
+ * Get numbering configuration for a numbered list level
+ * @param level - 0 for first level, 1 for second level, etc.
+ * @returns Numbering configuration object
+ */
+export function getNumberedListNumbering(level: number): { reference: string; level: number } {
+  return {
+    reference: 'numbered-list',
+    level: level,
+  };
 }

@@ -232,6 +232,59 @@ export const PROPOSAL_STYLES: IStylesOptions = {
         indent: { left: 720 },
       },
     },
+    {
+      id: 'Bullet3',
+      name: 'Bullet 3',
+      basedOn: 'Normal',
+      run: {
+        size: 22,
+        font: 'Arial',
+      },
+      paragraph: {
+        spacing: { line: 276 },
+        indent: { left: 1080 }, // Third level indent
+      },
+    },
+    // Table bullet styles (Part 3.3)
+    {
+      id: 'TableBullet1_10pt',
+      name: 'Table Bullet 1 10pt',
+      basedOn: 'Normal',
+      run: {
+        size: 20, // 10pt
+        font: 'Arial',
+      },
+      paragraph: {
+        spacing: { line: 276 },
+        indent: { left: 360 },
+      },
+    },
+    {
+      id: 'TableBullet1_11pt',
+      name: 'Table Bullet 1 11pt',
+      basedOn: 'Normal',
+      run: {
+        size: 22, // 11pt
+        font: 'Arial',
+      },
+      paragraph: {
+        spacing: { line: 276 },
+        indent: { left: 360 },
+      },
+    },
+    {
+      id: 'TableBullet2_10pt',
+      name: 'Table Bullet 2 10pt',
+      basedOn: 'Normal',
+      run: {
+        size: 20, // 10pt
+        font: 'Arial',
+      },
+      paragraph: {
+        spacing: { line: 276 },
+        indent: { left: 720 }, // Second level indent
+      },
+    },
     // Heading variants (Part 3.1)
     {
       id: 'Heading1SamePage',
@@ -308,6 +361,140 @@ export const PROPOSAL_STYLES: IStylesOptions = {
         },
         spacing: { before: 120, after: 120 },
         indent: { left: 360 },
+      },
+    },
+    // Table text styles (Part 3.4)
+    {
+      id: 'TableHeading10pt',
+      name: 'Table Heading 10pt',
+      basedOn: 'Normal',
+      run: {
+        size: 20, // 10pt
+        bold: true,
+        font: 'Arial',
+        color: 'FFFFFF', // White text
+      },
+      paragraph: {
+        alignment: AlignmentType.CENTER,
+      },
+    },
+    {
+      id: 'TableHeading10ptLeft',
+      name: 'Table Heading 10pt Left',
+      basedOn: 'Normal',
+      run: {
+        size: 20, // 10pt
+        bold: true,
+        font: 'Arial',
+        color: 'FFFFFF', // White text
+      },
+      paragraph: {
+        alignment: AlignmentType.LEFT,
+      },
+    },
+    {
+      id: 'TableHeading10ptRight',
+      name: 'Table Heading 10pt Right',
+      basedOn: 'Normal',
+      run: {
+        size: 20, // 10pt
+        bold: true,
+        font: 'Arial',
+        color: 'FFFFFF', // White text
+      },
+      paragraph: {
+        alignment: AlignmentType.RIGHT,
+      },
+    },
+    {
+      id: 'TableHeading11pt',
+      name: 'Table Heading 11pt',
+      basedOn: 'Normal',
+      run: {
+        size: 22, // 11pt
+        bold: true,
+        font: 'Arial',
+        color: 'FFFFFF', // White text
+      },
+      paragraph: {
+        alignment: AlignmentType.CENTER,
+      },
+    },
+    {
+      id: 'TableHeading11ptLeft',
+      name: 'Table Heading 11pt Left',
+      basedOn: 'Normal',
+      run: {
+        size: 22, // 11pt
+        bold: true,
+        font: 'Arial',
+        color: 'FFFFFF', // White text
+      },
+      paragraph: {
+        alignment: AlignmentType.LEFT,
+      },
+    },
+    {
+      id: 'TableHeading11ptRight',
+      name: 'Table Heading 11pt Right',
+      basedOn: 'Normal',
+      run: {
+        size: 22, // 11pt
+        bold: true,
+        font: 'Arial',
+        color: 'FFFFFF', // White text
+      },
+      paragraph: {
+        alignment: AlignmentType.RIGHT,
+      },
+    },
+    {
+      id: 'TableText10pt',
+      name: 'Table Text 10pt',
+      basedOn: 'Normal',
+      run: {
+        size: 20, // 10pt
+        font: 'Arial',
+      },
+      paragraph: {
+        alignment: AlignmentType.LEFT,
+      },
+    },
+    {
+      id: 'TableText11pt',
+      name: 'Table Text 11pt',
+      basedOn: 'Normal',
+      run: {
+        size: 22, // 11pt
+        font: 'Arial',
+      },
+      paragraph: {
+        alignment: AlignmentType.LEFT,
+      },
+    },
+    {
+      id: 'TableTextBold10pt',
+      name: 'Table Text Bold 10pt',
+      basedOn: 'Normal',
+      run: {
+        size: 20, // 10pt
+        bold: true,
+        font: 'Arial',
+      },
+      paragraph: {
+        alignment: AlignmentType.LEFT,
+      },
+    },
+    {
+      id: 'TableTextCenter10pt',
+      name: 'Table Text Center 10pt',
+      basedOn: 'Normal',
+      run: {
+        size: 20, // 10pt
+        font: 'Arial',
+      },
+      paragraph: {
+        alignment: AlignmentType.CENTER,
       },
     },
   ],
