@@ -232,6 +232,84 @@ export const PROPOSAL_STYLES: IStylesOptions = {
         indent: { left: 720 },
       },
     },
+    // Heading variants (Part 3.1)
+    {
+      id: 'Heading1SamePage',
+      name: 'Heading 1 Same Page',
+      basedOn: 'Normal',
+      next: 'Normal',
+      run: {
+        size: 32, // 16pt
+        bold: true,
+        color: '2563eb', // Blue
+        font: 'Arial',
+      },
+      paragraph: {
+        spacing: { before: 480, after: 120 },
+        // No keepNext/keepLines to allow same page behavior
+      },
+    },
+    {
+      id: 'Heading1Unnumbered',
+      name: 'Heading 1 Unnumbered',
+      basedOn: 'Normal',
+      next: 'Normal',
+      run: {
+        size: 32, // 16pt
+        bold: true,
+        color: '2563eb', // Blue
+        font: 'Arial',
+      },
+      paragraph: {
+        spacing: { before: 480, after: 120 },
+        keepNext: true,
+        keepLines: true,
+      },
+    },
+    {
+      id: 'Heading2NewPage',
+      name: 'Heading 2 New Page',
+      basedOn: 'Normal',
+      next: 'Normal',
+      run: {
+        size: 28, // 14pt
+        bold: true,
+        color: '1e40af', // Darker blue
+        font: 'Arial',
+      },
+      paragraph: {
+        spacing: { before: 360, after: 120 },
+        keepNext: true,
+        keepLines: true,
+        // Note: pageBreakBefore must be applied when creating Paragraph, not in style definition
+      },
+    },
+    // Emphasis styles (Part 3.2)
+    {
+      id: 'IntenseQuote',
+      name: 'Intense Quote',
+      basedOn: 'Normal',
+      run: {
+        size: 22, // 11pt
+        italics: true,
+        font: 'Arial',
+      },
+      paragraph: {
+        border: {
+          left: {
+            color: '2563eb',
+            space: 1,
+            style: BorderStyle.SINGLE,
+            size: 6,
+          },
+        },
+        shading: {
+          fill: 'F0F9FF', // Light blue background
+        },
+        spacing: { before: 120, after: 120 },
+        indent: { left: 360 },
+      },
+    },
   ],
   characterStyles: [
     // Exhibit reference style (Part 4.1)
@@ -259,6 +337,26 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       basedOn: 'Normal',
       run: {
         italics: true,
+      },
+    },
+    // Emphasis character styles (Part 3.2)
+    {
+      id: 'BoldIntro',
+      name: 'Bold Intro',
+      basedOn: 'Normal',
+      run: {
+        bold: true,
+        font: 'Arial',
+      },
+    },
+    {
+      id: 'IntenseReference',
+      name: 'Intense Reference',
+      basedOn: 'Normal',
+      run: {
+        italics: true,
+        color: '2563eb',
+        font: 'Arial',
       },
     },
   ],
