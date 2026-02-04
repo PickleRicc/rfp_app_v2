@@ -263,6 +263,7 @@ function createComplianceTable(mappings: RequirementMapping[]): Table {
 
 /**
  * Create header cell
+ * Uses TableHeading10pt style for consistent professional formatting
  */
 function createHeaderCell(text: string, widthPercent: number): TableCell {
   return new TableCell({
@@ -271,12 +272,9 @@ function createHeaderCell(text: string, widthPercent: number): TableCell {
         children: [
           new TextRun({
             text,
-            bold: true,
-            size: 20,
-            color: 'FFFFFF',
           }),
         ],
-        alignment: AlignmentType.CENTER,
+        style: 'TableHeading10pt', // Use defined style instead of inline formatting
       }),
     ],
     shading: {
@@ -295,6 +293,7 @@ function createHeaderCell(text: string, widthPercent: number): TableCell {
 
 /**
  * Create data cell
+ * Uses TableText10pt style for consistent professional formatting
  */
 function createDataCell(text: string, widthPercent: number): TableCell {
   return new TableCell({
@@ -303,9 +302,9 @@ function createDataCell(text: string, widthPercent: number): TableCell {
         children: [
           new TextRun({
             text,
-            size: 20,
           }),
         ],
+        style: 'TableText10pt', // Use defined style instead of inline formatting
       }),
     ],
     width: { size: widthPercent, type: WidthType.PERCENTAGE },
@@ -320,6 +319,7 @@ function createDataCell(text: string, widthPercent: number): TableCell {
 
 /**
  * Create status cell with color coding
+ * Uses TableTextCenter10pt style with custom color for status indication
  */
 function createStatusCell(status: string, widthPercent: number): TableCell {
   const color = status === 'Addressed' ? '00AA00' : status === 'Partially Addressed' ? 'FF6600' : 'CC0000';
@@ -331,12 +331,11 @@ function createStatusCell(status: string, widthPercent: number): TableCell {
         children: [
           new TextRun({
             text: status,
-            bold: true,
-            size: 20,
-            color,
+            bold: true, // Keep bold for status emphasis
+            color, // Keep custom color for status indication
           }),
         ],
-        alignment: AlignmentType.CENTER,
+        style: 'TableTextCenter10pt', // Use centered table text style
       }),
     ],
     shading: {
