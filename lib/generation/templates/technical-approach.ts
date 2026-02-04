@@ -395,7 +395,7 @@ async function generateDeliverablesSubsection(
               font: 'Arial',
             }),
           ],
-          style: 'Bullet_1',
+          style: 'Bullet1',
           spacing: { after: 120 },
         })
       );
