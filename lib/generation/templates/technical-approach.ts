@@ -1,10 +1,13 @@
-import { Paragraph, TextRun, HeadingLevel } from 'docx';
+import { Paragraph, TextRun, HeadingLevel, ImageRun, AlignmentType } from 'docx';
 import { anthropic, MODEL } from '@/lib/anthropic/client';
 import { formatRequirementReference, enhanceRequirementsWithCrossRefs, extractRfqSection } from '../content/cross-references';
 import { getComplianceInstructions } from '../content/compliance-language';
 import { getGhostingContext } from '../content/win-themes';
 import { parseClaudeJSON } from '@/lib/anthropic/json-extractor';
 import { getHeadingNumbering } from '../docx/numbering';
+import { generateProcessDiagram } from '../exhibits/process-diagram';
+import { cleanupTempFile } from '../exhibits/render';
+import { readFile } from 'fs/promises';
 
 /**
  * Generate Technical Approach section (Framework Part 5.2)
@@ -176,6 +179,61 @@ export async function generateTechnicalApproach(
         spacing: { after: 240 },
       })
     );
+
+    // Generate process diagram showing technical workflow
+    const processSteps = [
+      'Receive Requirements',
+      'Analyze Scope',
+      'Design Solution',
+      'Implement',
+      'Test & Validate',
+      'Deploy & Monitor'
+    ];
+
+    const processDiagramPath = await generateProcessDiagram(
+      `${taskArea} Workflow`,
+      processSteps
+    );
+
+    if (processDiagramPath) {
+      const imageBuffer = await readFile(processDiagramPath);
+
+      paragraphs.push(
+        new Paragraph({
+          children: [
+            new ImageRun({
+              data: imageBuffer,
+              transformation: {
+                width: 500,
+                height: 300,
+              },
+              type: 'png',
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 240, after: 120 },
+        })
+      );
+
+      // Caption
+      paragraphs.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Exhibit ${exhibitNum}. ${taskArea} Workflow`,
+              bold: true,
+              size: 20,
+              font: 'Arial',
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 360 },
+        })
+      );
+
+      // Cleanup temp file
+      await cleanupTempFile(processDiagramPath);
+    }
 
     exhibits.push({
       type: 'process_diagram',
