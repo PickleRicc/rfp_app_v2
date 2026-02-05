@@ -1,9 +1,11 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, unlink } from 'fs/promises';
-import path from 'path';
+import { renderMermaidToPng } from './render';
+import { getDiagramTheme } from './branding';
 
-const execAsync = promisify(exec);
+export interface DecisionPoint {
+  afterStep: number;
+  yesLabel?: string;
+  noLabel?: string;
+}
 
 /**
  * Generate process flow diagrams (Framework Part 4.1)
@@ -11,18 +13,19 @@ const execAsync = promisify(exec);
  */
 export async function generateProcessDiagram(
   processName: string,
-  steps: string[]
+  steps: string[],
+  decisionPoints?: DecisionPoint[]
 ): Promise<string> {
   if (!steps || steps.length === 0) {
     return '';
   }
 
   // Generate Mermaid flowchart
-  const mermaid = generateMermaidFlowchart(processName, steps);
+  const mermaid = generateMermaidFlowchart(processName, steps, decisionPoints);
 
-  // Render to image
+  // Render to image using shared renderer
   try {
-    const imagePath = await renderMermaidDiagram(mermaid, 'process');
+    const imagePath = await renderMermaidToPng(mermaid, 'process');
     return imagePath;
   } catch (error) {
     console.error('Error generating process diagram:', error);
@@ -33,19 +36,36 @@ export async function generateProcessDiagram(
 /**
  * Generate Mermaid flowchart syntax
  */
-function generateMermaidFlowchart(processName: string, steps: string[]): string {
+function generateMermaidFlowchart(
+  processName: string,
+  steps: string[],
+  decisionPoints?: DecisionPoint[]
+): string {
   const lines: string[] = [];
-  
+
+  // Prepend theme directive
+  const theme = getDiagramTheme();
+  lines.push(theme);
   lines.push('flowchart TD');
   lines.push(`    Start([${processName}])`);
   lines.push('');
 
-  // Generate steps
+  // Generate steps with appropriate shapes
   for (let i = 0; i < steps.length; i++) {
     const stepId = `Step${i + 1}`;
-    const stepText = steps[i].replace(/[^a-zA-Z0-9\s]/g, '').substring(0, 50);
-    
-    lines.push(`    ${stepId}["${stepText}"]`);
+    const stepText = steps[i].substring(0, 40); // Truncate to 40 chars for readability
+
+    // Check if this step is a decision point
+    const lowerStep = steps[i].toLowerCase();
+    const isDecision = lowerStep.includes('decide') || lowerStep.includes('if');
+
+    if (isDecision) {
+      // Diamond shape for decisions
+      lines.push(`    ${stepId}{${stepText}}`);
+    } else {
+      // Rectangle for regular steps
+      lines.push(`    ${stepId}["${stepText}"]`);
+    }
   }
 
   lines.push('    End([Complete])');
@@ -57,12 +77,6 @@ function generateMermaidFlowchart(processName: string, steps: string[]): string 
     lines.push(`    Step${i} --> Step${i + 1}`);
   }
   lines.push(`    Step${steps.length} --> End`);
-  lines.push('');
-
-  // Styling
-  lines.push('    classDef default fill:#f0f9ff,stroke:#2563eb,stroke-width:2px,color:#000');
-  lines.push('    classDef startEnd fill:#dbeafe,stroke:#1e40af,stroke-width:3px,color:#000');
-  lines.push('    class Start,End startEnd');
 
   return lines.join('\n');
 }
@@ -74,7 +88,8 @@ export async function generateMethodologyDiagram(
   methodologyName: string,
   phases: any[]
 ): Promise<string> {
-  const mermaid = `
+  const theme = getDiagramTheme();
+  const mermaid = `${theme}
 graph LR
     Start([Start]) --> Phase1
     ${phases.map((p, i) => {
@@ -83,14 +98,10 @@ graph LR
       return `${phaseId}["${p.name || `Phase ${i + 1}`}"] --> ${nextPhaseId}`;
     }).join('\n    ')}
     Phase${phases.length} --> End([Complete])
-    
-    classDef default fill:#f0f9ff,stroke:#2563eb,stroke-width:2px
-    classDef startEnd fill:#dbeafe,stroke:#1e40af,stroke-width:3px
-    class Start,End startEnd
 `;
 
   try {
-    const imagePath = await renderMermaidDiagram(mermaid, 'methodology');
+    const imagePath = await renderMermaidToPng(mermaid, 'methodology');
     return imagePath;
   } catch (error) {
     console.error('Error generating methodology diagram:', error);
@@ -98,27 +109,6 @@ graph LR
   }
 }
 
-/**
- * Render Mermaid diagram to PNG
- */
-async function renderMermaidDiagram(mermaidCode: string, filename: string): Promise<string> {
-  const tempMmdPath = path.join('/tmp', `${filename}-${Date.now()}.mmd`);
-  const outputPath = path.join('/tmp', `${filename}-${Date.now()}.png`);
-
-  try {
-    await writeFile(tempMmdPath, mermaidCode, 'utf-8');
-    await execAsync(`npx mmdc -i ${tempMmdPath} -o ${outputPath} -b transparent -w 1000`);
-    await unlink(tempMmdPath);
-    return outputPath;
-  } catch (error) {
-    try {
-      await unlink(tempMmdPath);
-    } catch (e) {
-      // Ignore
-    }
-    throw error;
-  }
-}
 
 /**
  * Generate standard process diagrams for common scenarios
