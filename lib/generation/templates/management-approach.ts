@@ -1,9 +1,12 @@
-import { Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, VerticalAlign } from 'docx';
+import { Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, VerticalAlign, ImageRun, AlignmentType } from 'docx';
 import { anthropic, MODEL } from '@/lib/anthropic/client';
 import { formatRequirementReference, enhanceRequirementsWithCrossRefs } from '../content/cross-references';
 import { getComplianceInstructions } from '../content/compliance-language';
 import { getGhostingContext } from '../content/win-themes';
 import { getHeadingNumbering } from '../docx/numbering';
+import { generateOrgChart } from '../exhibits/org-chart';
+import { cleanupTempFile } from '../exhibits/render';
+import { readFile } from 'fs/promises';
 
 /**
  * Generate Management Approach section (Framework Part 5.3)
@@ -109,6 +112,53 @@ export async function generateManagementApproach(
       spacing: { after: 240 },
     })
   );
+
+  // Generate actual org chart image
+  const orgChartPath = await generateOrgChart(
+    companyData.personnel,
+    companyData.profile.company_name
+  );
+
+  if (orgChartPath) {
+    const imageBuffer = await readFile(orgChartPath);
+
+    // Exhibit image (Framework Part 4.1)
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new ImageRun({
+            data: imageBuffer,
+            transformation: {
+              width: 500,  // ~7 inches at 72 DPI
+              height: 350, // Proportional
+            },
+            type: 'png',
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 240, after: 120 },
+      })
+    );
+
+    // Caption below image
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Exhibit ${exhibitNum}. Proposed Organizational Chart`,
+            bold: true,
+            size: 20,
+            font: 'Arial',
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 360 },
+      })
+    );
+
+    // Cleanup temp file
+    await cleanupTempFile(orgChartPath);
+  }
 
   exhibits.push({
     type: 'org_chart',
