@@ -15,6 +15,11 @@ export interface Exhibit {
   referenced_in_sections: string[];
 }
 
+export interface ExhibitWithImage extends Exhibit {
+  imageBuffer?: Buffer;
+  imagePath?: string;
+}
+
 /**
  * Create and store exhibit
  */
@@ -32,6 +37,29 @@ export async function createExhibit(exhibit: Omit<Exhibit, 'id'>): Promise<Exhib
   }
 
   return data as Exhibit;
+}
+
+/**
+ * Create exhibit with image data
+ */
+export async function createExhibitWithImage(
+  exhibit: Omit<Exhibit, 'id'>,
+  imagePath: string
+): Promise<ExhibitWithImage> {
+  const createdExhibit = await createExhibit(exhibit);
+
+  // Read image if path provided
+  let imageBuffer: Buffer | undefined;
+  if (imagePath) {
+    const { readFile } = await import('fs/promises');
+    imageBuffer = await readFile(imagePath);
+  }
+
+  return {
+    ...createdExhibit,
+    imageBuffer,
+    imagePath,
+  };
 }
 
 /**
@@ -94,7 +122,7 @@ export function formatExhibitCaption(exhibitNumber: number, title: string): stri
  */
 export async function generateTableOfExhibits(responseId: string): Promise<string[]> {
   const exhibits = await getExhibitsForResponse(responseId);
-  
+
   const lines: string[] = [];
   lines.push('TABLE OF EXHIBITS');
   lines.push('');
@@ -104,6 +132,41 @@ export async function generateTableOfExhibits(responseId: string): Promise<strin
   }
 
   return lines;
+}
+
+/**
+ * Generate Table of Exhibits as DOCX Paragraphs
+ */
+export function generateTableOfExhibitsParagraphs(
+  exhibits: Exhibit[]
+): any[] {
+  const { Paragraph, TextRun, HeadingLevel } = require('docx');
+  const paragraphs: any[] = [];
+
+  paragraphs.push(
+    new Paragraph({
+      text: 'TABLE OF EXHIBITS',
+      heading: HeadingLevel.HEADING_1,
+      spacing: { after: 240 },
+    })
+  );
+
+  for (const exhibit of exhibits) {
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Exhibit ${exhibit.exhibit_number}. ${exhibit.title}`,
+            size: 22,
+            font: 'Arial',
+          }),
+        ],
+        spacing: { after: 120 },
+      })
+    );
+  }
+
+  return paragraphs;
 }
 
 /**
