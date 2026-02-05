@@ -181,18 +181,12 @@ export async function generateTechnicalApproach(
     );
 
     // Generate process diagram showing technical workflow
-    const processSteps = [
-      'Receive Requirements',
-      'Analyze Scope',
-      'Design Solution',
-      'Implement',
-      'Test & Validate',
-      'Deploy & Monitor'
-    ];
+    // Extract workflow steps from approach methodology using AI
+    const workflowSteps = await generateWorkflowSteps(taskArea, approach.methodology, relevantReqs);
 
     const processDiagramPath = await generateProcessDiagram(
       `${taskArea} Workflow`,
-      processSteps
+      workflowSteps
     );
 
     if (processDiagramPath) {
@@ -605,4 +599,71 @@ function findRelevantPastPerformance(taskArea: string, pastPerformance: any[]): 
 
   // Return first contract if no specific match
   return pastPerformance[0] || null;
+}
+
+/**
+ * Generate workflow steps from task area and methodology using AI
+ */
+async function generateWorkflowSteps(
+  taskArea: string,
+  methodology: string,
+  requirements: any[]
+): Promise<string[]> {
+  try {
+    console.log(`🤖 Generating workflow steps for: ${taskArea}`);
+
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'user',
+          content: `Based on this task area and methodology, generate 5-7 workflow steps for a process diagram.
+
+Task Area: ${taskArea}
+
+Methodology: ${methodology}
+
+Requirements context:
+${requirements.slice(0, 3).map((r) => r.requirement_text.substring(0, 100)).join('\n')}
+
+Generate 5-7 sequential workflow steps that show the process flow. Each step should be:
+- Short (2-5 words)
+- Action-oriented (starts with verb)
+- Specific to this task area
+
+Respond in JSON array format:
+["Step 1", "Step 2", "Step 3", ...]
+
+Example for "Software Development":
+["Gather Requirements", "Design Architecture", "Develop Code", "Test & QA", "Deploy", "Monitor & Support"]`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type');
+    }
+
+    const parsed = parseClaudeJSON(content.text);
+
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      console.log(`✅ Generated ${parsed.length} workflow steps for ${taskArea}`);
+      return parsed.slice(0, 7); // Limit to 7 steps
+    }
+
+    throw new Error('Invalid workflow steps format');
+  } catch (error) {
+    console.warn(`⚠️  Failed to generate workflow steps for ${taskArea}, using generic fallback`);
+    // Fallback to generic workflow
+    return [
+      'Receive Requirements',
+      'Analyze & Plan',
+      'Design Solution',
+      'Implement',
+      'Test & Validate',
+      'Deploy & Monitor'
+    ];
+  }
 }

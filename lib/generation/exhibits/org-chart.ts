@@ -8,20 +8,33 @@ export async function generateOrgChart(
   personnel: any[],
   companyName: string
 ): Promise<string> {
+  console.log('🎯 generateOrgChart called');
+  console.log('   Input personnel:', personnel?.length || 0);
+
   // Filter to key personnel with defined roles
   const keyPersonnel = personnel.filter((p) =>
     p.proposed_roles?.some((r: any) => r.is_key_personnel)
   );
 
+  console.log('   Key personnel found:', keyPersonnel.length);
+
   if (keyPersonnel.length === 0) {
+    console.warn('⚠️  No key personnel found, returning empty path');
     return ''; // Return empty for no personnel
   }
 
   // Build organizational hierarchy
   const hierarchy = buildOrgHierarchy(keyPersonnel);
+  console.log('   Hierarchy built:', {
+    hasPM: !!hierarchy.programManager,
+    hasTL: !!hierarchy.technicalLead,
+    hasQM: !!hierarchy.qualityManager,
+    otherRoles: hierarchy.otherRoles.length
+  });
 
   // Generate Mermaid diagram
   const mermaid = generateMermaidOrgChart(hierarchy, companyName);
+  console.log('   Mermaid diagram length:', mermaid.length, 'chars');
 
   // Render to image using shared renderer
   try {

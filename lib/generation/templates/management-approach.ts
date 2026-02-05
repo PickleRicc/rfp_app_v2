@@ -114,10 +114,16 @@ export async function generateManagementApproach(
   );
 
   // Generate actual org chart image
+  console.log('🎯 About to call generateOrgChart...');
+  console.log('   Personnel count:', companyData.personnel?.length || 0);
+  console.log('   Company name:', companyData.profile.company_name);
+
   const orgChartPath = await generateOrgChart(
-    companyData.personnel,
+    companyData.personnel || [],
     companyData.profile.company_name
   );
+
+  console.log('✅ generateOrgChart returned path:', orgChartPath || '(empty)');
 
   if (orgChartPath) {
     const imageBuffer = await readFile(orgChartPath);
