@@ -1,9 +1,5 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, unlink } from 'fs/promises';
-import path from 'path';
-
-const execAsync = promisify(exec);
+import { renderMermaidToPng } from './render';
+import { getDiagramTheme } from './branding';
 
 /**
  * Generate organizational chart from personnel data (Framework Part 4.1)
@@ -18,7 +14,7 @@ export async function generateOrgChart(
   );
 
   if (keyPersonnel.length === 0) {
-    return generateDefaultOrgChart(companyName);
+    return ''; // Return empty for no personnel
   }
 
   // Build organizational hierarchy
@@ -27,9 +23,9 @@ export async function generateOrgChart(
   // Generate Mermaid diagram
   const mermaid = generateMermaidOrgChart(hierarchy, companyName);
 
-  // Render to image
+  // Render to image using shared renderer
   try {
-    const imagePath = await renderMermaidDiagram(mermaid, 'org-chart');
+    const imagePath = await renderMermaidToPng(mermaid, 'org-chart');
     return imagePath;
   } catch (error) {
     console.error('Error generating org chart:', error);
@@ -54,14 +50,20 @@ function buildOrgHierarchy(personnel: any[]): any {
 
     const roleTitle = keyRole.role_title.toLowerCase();
 
+    const personData = {
+      name: person.full_name,
+      title: keyRole.role_title,
+      clearance: person.clearance_level || null
+    };
+
     if (roleTitle.includes('program manager') || roleTitle.includes('project manager')) {
-      hierarchy.programManager = { name: person.full_name, title: keyRole.role_title };
+      hierarchy.programManager = personData;
     } else if (roleTitle.includes('technical lead') || roleTitle.includes('tech lead')) {
-      hierarchy.technicalLead = { name: person.full_name, title: keyRole.role_title };
+      hierarchy.technicalLead = personData;
     } else if (roleTitle.includes('quality') || roleTitle.includes('qa')) {
-      hierarchy.qualityManager = { name: person.full_name, title: keyRole.role_title };
+      hierarchy.qualityManager = personData;
     } else {
-      hierarchy.otherRoles.push({ name: person.full_name, title: keyRole.role_title });
+      hierarchy.otherRoles.push(personData);
     }
   }
 
@@ -80,29 +82,38 @@ function generateMermaidOrgChart(hierarchy: any, companyName: string): string {
   const tlId = 'TL';
   const qmId = 'QM';
 
+  // Helper to format node label with clearance
+  const formatNodeLabel = (person: any) => {
+    let label = `${person.title}<br/>${person.name}`;
+    if (person.clearance) {
+      label += `<br/>${person.clearance}`;
+    }
+    return label;
+  };
+
   // Program Manager (top level)
   if (hierarchy.programManager) {
-    nodes.push(`${pmId}["${hierarchy.programManager.title}<br/>${hierarchy.programManager.name}"]`);
+    nodes.push(`${pmId}["${formatNodeLabel(hierarchy.programManager)}"]`);
   } else {
     nodes.push(`${pmId}["Program Manager<br/>TBD"]`);
   }
 
   // Technical Lead
   if (hierarchy.technicalLead) {
-    nodes.push(`${tlId}["${hierarchy.technicalLead.title}<br/>${hierarchy.technicalLead.name}"]`);
+    nodes.push(`${tlId}["${formatNodeLabel(hierarchy.technicalLead)}"]`);
     edges.push(`${pmId} --> ${tlId}`);
   }
 
   // Quality Manager
   if (hierarchy.qualityManager) {
-    nodes.push(`${qmId}["${hierarchy.qualityManager.title}<br/>${hierarchy.qualityManager.name}"]`);
+    nodes.push(`${qmId}["${formatNodeLabel(hierarchy.qualityManager)}"]`);
     edges.push(`${pmId} --> ${qmId}`);
   }
 
   // Other roles report to Technical Lead
   hierarchy.otherRoles.forEach((role: any, idx: number) => {
     const roleId = `R${idx + 1}`;
-    nodes.push(`${roleId}["${role.title}<br/>${role.name}"]`);
+    nodes.push(`${roleId}["${formatNodeLabel(role)}"]`);
     if (hierarchy.technicalLead) {
       edges.push(`${tlId} --> ${roleId}`);
     } else {
@@ -110,51 +121,15 @@ function generateMermaidOrgChart(hierarchy: any, companyName: string): string {
     }
   });
 
-  return `
+  // Prepend theme directive
+  const theme = getDiagramTheme();
+  return `${theme}
 graph TD
     ${nodes.join('\n    ')}
     ${edges.join('\n    ')}
-    
-    classDef default fill:#f0f9ff,stroke:#2563eb,stroke-width:2px,color:#000
 `;
 }
 
-/**
- * Generate default org chart when no personnel data
- */
-function generateDefaultOrgChart(companyName: string): string {
-  return ''; // Return empty for now, can implement placeholder later
-}
-
-/**
- * Render Mermaid diagram to PNG image
- */
-async function renderMermaidDiagram(mermaidCode: string, filename: string): Promise<string> {
-  const tempMmdPath = path.join('/tmp', `${filename}-${Date.now()}.mmd`);
-  const outputPath = path.join('/tmp', `${filename}-${Date.now()}.png`);
-
-  try {
-    // Write Mermaid code to temp file
-    await writeFile(tempMmdPath, mermaidCode, 'utf-8');
-
-    // Render using mmdc (Mermaid CLI)
-    await execAsync(`npx mmdc -i ${tempMmdPath} -o ${outputPath} -b transparent`);
-
-    // Clean up temp file
-    await unlink(tempMmdPath);
-
-    return outputPath;
-  } catch (error) {
-    console.error('Error rendering Mermaid diagram:', error);
-    // Clean up on error
-    try {
-      await unlink(tempMmdPath);
-    } catch (e) {
-      // Ignore cleanup errors
-    }
-    throw error;
-  }
-}
 
 /**
  * Generate simple box-style org chart (fallback)
