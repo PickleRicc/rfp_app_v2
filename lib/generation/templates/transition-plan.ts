@@ -1,8 +1,11 @@
-import { Paragraph, TextRun, HeadingLevel } from 'docx';
+import { Paragraph, TextRun, HeadingLevel, ImageRun, AlignmentType } from 'docx';
 import { anthropic, MODEL } from '@/lib/anthropic/client';
 import { formatRequirementReference, enhanceRequirementsWithCrossRefs } from '../content/cross-references';
 import { parseClaudeJSON } from '@/lib/anthropic/json-extractor';
 import { getHeadingNumbering } from '../docx/numbering';
+import { generateGanttChart, TimelinePhase } from '../exhibits/timeline';
+import { cleanupTempFile } from '../exhibits/render';
+import { readFile } from 'fs/promises';
 
 /**
  * Generate Transition Plan section (Framework Part 5.4)
@@ -53,9 +56,59 @@ export async function generateTransitionPlan(
         }),
       ],
       style: 'BodyText11pt',
-      spacing: { after: 480 },
+      spacing: { after: 240 },
     })
   );
+
+  // Generate actual Gantt chart
+  const timelinePhases: TimelinePhase[] = [
+    { name: 'Planning & Preparation', duration: 30, milestone: 'Plan Approved' },
+    { name: 'Knowledge Transfer', duration: 45, milestone: 'KT Complete' },
+    { name: 'Parallel Operations', duration: 30, milestone: 'Parallel Verified' },
+    { name: 'Full Assumption', duration: 15, milestone: 'Contract Operational' },
+  ];
+
+  const timelinePath = await generateGanttChart(timelinePhases, 'Transition Timeline');
+
+  if (timelinePath) {
+    const imageBuffer = await readFile(timelinePath);
+
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new ImageRun({
+            data: imageBuffer,
+            transformation: {
+              width: 550,  // Wider for Gantt readability
+              height: 300,
+            },
+            type: 'png',
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 240, after: 120 },
+      })
+    );
+
+    // Caption
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Exhibit ${exhibitNum}. Transition Timeline and Milestones`,
+            bold: true,
+            size: 20,
+            font: 'Arial',
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 360 },
+      })
+    );
+
+    // Cleanup temp file
+    await cleanupTempFile(timelinePath);
+  }
 
   exhibits.push({
     type: 'timeline',
