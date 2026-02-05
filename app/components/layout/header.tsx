@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,8 @@ import {
   Menu,
   X,
   Plus,
+  LogOut,
+  User,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -22,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
 import { useCompany } from "@/lib/context/CompanyContext";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 const navigation = [
   { name: "Upload RFP", href: "/", icon: Upload },
@@ -35,6 +38,23 @@ export function Header() {
   const router = useRouter();
   const { selectedCompany, companies, selectCompany, loading } = useCompany();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSession = async () => {
+      const res = await fetch("/api/auth/me");
+      const data = await res.json().catch(() => ({}));
+      setUserEmail(data.userEmail ?? null);
+    };
+    fetchSession();
+  }, []);
+
+  const handleLogout = async () => {
+    const supabase = createBrowserSupabaseClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   const handleSelectCompany = (companyId: string) => {
     selectCompany(companyId);
@@ -158,6 +178,30 @@ export function Header() {
               </DropdownMenu>
             )}
 
+            {userEmail && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hidden gap-2 sm:flex text-muted-foreground hover:text-foreground"
+                  >
+                    <User className="h-4 w-4" />
+                    <span className="max-w-[140px] truncate text-sm">
+                      {userEmail}
+                    </span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
             <Button
               variant="ghost"
               size="icon"
@@ -197,6 +241,19 @@ export function Header() {
                   </Link>
                 );
               })}
+              {userEmail && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <LogOut className="h-5 w-5" />
+                  Log out
+                </button>
+              )}
             </nav>
           </div>
         )}

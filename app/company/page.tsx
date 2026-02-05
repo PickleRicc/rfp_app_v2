@@ -12,10 +12,15 @@ import {
   Sparkles,
   FileText,
   ClipboardList,
+  UserPlus,
+  X,
+  Copy,
   type LucideIcon,
 } from 'lucide-react';
 import { useCompany } from '@/lib/context/CompanyContext';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
+import { Button } from '@/app/components/ui/button';
+import { Input } from '@/app/components/ui/input';
 
 interface CompletenessScore {
   core_information: number;
@@ -34,6 +39,17 @@ export default function CompanyDashboard() {
   const [loading, setLoading] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
   const [completeness, setCompleteness] = useState<CompletenessScore | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [invitePassword, setInvitePassword] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteResult, setInviteResult] = useState<{
+    loginUrl: string;
+    email: string;
+    temporaryPassword: string;
+    companyName: string;
+  } | null>(null);
 
   useEffect(() => {
     if (selectedCompanyId) {
@@ -77,15 +93,49 @@ export default function CompanyDashboard() {
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-wrap gap-4">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl mb-2">
                 {selectedCompany ? `${selectedCompany.company_name} - Company Data` : "Company Data"}
               </h1>
               <p className="text-muted-foreground">Manage company information for proposal generation</p>
             </div>
+            {selectedCompany && hasProfile && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  setInviteOpen(true);
+                  setInviteEmail('');
+                  setInvitePassword('');
+                  setInviteError(null);
+                  setInviteResult(null);
+                }}
+              >
+                <UserPlus className="h-4 w-4" />
+                Invite client
+              </Button>
+            )}
           </div>
         </div>
+
+        {inviteOpen && selectedCompanyId && (
+          <InviteClientModal
+            companyId={selectedCompanyId}
+            companyName={selectedCompany?.company_name ?? ''}
+            email={inviteEmail}
+            setEmail={setInviteEmail}
+            password={invitePassword}
+            setPassword={setInvitePassword}
+            loading={inviteLoading}
+            setLoading={setInviteLoading}
+            error={inviteError}
+            setError={setInviteError}
+            result={inviteResult}
+            setResult={setInviteResult}
+            onClose={() => setInviteOpen(false)}
+          />
+        )}
 
         {!selectedCompany && !loading && (
           <div className="rounded-xl border border-warning/30 bg-warning/5 p-6">
@@ -347,5 +397,158 @@ function ActionCard({
       <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
       <p className="text-muted-foreground text-sm">{description}</p>
     </button>
+  );
+}
+
+function InviteClientModal({
+  companyId,
+  companyName,
+  email,
+  setEmail,
+  password,
+  setPassword,
+  loading,
+  setLoading,
+  error,
+  setError,
+  result,
+  setResult,
+  onClose,
+}: {
+  companyId: string;
+  companyName: string;
+  email: string;
+  setEmail: (s: string) => void;
+  password: string;
+  setPassword: (s: string) => void;
+  loading: boolean;
+  setLoading: (b: boolean) => void;
+  error: string | null;
+  setError: (s: string | null) => void;
+  result: {
+    loginUrl: string;
+    email: string;
+    temporaryPassword: string;
+    companyName: string;
+  } | null;
+  setResult: (r: typeof result) => void;
+  onClose: () => void;
+}) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/company/invite-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          email: email.trim(),
+          temporaryPassword: password.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.error ?? 'Failed to invite client';
+        setError(data.details ? `${msg}: ${data.details}` : msg);
+        return;
+      }
+      setResult({
+        loginUrl: data.loginUrl,
+        email: data.email,
+        temporaryPassword: data.temporaryPassword,
+        companyName: data.companyName ?? companyName,
+      });
+    } catch {
+      setError('Failed to invite client');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+      <div
+        className="rounded-xl border border-border bg-card shadow-lg max-w-md w-full p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-foreground">Invite client to portal</h2>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-muted">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Create a client login for <strong>{companyName}</strong>. They will only see this company&apos;s proposals and onboarding.
+        </p>
+
+        {result ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-callout-border bg-callout p-4 text-sm">
+              <p className="font-medium text-foreground mb-2">Share these details with the client securely:</p>
+              <div className="space-y-2">
+                <div>
+                  <span className="text-muted-foreground">Portal login:</span>
+                  <div className="flex gap-2 mt-1">
+                    <Input readOnly value={result.loginUrl} className="font-mono text-xs" />
+                    <Button type="button" variant="outline" size="icon" onClick={() => copyToClipboard(result.loginUrl)} title="Copy">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Email:</span> <span className="font-mono">{result.email}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Temporary password:</span>
+                  <div className="flex gap-2 mt-1">
+                    <Input readOnly value={result.temporaryPassword} className="font-mono" />
+                    <Button type="button" variant="outline" size="icon" onClick={() => copyToClipboard(result.temporaryPassword)} title="Copy">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <Button onClick={onClose} className="w-full">Done</Button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Client email *</label>
+              <Input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="client@company.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Temporary password (optional)</label>
+              <Input
+                type="text"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Leave blank to auto-generate"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Min 8 characters. If blank, a random password is generated.</p>
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <div className="flex gap-2">
+              <Button type="submit" disabled={loading} className="flex-1">
+                {loading ? 'Creating...' : 'Invite client'}
+              </Button>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }

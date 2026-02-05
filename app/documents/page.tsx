@@ -40,18 +40,94 @@ interface Document {
   file_size: number;
   created_at: string;
   updated_at: string;
+  client_status?: string | null;
 }
 
+const CLIENT_STATUS_OPTIONS = [
+  "Pending",
+  "Submitted",
+  "Under review",
+  "In progress",
+  "Ready for review",
+  "Complete",
+];
+
+/** High-contrast colors for client status (portal + staff). */
+const CLIENT_STATUS_STYLES: Record<
+  string,
+  { bg: string; text: string; border: string }
+> = {
+  Pending: {
+    bg: "bg-slate-100 dark:bg-slate-800/60",
+    text: "text-slate-700 dark:text-slate-300",
+    border: "border-slate-300 dark:border-slate-600",
+  },
+  Submitted: {
+    bg: "bg-blue-100 dark:bg-blue-900/50",
+    text: "text-blue-800 dark:text-blue-200",
+    border: "border-blue-400 dark:border-blue-600",
+  },
+  "Under review": {
+    bg: "bg-amber-100 dark:bg-amber-900/50",
+    text: "text-amber-800 dark:text-amber-200",
+    border: "border-amber-400 dark:border-amber-600",
+  },
+  "In progress": {
+    bg: "bg-primary/15 dark:bg-primary/25",
+    text: "text-primary dark:text-primary",
+    border: "border-primary/50 dark:border-primary/60",
+  },
+  "Ready for review": {
+    bg: "bg-violet-100 dark:bg-violet-900/50",
+    text: "text-violet-800 dark:text-violet-200",
+    border: "border-violet-400 dark:border-violet-600",
+  },
+  Complete: {
+    bg: "bg-emerald-100 dark:bg-emerald-900/50",
+    text: "text-emerald-800 dark:text-emerald-200",
+    border: "border-emerald-400 dark:border-emerald-600",
+  },
+};
+
+function getClientStatusStyle(status: string | null | undefined) {
+  return CLIENT_STATUS_STYLES[status ?? "Pending"] ?? CLIENT_STATUS_STYLES["Pending"];
+}
+
+/** High-contrast pipeline status colors so they stand out from each other. */
 const statusStyles: Record<
   string,
   { bg: string; text: string; dot: string }
 > = {
-  completed: { bg: "bg-success/10", text: "text-success", dot: "bg-success" },
-  proposal_ready: { bg: "bg-success/10", text: "text-success", dot: "bg-success" },
-  pending: { bg: "bg-warning/10", text: "text-warning-foreground", dot: "bg-warning" },
-  processing: { bg: "bg-primary/10", text: "text-primary", dot: "bg-primary" },
-  generating_proposal: { bg: "bg-primary/10", text: "text-primary", dot: "bg-primary" },
-  failed: { bg: "bg-destructive/10", text: "text-destructive", dot: "bg-destructive" },
+  completed: {
+    bg: "bg-emerald-100 dark:bg-emerald-900/50",
+    text: "text-emerald-800 dark:text-emerald-200",
+    dot: "bg-emerald-500",
+  },
+  proposal_ready: {
+    bg: "bg-emerald-100 dark:bg-emerald-900/50",
+    text: "text-emerald-800 dark:text-emerald-200",
+    dot: "bg-emerald-500",
+  },
+  pending: {
+    bg: "bg-amber-100 dark:bg-amber-900/50",
+    text: "text-amber-800 dark:text-amber-200",
+    dot: "bg-amber-500",
+  },
+  processing: {
+    bg: "bg-blue-100 dark:bg-blue-900/50",
+    text: "text-blue-800 dark:text-blue-200",
+    dot: "bg-blue-500",
+  },
+  generating_proposal: {
+    bg: "bg-primary/15 dark:bg-primary/25",
+    text: "text-primary dark:text-primary",
+    dot: "bg-primary",
+  },
+  failed: {
+    bg: "bg-red-100 dark:bg-red-900/50",
+    text: "text-red-800 dark:text-red-200",
+    dot: "bg-red-500",
+  },
 };
 
 const statusLabels: Record<DocumentStatus, string> = {
@@ -80,8 +156,32 @@ export default function DocumentsPage() {
   const [filterStatus, setFilterStatus] = useState<DocumentStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [generatingProposals, setGeneratingProposals] = useState<Set<string>>(new Set());
+  const [updatingClientStatus, setUpdatingClientStatus] = useState<Set<string>>(new Set());
   const documentsRef = useRef<Document[]>([]);
   documentsRef.current = documents;
+
+  const updateClientStatus = async (documentId: string, client_status: string) => {
+    setUpdatingClientStatus((s) => new Set(s).add(documentId));
+    try {
+      const res = await fetch(`/api/documents/${documentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_status: client_status || null }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === documentId ? { ...d, client_status: client_status || null } : d))
+      );
+    } catch {
+      // keep previous state on error
+    } finally {
+      setUpdatingClientStatus((s) => {
+        const next = new Set(s);
+        next.delete(documentId);
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     if (!selectedCompanyId) {
@@ -333,6 +433,9 @@ export default function DocumentsPage() {
                           Status
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Client status
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Size
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -346,7 +449,7 @@ export default function DocumentsPage() {
                     <tbody className="divide-y divide-border">
                       {filteredDocuments.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                          <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
                             No documents found. Upload your first document from the home page.
                           </td>
                         </tr>
@@ -389,6 +492,31 @@ export default function DocumentsPage() {
                                   <span className={cn("h-1.5 w-1.5 rounded-full", style.dot)} />
                                   {statusLabels[doc.status]}
                                 </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <Select
+                                  value={doc.client_status || "Pending"}
+                                  onValueChange={(v) => updateClientStatus(doc.id, v)}
+                                  disabled={updatingClientStatus.has(doc.id)}
+                                >
+                                  <SelectTrigger
+                                    className={cn(
+                                      "w-[160px] h-9 text-xs font-medium border",
+                                      getClientStatusStyle(doc.client_status).bg,
+                                      getClientStatusStyle(doc.client_status).text,
+                                      getClientStatusStyle(doc.client_status).border
+                                    )}
+                                  >
+                                    <SelectValue placeholder="Portal status" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {CLIENT_STATUS_OPTIONS.map((opt) => (
+                                      <SelectItem key={opt} value={opt} className="text-xs">
+                                        {opt}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </td>
                               <td className="px-6 py-4 text-sm text-muted-foreground">
                                 {formatFileSize(doc.file_size)}

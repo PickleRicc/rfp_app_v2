@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { calculateCompleteness } from '@/lib/supabase/company-types';
+import { getCompanyIdOrResponse } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
+  const resolved = await getCompanyIdOrResponse(request);
+  if (resolved instanceof NextResponse) return resolved;
+  const { companyId } = resolved;
   try {
-    const companyId = request.headers.get('X-Company-Id');
-    
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'No company selected' },
-        { status: 400 }
-      );
-    }
 
     const supabase = getServerClient();
 

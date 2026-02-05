@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
+import { getCompanyIdOrResponse } from '@/lib/auth';
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const resolved = await getCompanyIdOrResponse(request);
+  if (resolved instanceof NextResponse) return resolved;
+  const { companyId } = resolved;
   try {
-    const companyId = request.headers.get('X-Company-Id');
-    
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'No company selected' },
-        { status: 400 }
-      );
-    }
-
     const body = await request.json();
     const { type } = body; // 'certification', 'naics', 'vehicle', or 'facility_clearance'
     const supabase = getServerClient();
@@ -125,16 +120,10 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const resolved = await getCompanyIdOrResponse(request);
+  if (resolved instanceof NextResponse) return resolved;
+  const { companyId } = resolved;
   try {
-    const companyId = request.headers.get('X-Company-Id');
-    
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'No company selected' },
-        { status: 400 }
-      );
-    }
-
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type'); // 'certification', 'naics', 'vehicle', or 'facility_clearance'
     const supabase = getServerClient();

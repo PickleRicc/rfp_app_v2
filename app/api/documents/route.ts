@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
+import { requireStaffOrResponse } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
+  const auth = await requireStaffOrResponse();
+  if (auth instanceof NextResponse) return auth;
   try {
     const supabase = getServerClient();
     

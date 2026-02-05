@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { readFile } from 'fs/promises';
+import { requireStaffOrResponse } from '@/lib/auth';
 
 /**
  * GET /api/proposals/[id]/compliance
@@ -10,6 +11,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffOrResponse();
+  if (auth instanceof NextResponse) return auth;
   try {
     const { id: documentId } = await params;
     const supabase = getServerClient();

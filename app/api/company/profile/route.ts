@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
+import { requireStaffOrResponse, getCompanyIdOrResponse } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
+  const auth = await requireStaffOrResponse();
+  if (auth instanceof NextResponse) return auth;
   try {
     const body = await request.json();
     const supabase = getServerClient();
@@ -59,15 +62,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const resolved = await getCompanyIdOrResponse(request);
+  if (resolved instanceof NextResponse) return resolved;
+  const { companyId } = resolved;
   try {
-    const companyId = request.headers.get('X-Company-Id');
-    
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'No company selected' },
-        { status: 400 }
-      );
-    }
 
     const supabase = getServerClient();
 
@@ -100,15 +98,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const resolved = await getCompanyIdOrResponse(request);
+  if (resolved instanceof NextResponse) return resolved;
+  const { companyId } = resolved;
   try {
-    const companyId = request.headers.get('X-Company-Id');
-    
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'No company selected' },
-        { status: 400 }
-      );
-    }
 
     const body = await request.json();
     const supabase = getServerClient();

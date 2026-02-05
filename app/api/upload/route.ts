@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { inngest } from '@/lib/inngest/client';
+import { requireStaffOrResponse } from '@/lib/auth';
 
 // PDF service URL - configurable via environment variable
 const PDF_SERVICE_URL = process.env.PDF_SERVICE_URL || 'http://localhost:8000';
 
 export async function POST(request: NextRequest) {
+  const auth = await requireStaffOrResponse();
+  if (auth instanceof NextResponse) return auth;
   try {
     const companyId = request.headers.get('X-Company-Id');
     
