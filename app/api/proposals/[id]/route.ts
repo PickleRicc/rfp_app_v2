@@ -73,6 +73,8 @@ export async function GET(
         compliance_matrix_url: response.compliance_matrix_url,
         created_at: response.created_at,
         completed_at: response.completed_at,
+        page_allocation: response.page_allocation || null,
+        outline: response.outline || null,
       },
       volumes: volumes || [],
       requirements: {

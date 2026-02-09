@@ -3,7 +3,31 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BookOpen, CheckCircle2, ListChecks, Target, PartyPopper, BarChart2, Download, FileText, type LucideIcon } from 'lucide-react';
+import { BookOpen, CheckCircle2, ListChecks, Target, PartyPopper, BarChart2, Download, FileText, List, ChevronDown, ChevronUp, Package, type LucideIcon } from 'lucide-react';
+
+// Page allocation status from pipeline
+interface PageAllocationStatus {
+  currentPages: number;
+  limitPages: number | null;
+  status: 'ok' | 'warning' | 'over';
+  message: string;
+}
+
+// Outline item from pipeline
+interface OutlineItem {
+  level: number;
+  title: string;
+  pageEstimate?: number;
+  children?: OutlineItem[];
+  sectionType?: 'volume' | 'section' | 'subsection' | 'exhibit';
+}
+
+interface OutlineResult {
+  volumeTitle: string;
+  items: OutlineItem[];
+  totalPages: number;
+  exhibitCount: number;
+}
 
 interface ProposalData {
   document: {
@@ -18,14 +42,27 @@ interface ProposalData {
     compliance_matrix_url: string | null;
     created_at: string;
     completed_at: string | null;
+    page_allocation: {
+      volumes: Record<string, PageAllocationStatus>;
+      overall: {
+        status: 'ok' | 'warning' | 'over';
+        totalPages: number;
+      };
+    } | null;
+    outline: Record<string, OutlineResult> | null;
   };
   volumes: Array<{
     id: string;
     volume_type: string;
     volume_number: number;
     docx_url: string;
+    pdf_url?: string;
     page_count: number;
     created_at: string;
+    content?: {
+      pageAllocation?: PageAllocationStatus;
+      pdfError?: string;
+    };
   }>;
   requirements: {
     total: number;
@@ -40,6 +77,7 @@ export default function ProposalPage() {
   const [proposal, setProposal] = useState<ProposalData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showOutline, setShowOutline] = useState(false);
 
   useEffect(() => {
     const fetchProposal = async () => {
@@ -147,7 +185,36 @@ export default function ProposalPage() {
               Your proposal has been generated with {proposal.volumes.length} volumes and{" "}
               {proposal.requirements.total} requirements addressed.
             </p>
+
+            {/* Page Allocation Status Badge */}
+            {proposal.response.page_allocation && (
+              <div className="flex justify-center mb-6">
+                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
+                  proposal.response.page_allocation.overall.status === 'over'
+                    ? 'bg-red-100 text-red-800 border border-red-200'
+                    : proposal.response.page_allocation.overall.status === 'warning'
+                      ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                      : 'bg-green-100 text-green-800 border border-green-200'
+                }`}>
+                  {proposal.response.page_allocation.overall.status === 'over' && '! '}
+                  {proposal.response.page_allocation.overall.status === 'warning' && '! '}
+                  Total Pages: {proposal.response.page_allocation.overall.totalPages.toFixed(0)}
+                  {proposal.response.page_allocation.overall.status === 'over' && ' (Over Limit)'}
+                  {proposal.response.page_allocation.overall.status === 'warning' && ' (Near Limit)'}
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-4 justify-center flex-wrap">
+              {/* Download Package Button - uses response.id for the /api/download endpoint */}
+              <a
+                href={`/api/download/${proposal.response.id}`}
+                download
+                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 font-semibold text-white shadow-md hover:bg-green-700 transition-colors"
+              >
+                <Package className="h-5 w-5" />
+                Download Package
+              </a>
               {proposal.response.compliance_matrix_url && (
                 <a
                   href={`/api/proposals/${documentId}/compliance?download=true`}
@@ -165,9 +232,44 @@ export default function ProposalPage() {
                 <Download className="h-5 w-5" />
                 Download All Volumes
               </a>
+              {/* View Outline Toggle */}
+              <button
+                onClick={() => setShowOutline(!showOutline)}
+                className="inline-flex items-center gap-2 rounded-lg bg-gray-100 px-6 py-3 font-semibold text-gray-700 shadow-md hover:bg-gray-200 transition-colors"
+              >
+                <List className="h-5 w-5" />
+                {showOutline ? 'Hide Outline' : 'View Outline'}
+                {showOutline ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Outline View Section */}
+        {showOutline && proposal.response.outline && (
+          <div className="rounded-xl border border-border bg-card p-6 mb-8">
+            <h3 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+              <List className="h-5 w-5" />
+              Proposal Outline
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {Object.entries(proposal.response.outline).map(([volumeType, outline]) => (
+                <div key={volumeType} className="rounded-lg border border-border bg-muted/30 p-4">
+                  <h4 className="font-semibold text-foreground mb-3">{outline.volumeTitle}</h4>
+                  <div className="text-sm font-mono space-y-1">
+                    {outline.items.map((item, idx) => (
+                      <OutlineItemView key={idx} item={item} />
+                    ))}
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-border flex justify-between text-sm text-muted-foreground">
+                    <span>Total Pages: {outline.totalPages}</span>
+                    <span>Exhibits: {outline.exhibitCount}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="overflow-hidden rounded-xl border border-border bg-card mb-8">
           <div className="border-b border-border bg-muted/50 px-6 py-4">
@@ -260,5 +362,30 @@ function SummaryCard({
       </div>
       <p className="text-2xl font-bold text-foreground">{value}</p>
     </div>
+  );
+}
+
+// Recursive outline item renderer
+function OutlineItemView({ item }: { item: OutlineItem }) {
+  const indent = (item.level - 1) * 16; // 16px per level
+  const marker = item.level === 1 ? '' : item.level === 2 ? '' : item.level === 3 ? '- ' : '* ';
+  const isExhibit = item.sectionType === 'exhibit';
+
+  return (
+    <>
+      <div
+        style={{ marginLeft: `${indent}px` }}
+        className={`py-0.5 ${isExhibit ? 'text-primary font-medium' : ''}`}
+      >
+        {marker}{item.title}
+        {item.pageEstimate && (
+          <span className="text-muted-foreground ml-2">(p. {item.pageEstimate})</span>
+        )}
+        {isExhibit && <span className="text-xs bg-primary/10 text-primary ml-2 px-1.5 py-0.5 rounded">EXHIBIT</span>}
+      </div>
+      {item.children?.map((child, idx) => (
+        <OutlineItemView key={idx} item={child} />
+      ))}
+    </>
   );
 }
