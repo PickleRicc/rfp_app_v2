@@ -86,10 +86,14 @@ Plans:
   3. Outline view export shows proposal structure for quick review
   4. Pre-submission quality checklist is auto-generated with framework compliance items
   5. Organized package structure creates folders for volumes, graphics, and final submissions
-**Plans**: TBD
+**Plans**: 5 plans in 3 waves
 
 Plans:
-- TBD
+- [ ] 04-01-PLAN.md — Page tracking with auto-condensing (PageTracker, ContentCondenser)
+- [ ] 04-02-PLAN.md — PDF conversion via LibreOffice headless CLI
+- [ ] 04-03-PLAN.md — Quality checklist generator and outline view
+- [ ] 04-04-PLAN.md — Package builder with Framework Part 9.1 structure
+- [ ] 04-05-PLAN.md — Pipeline integration and download UI
 
 ## Progress
 
@@ -101,7 +105,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | 1. Logos & Branding | 3/3 | Complete | 2026-02-02 |
 | 2. Styles & Content | 6/6 | Complete | 2026-02-04 |
 | 3. Exhibit Generation | 4/4 | Complete | 2026-02-06 |
-| 4. Pipeline & Output | 0/TBD | Not started | - |
+| 4. Pipeline & Output | 0/5 | Planned | - |
 
 ---
 *Roadmap created: 2026-02-02*
@@ -109,3 +113,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 *Phase 2 gap closure plans: 2026-02-04*
 *Phase 3 planned: 2026-02-05*
 *Phase 3 gap closure plan: 2026-02-06*
+*Phase 4 planned: 2026-02-09*
