@@ -14,6 +14,22 @@ import { integrateWinThemes } from '@/lib/generation/content/win-themes';
 import { createExhibit, getNextExhibitNumber } from '@/lib/generation/exhibits/exhibit-manager';
 import { writeFile } from 'fs/promises';
 import path from 'path';
+// Pipeline integration (Phase 4)
+import {
+  PageTracker,
+  condenseContent,
+  convertToPdf,
+  generateOutline,
+  type PageLimitStatus,
+  type OutlineResult,
+} from '@/lib/generation/pipeline';
+
+// Volume output with both DOCX and PDF (per CONTEXT.md: auto-generate PDF during generation)
+interface VolumeOutput {
+  docxBuffer: Buffer;
+  pdfBuffer: Buffer | null;
+  pdfError?: string;
+}
 
 export const rfpResponseGenerator = inngest.createFunction(
   { id: 'stage-2-response-generator' },
@@ -187,6 +203,28 @@ export const rfpResponseGenerator = inngest.createFunction(
         valuePropositionsCount: companyData.valuePropositions?.length || 0,
       });
 
+      // Initialize page trackers for each volume (Pipeline Phase 4)
+      const pageTrackers: Map<string, PageTracker> = new Map();
+      const companyName = companyData.profile?.company_name || 'Our Company';
+
+      for (const volType of volumesToGenerate) {
+        const tracker = new PageTracker(volType, pageLimits[volType] || null);
+        // Wire condense callback for auto-condensing when over limit
+        tracker.setCondenseCallback(
+          async (content, targetPages, company) => {
+            const result = await condenseContent(content, targetPages, company);
+            return {
+              condensedContent: result.condensedContent,
+              success: result.confidence !== 'low'
+            };
+          },
+          companyName
+        );
+        pageTrackers.set(volType, tracker);
+      }
+
+      console.log('📏 Page trackers initialized for volumes:', Array.from(pageTrackers.keys()));
+
       for (const volType of volumesToGenerate) {
         try {
           console.log(`\n🔄 Generating ${volType} volume...`);
@@ -308,30 +346,84 @@ export const rfpResponseGenerator = inngest.createFunction(
           // Convert to buffer
           const buffer = await saveDocxToBuffer(wordDoc);
 
-          // Save to file system
+          // Track pages for this volume (Pipeline Phase 4)
+          const tracker = pageTrackers.get(volType);
+          if (tracker) {
+            // Extract text content for page estimation (rough approximation from sections)
+            const textContent = enhancedVolume.sections
+              .map((s: any) => s.title + '\n' + (Array.isArray(s.content) ? `[${s.content.length} paragraphs]` : ''))
+              .join('\n\n');
+
+            await tracker.addSection({
+              sectionId: `${volType}-main`,
+              volumeType: volType,
+              content: textContent,
+            });
+
+            const pageStatus = tracker.getStatus();
+            if (pageStatus.status === 'warning') {
+              console.log(`   ⚠️  Page tracking warning for ${volType}: ${pageStatus.message}`);
+            } else if (pageStatus.status === 'over') {
+              console.log(`   🚨 Page limit exceeded for ${volType}: ${pageStatus.message}`);
+            } else {
+              console.log(`   📏 Page tracking OK for ${volType}: ${pageStatus.currentPages.toFixed(1)} pages`);
+            }
+          }
+
+          // Save DOCX to file system
           const filename = `${volType}-volume-${responseId}.docx`;
           const filepath = path.join('/tmp', filename);
           await writeFile(filepath, buffer);
 
-          console.log(`   ✅ Saved to: ${filepath}`);
+          console.log(`   ✅ DOCX saved to: ${filepath}`);
 
-          // Store volume metadata in database (NOT the Paragraph objects!)
+          // CRITICAL: Auto-generate PDF during generation (per CONTEXT.md locked decision)
+          console.log(`   🔄 Converting ${volType} to PDF...`);
+          const pdfResult = await convertToPdf(buffer);
+
+          let pdfFilepath: string | null = null;
+          let pdfError: string | null = null;
+
+          if (pdfResult.success && pdfResult.pdfBuffer) {
+            const pdfFilename = `${volType}-volume-${responseId}.pdf`;
+            pdfFilepath = path.join('/tmp', pdfFilename);
+            await writeFile(pdfFilepath, pdfResult.pdfBuffer);
+            console.log(`   ✅ PDF saved to: ${pdfFilepath} (${pdfResult.conversionTimeMs}ms)`);
+          } else {
+            pdfError = pdfResult.error || 'Unknown PDF conversion error';
+            console.warn(`   ⚠️  PDF conversion failed for ${volType}: ${pdfError}`);
+          }
+
+          // Store volume metadata in database with PDF info
+          const pageStatus = tracker?.getStatus();
           await supabase.from('proposal_volumes').insert({
             response_id: responseId,
             volume_type: volType,
             volume_number: docs.length + 1,
-            content: { sectionsCount: enhancedVolume.sections.length }, // Just metadata
+            content: {
+              sectionsCount: enhancedVolume.sections.length,
+              pdfError: pdfError,
+              pageAllocation: pageStatus ? {
+                currentPages: pageStatus.currentPages,
+                limitPages: pageStatus.limitPages,
+                status: pageStatus.status,
+                message: pageStatus.message,
+              } : null,
+            },
             docx_url: filepath,
-            page_count: 0,
+            pdf_url: pdfFilepath,
+            page_count: pageStatus?.currentPages || 0,
           });
 
           docs.push({
             type: volType,
             url: filepath,
+            pdfUrl: pdfFilepath,
             filename: filename,
+            pdfError: pdfError,
           });
 
-          console.log(`✅ ${volType} DOCX generated successfully`);
+          console.log(`✅ ${volType} DOCX + PDF generated successfully`);
         } catch (error) {
           console.error(`❌ Error processing ${volType}:`, error);
           if (error instanceof Error) {
@@ -341,7 +433,37 @@ export const rfpResponseGenerator = inngest.createFunction(
       }
 
       console.log(`\n📦 Total documents generated: ${docs.length}`);
-      return { docs, volumesMetadata };
+
+      // Aggregate page allocation status across all volumes
+      const pageAllocation: Record<string, PageLimitStatus> = {};
+      for (const [volType, tracker] of pageTrackers) {
+        pageAllocation[volType] = tracker.getStatus();
+      }
+
+      // Log overall page tracking summary
+      console.log('\n📏 PAGE TRACKING SUMMARY:');
+      for (const [volType, status] of Object.entries(pageAllocation)) {
+        const icon = status.status === 'ok' ? '✅' : status.status === 'warning' ? '⚠️' : '🚨';
+        console.log(`   ${icon} ${volType}: ${status.currentPages.toFixed(1)}/${status.limitPages || '∞'} pages - ${status.message}`);
+      }
+
+      // Generate outline for structure review (OUTPUT-04 requirement)
+      const outlines: Record<string, OutlineResult> = {};
+      for (const [volType, volume] of Object.entries(volumes)) {
+        if (volume && !volume.error && volume.sections) {
+          const sections = volume.sections.map((s: any, idx: number) => ({
+            title: s.title,
+            level: s.level || (idx === 0 ? 1 : 2),
+            hasExhibit: s.hasExhibit || false,
+          }));
+          outlines[volType] = generateOutline(
+            volType.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            sections
+          );
+        }
+      }
+
+      return { docs, volumesMetadata, pageAllocation, outlines };
     });
 
     // STEP 4: Verify compliance coverage
@@ -444,20 +566,42 @@ export const rfpResponseGenerator = inngest.createFunction(
       }
     });
 
-    // STEP 8: Update final status
+    // STEP 8: Update final status with page allocation and outlines
     await step.run('update-final-status', async () => {
       const supabase = getServerClient();
-      
-      // Update response status
+
+      // Calculate overall page allocation status
+      const overallStatus = Object.values(documents.pageAllocation).some(
+        (s: PageLimitStatus) => s.status === 'over'
+      )
+        ? 'over'
+        : Object.values(documents.pageAllocation).some((s: PageLimitStatus) => s.status === 'warning')
+          ? 'warning'
+          : 'ok';
+
+      const totalPages = Object.values(documents.pageAllocation).reduce(
+        (sum: number, s: PageLimitStatus) => sum + s.currentPages,
+        0
+      );
+
+      // Update response status with page allocation and outline data
       await supabase
         .from('rfp_responses')
         .update({
           status: 'completed',
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          page_allocation: {
+            volumes: documents.pageAllocation,
+            overall: {
+              status: overallStatus,
+              totalPages: totalPages,
+            },
+          },
+          outline: documents.outlines,
         })
         .eq('id', responseId);
-      
+
       // Update document status to proposal_ready
       await supabase
         .from('documents')
@@ -466,6 +610,8 @@ export const rfpResponseGenerator = inngest.createFunction(
           updated_at: new Date().toISOString(),
         })
         .eq('id', documentId);
+
+      console.log(`📏 Final page allocation: ${totalPages.toFixed(1)} total pages, status: ${overallStatus}`);
     });
 
     // Log completion
@@ -480,6 +626,12 @@ export const rfpResponseGenerator = inngest.createFunction(
           volumes_generated: documents.docs.length,
           requirements_coverage: coveragePercent,
           compliance_matrix: complianceMatrixUrl,
+          page_allocation: documents.pageAllocation,
+          pdf_generation: {
+            total: documents.docs.length,
+            successful: documents.docs.filter((d: any) => d.pdfUrl && !d.pdfError).length,
+            failed: documents.docs.filter((d: any) => d.pdfError).length,
+          },
         },
       });
     });
@@ -490,6 +642,8 @@ export const rfpResponseGenerator = inngest.createFunction(
       volumes: documents.docs,
       compliance_matrix: complianceMatrixUrl,
       requirements_coverage: coveragePercent,
+      page_allocation: documents.pageAllocation,
+      outlines: documents.outlines,
     };
   }
 );
