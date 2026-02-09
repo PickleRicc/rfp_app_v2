@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-02-01)
 ## Current Position
 
 Phase: 4 of 4 (Pipeline & Output) - IN PROGRESS
-Plan: 03 of 5 (Checklist and Outline) - COMPLETE
+Plan: 04 of 5 (Package Builder) - COMPLETE
 Status: Phase 4 In Progress
-Last activity: 2026-02-09 - Completed 04-03-PLAN.md
+Last activity: 2026-02-09 - Completed 04-04-PLAN.md
 
-Progress: [████████████░░░░░░░░░░░░░░░░] 3/5 Phase 4 plans complete (60%)
+Progress: [████████████████░░░░░░░░░░░░] 4/5 Phase 4 plans complete (80%)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
+- Total plans completed: 17
 - Average duration: ~5 min per plan
-- Total execution time: ~85 min
+- Total execution time: ~88 min
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: [████████████░░░░░░░░░░░
 | 01-logos-and-branding | 3 | ~20 min | ~7 min |
 | 02-styles-and-content | 6 | ~25 min | ~4 min |
 | 03-exhibit-generation | 4 | ~36 min | ~9 min |
-| 04-pipeline-and-output | 3 | ~4 min | ~1 min |
+| 04-pipeline-and-output | 4 | ~7 min | ~2 min |
 
 **Recent Trend:**
-- Last plan: 04-03 (Checklist and Outline) - 4 min
+- Last plan: 04-04 (Package Builder) - 3 min
 - Trend: Pipeline utilities executing efficiently
 
 *Updated after each plan completion*
@@ -53,6 +53,9 @@ Recent decisions affecting current work:
 - libreoffice-convert v1.8.1 for PDF conversion (rationale: current stable version)
 - 30-second timeout for PDF conversion (rationale: prevent zombie processes)
 - Named imports for tmp module (rationale: no default export in @types/tmp)
+- Pre-generated PDFs in manifest (rationale: per CONTEXT.md locked decision)
+- Maximum compression (zlib level 9) for ZIP (rationale: smaller download size)
+- Uint8Array conversion for NextResponse (rationale: Buffer not BodyInit compatible)
 
 **Phase 3 (Complete):**
 - Use os.tmpdir() for cross-platform compatibility (rationale: Windows requires proper temp directory)
@@ -103,19 +106,20 @@ None yet.
 - Plan 01 (Page Tracker): Complete
 - Plan 02 (PDF Converter): Complete
 - Plan 03 (Checklist and Outline): Complete
-- Plan 04 (Package Builder): Next
-- Plan 05 (Output Verification): Pending
+- Plan 04 (Package Builder): Complete
+- Plan 05 (Output Verification): Next
 
 **Ready for:**
-- Package builder implementation (04-04)
+- Output verification implementation (04-05)
 - All pipeline utilities in place
+- Package builder and download endpoint ready
 
 ## Session Continuity
 
-Last session: 2026-02-09 16:01 UTC
-Stopped at: Completed 04-01-PLAN.md (Page Tracking)
+Last session: 2026-02-09 13:07 UTC
+Stopped at: Completed 04-04-PLAN.md (Package Builder)
 Resume file: None
-Next: Plan 04-04 (Package Builder)
+Next: Plan 04-05 (Output Verification)
 
 ---
 *State updated: 2026-02-09*
