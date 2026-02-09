@@ -50,3 +50,12 @@ export {
   type OutlineResult,
   type SectionInput,
 } from './outline-generator';
+
+// Package assembly
+export {
+  buildPackage,
+  type VolumeFile,
+  type GraphicFile,
+  type PackageManifest,
+  type PackageBuildResult,
+} from './package-builder';
