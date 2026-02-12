@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useCompany } from "@/lib/context/CompanyContext";
 import { StatCard } from "@/app/components/dashboard/stat-card";
-import { FileText, BarChart3, FileCheck, Loader2, Eye, Sparkles, MoreHorizontal, Search, Filter } from "lucide-react";
+import { FileText, BarChart3, FileCheck, Loader2, Eye, Sparkles, MoreHorizontal, Search, Filter, StopCircle } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Badge } from "@/app/components/ui/badge";
@@ -261,6 +261,31 @@ export default function DocumentsPage() {
     }
   };
 
+  const [cancellingJobs, setCancellingJobs] = useState<Set<string>>(new Set());
+
+  const handleCancelProcessing = async (documentId: string) => {
+    if (!confirm("Are you sure you want to cancel this job? The document status will be reset.")) return;
+    setCancellingJobs((prev) => new Set(prev).add(documentId));
+    try {
+      const response = await fetch(`/api/documents/${documentId}/cancel`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to cancel job");
+      }
+      await fetchDocuments();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to cancel job");
+    } finally {
+      setCancellingJobs((prev) => {
+        const next = new Set(prev);
+        next.delete(documentId);
+        return next;
+      });
+    }
+  };
+
   const filteredDocuments = documents.filter((doc) => {
     const matchesSearch = doc.filename.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === "all" || doc.document_type === filterType;
@@ -420,28 +445,28 @@ export default function DocumentsPage() {
 
               <div className="overflow-hidden rounded-xl border border-border bg-card">
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full table-fixed">
                     <thead>
                       <tr className="border-b border-border bg-muted/50">
-                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <th className="w-[20%] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Document
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <th className="w-[5%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Type
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <th className="w-[10%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Status
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          Client status
+                        <th className="w-[12%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Client Status
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <th className="w-[6%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Size
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <th className="w-[8%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Uploaded
                         </th>
-                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <th className="w-[39%] px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Actions
                         </th>
                       </tr>
@@ -461,30 +486,28 @@ export default function DocumentsPage() {
                               key={doc.id}
                               className="group transition-colors hover:bg-muted/30"
                             >
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                                    <FileText className="h-5 w-5 text-primary" />
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-medium text-foreground line-clamp-1">
+                              <td className="px-3 py-3">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <FileText className="h-4 w-4 shrink-0 text-primary" />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate" title={doc.filename}>
                                       {doc.filename}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      {doc.id.slice(0, 8)}...
+                                      {doc.id.slice(0, 8)}
                                     </p>
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-6 py-4">
-                                <Badge variant="secondary" className="font-medium">
+                              <td className="px-2 py-3">
+                                <Badge variant="secondary" className="text-[11px] font-medium px-1.5 py-0.5">
                                   {typeLabels[doc.document_type]}
                                 </Badge>
                               </td>
-                              <td className="px-6 py-4">
+                              <td className="px-2 py-3">
                                 <div
                                   className={cn(
-                                    "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium",
+                                    "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
                                     style.bg,
                                     style.text
                                   )}
@@ -493,7 +516,7 @@ export default function DocumentsPage() {
                                   {statusLabels[doc.status]}
                                 </div>
                               </td>
-                              <td className="px-6 py-4">
+                              <td className="px-2 py-3">
                                 <Select
                                   value={doc.client_status || "Pending"}
                                   onValueChange={(v) => updateClientStatus(doc.id, v)}
@@ -501,13 +524,13 @@ export default function DocumentsPage() {
                                 >
                                   <SelectTrigger
                                     className={cn(
-                                      "w-[160px] h-9 text-xs font-medium border",
+                                      "w-full h-8 text-[11px] font-medium border",
                                       getClientStatusStyle(doc.client_status).bg,
                                       getClientStatusStyle(doc.client_status).text,
                                       getClientStatusStyle(doc.client_status).border
                                     )}
                                   >
-                                    <SelectValue placeholder="Portal status" />
+                                    <SelectValue placeholder="Status" />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {CLIENT_STATUS_OPTIONS.map((opt) => (
@@ -518,53 +541,66 @@ export default function DocumentsPage() {
                                   </SelectContent>
                                 </Select>
                               </td>
-                              <td className="px-6 py-4 text-sm text-muted-foreground">
+                              <td className="px-2 py-3 text-xs text-muted-foreground">
                                 {formatFileSize(doc.file_size)}
                               </td>
-                              <td className="px-6 py-4 text-sm text-muted-foreground">
+                              <td className="px-2 py-3 text-xs text-muted-foreground">
                                 {formatDate(doc.created_at)}
                               </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center justify-end gap-2">
+                              <td className="px-3 py-3">
+                                <div className="flex items-center justify-end gap-1.5 flex-wrap">
                                   {(doc.status === "completed" ||
                                     doc.status === "generating_proposal" ||
                                     doc.status === "proposal_ready") && (
-                                    <Button asChild variant="outline" size="sm" className="gap-1.5 bg-transparent">
+                                    <Button asChild variant="outline" size="sm" className="gap-1 bg-transparent h-7 px-2 text-xs">
                                       <Link href={`/results/${doc.id}`}>
-                                        <Eye className="h-3.5 w-3.5" />
-                                        View Analysis
+                                        <Eye className="h-3 w-3" />
+                                        Analysis
                                       </Link>
                                     </Button>
                                   )}
-                                  {doc.status === "completed" && doc.document_type === "rfp" && (
+                                  {(doc.status === "completed" || doc.status === "proposal_ready") && doc.document_type === "rfp" && (
                                     <Button
                                       size="sm"
-                                      className="gap-1.5"
+                                      variant={doc.status === "proposal_ready" ? "outline" : "default"}
+                                      className="gap-1 h-7 px-2 text-xs"
                                       disabled={generatingProposals.has(doc.id)}
                                       onClick={() => handleGenerateProposal(doc.id)}
                                     >
-                                      <Sparkles className="h-3.5 w-3.5" />
-                                      {generatingProposals.has(doc.id) ? "Starting..." : "Generate Proposal"}
+                                      <Sparkles className="h-3 w-3" />
+                                      {generatingProposals.has(doc.id) ? "Starting..." : "Generate"}
                                     </Button>
                                   )}
                                   {doc.status === "proposal_ready" && (
-                                    <Button asChild size="sm" className="gap-1.5">
+                                    <Button asChild size="sm" className="gap-1 h-7 px-2 text-xs">
                                       <Link href={`/proposals/${doc.id}`}>
-                                        <FileCheck className="h-3.5 w-3.5" />
-                                        View Proposal
+                                        <FileCheck className="h-3 w-3" />
+                                        Proposal
                                       </Link>
                                     </Button>
                                   )}
                                   {(doc.status === "processing" || doc.status === "generating_proposal") && (
-                                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                                      Processing...
-                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                        Processing
+                                      </span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="gap-0.5 text-destructive hover:text-destructive hover:bg-destructive/10 h-6 px-1.5 text-xs"
+                                        disabled={cancellingJobs.has(doc.id)}
+                                        onClick={() => handleCancelProcessing(doc.id)}
+                                      >
+                                        <StopCircle className="h-3 w-3" />
+                                        {cancellingJobs.has(doc.id) ? "..." : "Stop"}
+                                      </Button>
+                                    </div>
                                   )}
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                                        <MoreHorizontal className="h-4 w-4" />
+                                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                                        <MoreHorizontal className="h-3.5 w-3.5" />
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">

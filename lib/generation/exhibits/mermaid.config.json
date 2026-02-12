@@ -1,0 +1,23 @@
+{
+  "flowchart": {
+    "useMaxWidth": true,
+    "htmlLabels": true,
+    "curve": "basis",
+    "padding": 15,
+    "nodeSpacing": 50,
+    "rankSpacing": 50
+  },
+  "gantt": {
+    "useMaxWidth": true,
+    "fontSize": 12,
+    "barHeight": 20,
+    "barGap": 4,
+    "topPadding": 50,
+    "leftPadding": 75,
+    "gridLineStartPadding": 35,
+    "sectionFontSize": 14,
+    "numberSectionStyles": 4
+  },
+  "securityLevel": "loose",
+  "fontFamily": "Arial, Helvetica, sans-serif"
+}

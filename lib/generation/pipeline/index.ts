@@ -51,6 +51,13 @@ export {
   type SectionInput,
 } from './outline-generator';
 
+// DOCX page counting
+export {
+  countPagesFromDocx,
+  type DocxPageCount,
+  type SectionPageCount,
+} from './docx-page-counter';
+
 // Package assembly
 export {
   buildPackage,

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (document.status !== 'completed') {
+    if (document.status !== 'completed' && document.status !== 'proposal_ready') {
       return NextResponse.json(
         { error: 'Document analysis must be completed first' },
         { status: 400 }

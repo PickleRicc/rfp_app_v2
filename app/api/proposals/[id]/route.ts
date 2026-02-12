@@ -43,11 +43,20 @@ export async function GET(
     }
 
     // Get volumes
-    const { data: volumes } = await supabase
+    const { data: volumes, error: volumesError } = await supabase
       .from('proposal_volumes')
       .select('*')
       .eq('response_id', response.id)
       .order('volume_number');
+
+    console.log(`📦 Proposals API - Fetching volumes for response_id: ${response.id}`);
+    console.log(`   Volumes found: ${volumes?.length || 0}`);
+    if (volumesError) {
+      console.error(`   ❌ Volumes query error:`, volumesError);
+    }
+    if (volumes && volumes.length > 0) {
+      console.log(`   Volume types:`, volumes.map(v => v.volume_type));
+    }
 
     // Get requirements count and breakdown
     const { data: requirements } = await supabase

@@ -7,21 +7,21 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   try {
     const supabase = getServerClient();
-    
+
     // Get company context from header
     const companyId = request.headers.get('X-Company-Id');
-    
+
     // Build query
     let query = supabase
       .from('documents')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     // Filter by company if provided
     if (companyId) {
       query = query.eq('company_id', companyId);
     }
-    
+
     const { data: documents, error } = await query;
 
     if (error) {

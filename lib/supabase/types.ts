@@ -1,6 +1,6 @@
 // Database schema types for simplified RFP analyzer
 
-export type DocumentStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type DocumentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'generating_proposal' | 'proposal_ready';
 export type DocumentType = 'rfp' | 'proposal' | 'contract' | 'other' | 'unknown';
 
 export interface Document {
@@ -64,6 +64,19 @@ export interface TemplateOptions {
   header_footer?: boolean;
 }
 
+export interface PageAllocationData {
+  volumes: Record<string, {
+    currentPages: number;
+    limitPages: number | null;
+    status: 'ok' | 'warning' | 'over';
+    message: string;
+  }>;
+  overall: {
+    status: 'ok' | 'warning' | 'over';
+    totalPages: number;
+  };
+}
+
 export interface RfpResponse {
   id: string;
   document_id: string;
@@ -78,4 +91,9 @@ export interface RfpResponse {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  // Phase 4: Pipeline additions
+  page_allocation: PageAllocationData | null;
+  outline: Record<string, any> | null;
+  compliance_matrix_url: string | null;
+  requirements_coverage_percent: number | null;
 }

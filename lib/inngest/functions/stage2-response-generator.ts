@@ -12,17 +12,20 @@ import { generateOrgChart } from '@/lib/generation/exhibits/org-chart';
 import { generateGanttChart } from '@/lib/generation/exhibits/timeline';
 import { integrateWinThemes } from '@/lib/generation/content/win-themes';
 import { createExhibit, getNextExhibitNumber } from '@/lib/generation/exhibits/exhibit-manager';
-import { writeFile } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import os from 'os';
 // Pipeline integration (Phase 4)
 import {
   PageTracker,
   condenseContent,
   convertToPdf,
   generateOutline,
+  countPagesFromDocx,
   type PageLimitStatus,
   type OutlineResult,
 } from '@/lib/generation/pipeline';
+import { PAGE_CONSTANTS } from '@/lib/generation/planning/page-estimator';
 
 // Volume output with both DOCX and PDF (per CONTEXT.md: auto-generate PDF during generation)
 interface VolumeOutput {
@@ -153,7 +156,7 @@ export const rfpResponseGenerator = inngest.createFunction(
     // Create initial response record
     const responseId = await step.run('create-response-record', async () => {
       const supabase = getServerClient();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('rfp_responses')
         .insert({
           document_id: documentId,
@@ -163,6 +166,12 @@ export const rfpResponseGenerator = inngest.createFunction(
         .select('id')
         .single();
 
+      if (error) {
+        console.error('❌ Failed to create response record:', error);
+        throw new Error(`Failed to create response record: ${error.message}`);
+      }
+
+      console.log(`✅ Response record created: ${data?.id}`);
       return data?.id;
     });
 
@@ -224,6 +233,9 @@ export const rfpResponseGenerator = inngest.createFunction(
       }
 
       console.log('📏 Page trackers initialized for volumes:', Array.from(pageTrackers.keys()));
+
+      // Store per-section page estimates for outline generation
+      const volumePageEstimates: Map<string, Map<string, number>> = new Map();
 
       for (const volType of volumesToGenerate) {
         try {
@@ -347,17 +359,51 @@ export const rfpResponseGenerator = inngest.createFunction(
           const buffer = await saveDocxToBuffer(wordDoc);
 
           // Track pages for this volume (Pipeline Phase 4)
+          // Extract actual text from the DOCX buffer and count words for accurate page estimation
+          const docxPageCount = await countPagesFromDocx(buffer);
+
+          const totalVolumePages = docxPageCount.totalPages;
+
+          // Store section estimates for outline generation later
+          const sectionEstimates = new Map<string, number>();
+          if (docxPageCount.sections.length > 0) {
+            for (const section of docxPageCount.sections) {
+              sectionEstimates.set(section.title, section.estimatedPages);
+            }
+          } else {
+            // Fallback: distribute pages proportionally by paragraph count if DOCX section parsing didn't work
+            const totalParagraphs = enhancedVolume.sections.reduce(
+              (sum: number, s: any) => sum + (Array.isArray(s.content) ? s.content.length : 0), 0
+            );
+            for (const section of enhancedVolume.sections) {
+              const paragraphCount = Array.isArray(section.content) ? section.content.length : 0;
+              const proportion = totalParagraphs > 0 ? paragraphCount / totalParagraphs : 1 / enhancedVolume.sections.length;
+              const sectionPages = Math.max(0.5, Math.round(docxPageCount.contentPages * proportion * 2) / 2);
+              sectionEstimates.set(section.title, sectionPages);
+            }
+          }
+          volumePageEstimates.set(volType, sectionEstimates);
+
+          console.log(`   📏 DOCX page estimation for ${volType}:`);
+          console.log(`      Words: ${docxPageCount.wordCount.toLocaleString()}`);
+          console.log(`      Characters: ${docxPageCount.charCount.toLocaleString()}`);
+          console.log(`      Content pages: ${docxPageCount.contentPages}`);
+          console.log(`      Front matter pages: ${docxPageCount.frontMatterPages}`);
+          if (docxPageCount.sections.length > 0) {
+            for (const section of docxPageCount.sections) {
+              console.log(`      ${section.title}: ${section.estimatedPages} pages (${section.wordCount} words)`);
+            }
+          }
+          console.log(`      = Total: ${totalVolumePages} pages`);
+
+          // Feed the calculated estimate to the tracker
           const tracker = pageTrackers.get(volType);
           if (tracker) {
-            // Extract text content for page estimation (rough approximation from sections)
-            const textContent = enhancedVolume.sections
-              .map((s: any) => s.title + '\n' + (Array.isArray(s.content) ? `[${s.content.length} paragraphs]` : ''))
-              .join('\n\n');
-
+            const estimatedChars = totalVolumePages * PAGE_CONSTANTS.CHARS_PER_PAGE;
             await tracker.addSection({
               sectionId: `${volType}-main`,
               volumeType: volType,
-              content: textContent,
+              content: 'x'.repeat(estimatedChars),
             });
 
             const pageStatus = tracker.getStatus();
@@ -372,7 +418,7 @@ export const rfpResponseGenerator = inngest.createFunction(
 
           // Save DOCX to file system
           const filename = `${volType}-volume-${responseId}.docx`;
-          const filepath = path.join('/tmp', filename);
+          const filepath = path.join(os.tmpdir(), filename);
           await writeFile(filepath, buffer);
 
           console.log(`   ✅ DOCX saved to: ${filepath}`);
@@ -386,7 +432,7 @@ export const rfpResponseGenerator = inngest.createFunction(
 
           if (pdfResult.success && pdfResult.pdfBuffer) {
             const pdfFilename = `${volType}-volume-${responseId}.pdf`;
-            pdfFilepath = path.join('/tmp', pdfFilename);
+            pdfFilepath = path.join(os.tmpdir(), pdfFilename);
             await writeFile(pdfFilepath, pdfResult.pdfBuffer);
             console.log(`   ✅ PDF saved to: ${pdfFilepath} (${pdfResult.conversionTimeMs}ms)`);
           } else {
@@ -396,7 +442,7 @@ export const rfpResponseGenerator = inngest.createFunction(
 
           // Store volume metadata in database with PDF info
           const pageStatus = tracker?.getStatus();
-          await supabase.from('proposal_volumes').insert({
+          const insertPayload = {
             response_id: responseId,
             volume_type: volType,
             volume_number: docs.length + 1,
@@ -411,9 +457,31 @@ export const rfpResponseGenerator = inngest.createFunction(
               } : null,
             },
             docx_url: filepath,
-            pdf_url: pdfFilepath,
-            page_count: pageStatus?.currentPages || 0,
+            pdf_url: pdfFilepath || null,
+            page_count: totalVolumePages,
+          };
+
+          console.log(`   📝 Inserting proposal_volumes record:`, {
+            response_id: responseId,
+            volume_type: volType,
+            volume_number: insertPayload.volume_number,
+            page_count: insertPayload.page_count,
+            docx_url: filepath,
           });
+
+          const { data: insertData, error: insertError } = await supabase
+            .from('proposal_volumes')
+            .insert(insertPayload)
+            .select('id');
+
+          if (insertError) {
+            console.error(`   ❌ FAILED to insert proposal_volumes for ${volType}:`, insertError);
+            console.error(`   ❌ Insert payload was:`, JSON.stringify(insertPayload, null, 2));
+            // Throw to surface the error instead of silently continuing
+            throw new Error(`Failed to insert proposal_volumes for ${volType}: ${insertError.message}`);
+          } else {
+            console.log(`   ✅ proposal_volumes record created:`, insertData);
+          }
 
           docs.push({
             type: volType,
@@ -456,9 +524,14 @@ export const rfpResponseGenerator = inngest.createFunction(
             level: s.level || (idx === 0 ? 1 : 2),
             hasExhibit: s.hasExhibit || false,
           }));
+
+          // Pass section page estimates so outline shows real page counts
+          const sectionEstimates = volumePageEstimates.get(volType);
+
           outlines[volType] = generateOutline(
             volType.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()),
-            sections
+            sections,
+            sectionEstimates  // Map<string, number> of section title → page estimate
           );
         }
       }
@@ -487,7 +560,7 @@ export const rfpResponseGenerator = inngest.createFunction(
         
         // Save to file
         const filename = `compliance-matrix-${responseId}.xlsx`;
-        const filepath = path.join('/tmp', filename);
+        const filepath = path.join(os.tmpdir(), filename);
         await writeFile(filepath, matrixBuffer);
 
         const supabase = getServerClient();
@@ -508,7 +581,7 @@ export const rfpResponseGenerator = inngest.createFunction(
     await step.run('generate-html-preview', async () => {
       try {
         const { generateResponseHTML } = await import('@/lib/templates/rfp-response-template');
-        
+
         // Skip HTML generation - volumes only have metadata now, actual content is in DOCX files
         const flatContent: any = {};
         // Leave empty for now - HTML preview is deprecated
@@ -516,10 +589,10 @@ export const rfpResponseGenerator = inngest.createFunction(
         const html = generateResponseHTML({
           content: flatContent,
           branding: {
-            company_name: companyData.profile!.company_name,
+            company_name: companyData?.profile?.company_name || 'Company',
           },
           metadata: {
-            documentName: document.filename,
+            documentName: document?.filename || 'Document',
             generatedDate: new Date().toLocaleDateString(),
           },
         });
@@ -529,8 +602,12 @@ export const rfpResponseGenerator = inngest.createFunction(
           .from('rfp_responses')
           .update({ rendered_html: html })
           .eq('id', responseId);
+
+        console.log('✅ HTML preview generated');
+        return { success: true };
       } catch (error) {
         console.error('Error generating HTML:', error);
+        return { success: false, error: String(error) };
       }
     });
 
@@ -538,22 +615,22 @@ export const rfpResponseGenerator = inngest.createFunction(
     await step.run('validate-exhibits', async () => {
       try {
         const { validateExhibitReferences } = await import('@/lib/generation/exhibits/exhibit-manager');
-        
+
         // Validate exhibit references
         // Note: Full content parsing would require reading the generated DOCX
         // For now, validate based on tracked references
         const validation = await validateExhibitReferences(responseId);
-        
+
         if (!validation.valid) {
           console.warn('⚠️  Exhibit validation issues:', validation.issues);
-          
+
           // Log validation issues
           const supabase = getServerClient();
           await supabase.from('processing_logs').insert({
             document_id: documentId,
             stage: 'exhibit-validation',
             status: 'warning',
-            metadata: { 
+            metadata: {
               validation,
               message: 'Exhibit reference validation found issues'
             },
@@ -561,49 +638,69 @@ export const rfpResponseGenerator = inngest.createFunction(
         } else {
           console.log('✅ All exhibits validated successfully');
         }
+        return { success: true, validation };
       } catch (error) {
         console.error('❌ Error validating exhibits:', error);
+        return { success: false, error: String(error) };
       }
     });
 
     // STEP 8: Update final status with page allocation and outlines
     await step.run('update-final-status', async () => {
+      console.log(`📝 Updating final status for document: ${documentId}, response: ${responseId}`);
+
       const supabase = getServerClient();
 
-      // Calculate overall page allocation status
-      const overallStatus = Object.values(documents.pageAllocation).some(
-        (s: PageLimitStatus) => s.status === 'over'
-      )
-        ? 'over'
-        : Object.values(documents.pageAllocation).some((s: PageLimitStatus) => s.status === 'warning')
-          ? 'warning'
-          : 'ok';
+      // Calculate overall page allocation status (with null checks)
+      let overallStatus = 'ok';
+      let totalPages = 0;
 
-      const totalPages = Object.values(documents.pageAllocation).reduce(
-        (sum: number, s: PageLimitStatus) => sum + s.currentPages,
-        0
-      );
+      if (documents?.pageAllocation && typeof documents.pageAllocation === 'object') {
+        const pageValues = Object.values(documents.pageAllocation) as PageLimitStatus[];
+        overallStatus = pageValues.some((s) => s?.status === 'over')
+          ? 'over'
+          : pageValues.some((s) => s?.status === 'warning')
+            ? 'warning'
+            : 'ok';
 
-      // Update response status with page allocation and outline data
-      await supabase
+        totalPages = pageValues.reduce(
+          (sum, s) => sum + (s?.currentPages || 0),
+          0
+        );
+      } else {
+        console.warn('⚠️ No page allocation data available');
+      }
+
+      // Update response with page allocation and outline data
+      // REQUIRES: supabase-phase4-pipeline-migration.sql to be run first
+      const { error: responseUpdateError } = await supabase
         .from('rfp_responses')
         .update({
           status: 'completed',
           completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          page_allocation: {
+          page_allocation: documents?.pageAllocation ? {
             volumes: documents.pageAllocation,
             overall: {
               status: overallStatus,
               totalPages: totalPages,
             },
-          },
-          outline: documents.outlines,
+          } : null,
+          outline: documents?.outlines || null,
         })
         .eq('id', responseId);
 
+      if (responseUpdateError) {
+        console.error('❌ Failed to update rfp_responses:', responseUpdateError);
+        throw new Error(`Failed to update response status: ${responseUpdateError.message}`);
+      }
+
+      console.log(`✅ Response status updated to completed`);
+      console.log(`📊 Page allocation: ${totalPages.toFixed(1)} total pages, status: ${overallStatus}`);
+
       // Update document status to proposal_ready
-      await supabase
+      // REQUIRES: supabase-phase4-pipeline-migration.sql to be run first
+      const { error: docUpdateError } = await supabase
         .from('documents')
         .update({
           status: 'proposal_ready',
@@ -611,26 +708,33 @@ export const rfpResponseGenerator = inngest.createFunction(
         })
         .eq('id', documentId);
 
-      console.log(`📏 Final page allocation: ${totalPages.toFixed(1)} total pages, status: ${overallStatus}`);
+      if (docUpdateError) {
+        console.error('❌ Failed to update document status:', docUpdateError);
+        throw new Error(`Failed to update document status: ${docUpdateError.message}`);
+      }
+
+      console.log(`✅ Document status updated to proposal_ready`);
+      return { success: true, totalPages, overallStatus };
     });
 
     // Log completion
     await step.run('log-completion', async () => {
       const supabase = getServerClient();
+      const docs = documents?.docs || [];
       await supabase.from('processing_logs').insert({
         document_id: documentId,
         stage: 'stage-2-response-generator',
         status: 'completed',
         metadata: {
           response_id: responseId,
-          volumes_generated: documents.docs.length,
+          volumes_generated: docs.length,
           requirements_coverage: coveragePercent,
           compliance_matrix: complianceMatrixUrl,
-          page_allocation: documents.pageAllocation,
+          page_allocation: documents?.pageAllocation || null,
           pdf_generation: {
-            total: documents.docs.length,
-            successful: documents.docs.filter((d: any) => d.pdfUrl && !d.pdfError).length,
-            failed: documents.docs.filter((d: any) => d.pdfError).length,
+            total: docs.length,
+            successful: docs.filter((d: any) => d.pdfUrl && !d.pdfError).length,
+            failed: docs.filter((d: any) => d.pdfError).length,
           },
         },
       });
@@ -639,11 +743,11 @@ export const rfpResponseGenerator = inngest.createFunction(
     return {
       success: true,
       response_id: responseId,
-      volumes: documents.docs,
+      volumes: documents?.docs || [],
       compliance_matrix: complianceMatrixUrl,
       requirements_coverage: coveragePercent,
-      page_allocation: documents.pageAllocation,
-      outlines: documents.outlines,
+      page_allocation: documents?.pageAllocation || null,
+      outlines: documents?.outlines || null,
     };
   }
 );

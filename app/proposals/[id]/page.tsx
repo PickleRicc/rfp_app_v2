@@ -291,7 +291,7 @@ export default function ProposalPage() {
                           {volumeTypeLabels[volume.volume_type] || volume.volume_type}
                         </h4>
                         <p className="text-sm text-muted-foreground">
-                          {volume.page_count > 0 ? `${volume.page_count} pages` : "Generated"} •
+                          {volume.page_count > 0 ? `${volume.page_count} ${volume.page_count === 1 ? 'page' : 'pages'}` : "Generated"} •
                           Created {new Date(volume.created_at).toLocaleDateString()}
                         </p>
                       </div>
