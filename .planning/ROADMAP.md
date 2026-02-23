@@ -33,7 +33,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can enter contract vehicles, ISO/CMMI/ITIL certifications, facility clearance level, and DCAA-approved system status
   4. User can enter corporate overview, core services, enterprise win themes, key differentiators, and standard management approach text
   5. Tier 1 data entered for a company is pre-populated (not re-entered) when that company starts a new proposal
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 05-01-PLAN.md — Schema migration, TypeScript types, validation library, API updates
+- [ ] 05-02-PLAN.md — 3-tab Tier 1 Enterprise Intake UI (Corporate Identity, Vehicles & Certs, Capabilities)
+- [ ] 05-03-PLAN.md — Completeness tracking, mandatory gate enforcement, human verification
 
 ### Phase 6: Multi-Document Ingestion
 **Goal**: User can upload an entire solicitation package and the system produces a unified, reconciled requirement set with no outdated language carried forward
@@ -102,7 +106,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 5. Tier 1 Enterprise Intake | 0/TBD | Not started | - |
+| 5. Tier 1 Enterprise Intake | 0/3 | Planning complete | - |
 | 6. Multi-Document Ingestion | 0/TBD | Not started | - |
 | 7. Compliance Extraction | 0/TBD | Not started | - |
 | 8. Tier 2 Dynamic Data Call | 0/TBD | Not started | - |
