@@ -60,8 +60,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: v2.0 roadmap written; phases 5-10 defined; STATE.md updated; REQUIREMENTS.md traceability updated
-Resume file: None
+Stopped at: Phase 5 context gathered
+Resume file: .planning/phases/05-tier-1-enterprise-intake/05-CONTEXT.md
 
 ---
 *State updated: 2026-02-23*
