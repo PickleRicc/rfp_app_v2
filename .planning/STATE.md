@@ -10,24 +10,24 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 5 of 10 (Tier 1 Enterprise Intake)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-23 — v2.0 roadmap created (28 requirements across 6 phases, phases 5-10)
+Plan: 1 of TBD in current phase
+Status: In progress
+Last activity: 2026-02-23 — 05-01 complete: Tier 1 data layer (migration, types, validation, API)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] ~4%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed (v2.0): 0
-- Average duration: -
-- Total execution time: -
+- Total plans completed (v2.0): 1
+- Average duration: 15 min
+- Total execution time: 15 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 5. Tier 1 Enterprise Intake | TBD | - | - |
+| 5. Tier 1 Enterprise Intake | 1 done | 15 min | 15 min |
 | 6. Multi-Document Ingestion | TBD | - | - |
 | 7. Compliance Extraction | TBD | - | - |
 | 8. Tier 2 Dynamic Data Call | TBD | - | - |
@@ -35,6 +35,7 @@ Progress: [░░░░░░░░░░] 0%
 | 10. End-to-End Validation | TBD | - | - |
 
 *Updated after each plan completion*
+| Phase 05 P01 | 15 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -47,21 +48,27 @@ Recent decisions affecting current work:
 - v2.0 init: Exclude past performance and resumes from Tier 1 — per-opportunity assets (Tier 2 only)
 - v2.0 init: Human confirmation gate before draft generation — no draft without customer strategy validation
 - v2.0 init: ARL test case first, METC second — ARL exercises every capability
+- 05-01: TEXT[] for socioeconomic_certs and enterprise_win_themes — standardized SAM.gov values always queried with profile, join table adds complexity with no benefit
+- 05-01: JSONB for iso_cmmi_status and dcaa_approved_systems — structured boolean maps treated atomically, TypeScript enforces shape
+- 05-01: tier1_complete defaults false on every POST — only Plan 03 gate logic should evaluate and flip this flag
+- 05-01: checkSAMStatus is a format-validity mock — real SAM.gov Entity API deferred until API key provisioned
+- 05-01: UEI rejects O and I per SAM.gov spec — avoids visual confusion with 0 and 1
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
 - Pre-existing build error in route handlers (params need await in Next.js 16) — not blocking current work
 - TypeScript errors in various route files — pre-existing, not related to v2.0
+- SAM.gov Entity API (api.sam.gov) needs API key before real registration lookup works — mock in place
 
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-tier-1-enterprise-intake/05-CONTEXT.md
+Stopped at: Completed 05-01-PLAN.md (Tier 1 data layer)
+Resume file: .planning/phases/05-tier-1-enterprise-intake/05-01-SUMMARY.md
 
 ---
 *State updated: 2026-02-23*

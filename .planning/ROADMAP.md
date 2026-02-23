@@ -106,7 +106,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 5. Tier 1 Enterprise Intake | 0/3 | Planning complete | - |
+| 5. Tier 1 Enterprise Intake | 1/3 | In Progress|  |
 | 6. Multi-Document Ingestion | 0/TBD | Not started | - |
 | 7. Compliance Extraction | 0/TBD | Not started | - |
 | 8. Tier 2 Dynamic Data Call | 0/TBD | Not started | - |

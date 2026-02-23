@@ -9,11 +9,11 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 
 ### Enterprise Intake — Tier 1 (TIER1)
 
-- [ ] **TIER1-01**: User can enter corporate identity (legal entity name, UEI, CAGE, primary NAICS, business size, socioeconomic certifications)
-- [ ] **TIER1-02**: System validates UEI format, NAICS codes, and performs SAM.gov cross-reference checks
-- [ ] **TIER1-03**: User can enter active contract vehicles, ISO/CMMI/ITIL status, facility clearance level, DCAA-approved systems
-- [ ] **TIER1-04**: User can enter corporate overview, core services, enterprise win themes, key differentiators, standard management approach
-- [ ] **TIER1-05**: Tier 1 data persists across all proposals for a given customer
+- [x] **TIER1-01**: User can enter corporate identity (legal entity name, UEI, CAGE, primary NAICS, business size, socioeconomic certifications)
+- [x] **TIER1-02**: System validates UEI format, NAICS codes, and performs SAM.gov cross-reference checks
+- [x] **TIER1-03**: User can enter active contract vehicles, ISO/CMMI/ITIL status, facility clearance level, DCAA-approved systems
+- [x] **TIER1-04**: User can enter corporate overview, core services, enterprise win themes, key differentiators, standard management approach
+- [x] **TIER1-05**: Tier 1 data persists across all proposals for a given customer
 - [ ] **TIER1-06**: System enforces min/max word counts and completeness checks on capability fields
 
 ### Multi-Document Ingestion (INGEST)
@@ -98,11 +98,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TIER1-01 | Phase 5 | Pending |
-| TIER1-02 | Phase 5 | Pending |
-| TIER1-03 | Phase 5 | Pending |
-| TIER1-04 | Phase 5 | Pending |
-| TIER1-05 | Phase 5 | Pending |
+| TIER1-01 | Phase 5 | Complete |
+| TIER1-02 | Phase 5 | Complete |
+| TIER1-03 | Phase 5 | Complete |
+| TIER1-04 | Phase 5 | Complete |
+| TIER1-05 | Phase 5 | Complete |
 | TIER1-06 | Phase 5 | Pending |
 | INGEST-01 | Phase 6 | Pending |
 | INGEST-02 | Phase 6 | Pending |
