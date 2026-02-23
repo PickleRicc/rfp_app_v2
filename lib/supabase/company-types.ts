@@ -449,6 +449,29 @@ export interface DocumentAsset {
 
 // ===== COMPLETENESS TRACKING =====
 
+/**
+ * Tier 1 completeness section — one of the three weighted sections.
+ */
+export interface Tier1CompletenessSection {
+  name: string;
+  score: number;
+  maxScore: number;
+  missingFields: string[];
+}
+
+/**
+ * Result of calculateTier1Completeness().
+ * Tracks weighted scoring across Corporate Identity, Vehicles & Certs, and Capabilities.
+ */
+export interface Tier1Completeness {
+  /** Overall completeness percentage 0-100 */
+  score: number;
+  /** Breakdown by section */
+  sections: Tier1CompletenessSection[];
+  /** True when score >= 80 AND all required Corporate Identity fields are valid */
+  isComplete: boolean;
+}
+
 export interface CompletenessBreakdown {
   core_information: number; // out of 25
   certifications: number; // out of 10

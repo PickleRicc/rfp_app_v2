@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useCompany } from '@/lib/context/CompanyContext';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 import { Tier1TabLayout, type Tab } from '@/app/components/tier1/Tier1TabLayout';
 import { CorporateIdentityTab } from '@/app/components/tier1/CorporateIdentityTab';
 import { VehiclesCertificationsTab } from '@/app/components/tier1/VehiclesCertificationsTab';
 import { CapabilitiesPositioningTab } from '@/app/components/tier1/CapabilitiesPositioningTab';
+import { Tier1CompletenessBar } from '@/app/components/tier1/Tier1CompletenessBar';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
 
 const TABS: Tab[] = [
@@ -22,6 +23,9 @@ export default function CompanyProfilePage() {
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState<Partial<CompanyProfile>>({});
   const [activeTab, setActiveTab] = useState('corporate-identity');
+
+  // Ref to the Tier1CompletenessBar's refresh function so tabs can trigger re-fetch
+  const refreshCompletenessRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (selectedCompanyId) {
@@ -40,6 +44,9 @@ export default function CompanyProfilePage() {
       if (data.profile) {
         setProfileData(data.profile);
       }
+      // After re-fetching the profile (triggered by a tab save), also refresh the
+      // completeness bar so the score updates without needing a full page reload.
+      refreshCompletenessRef.current?.();
     } catch (err) {
       console.error('Error fetching profile:', err);
     } finally {
@@ -81,6 +88,11 @@ export default function CompanyProfilePage() {
           Tier 1 intake — stable corporate data used across all proposals
         </p>
       </div>
+
+      <Tier1CompletenessBar
+        companyId={selectedCompanyId || ''}
+        onRefreshRef={(fn) => { refreshCompletenessRef.current = fn; }}
+      />
 
       <Tier1TabLayout activeTab={activeTab} onTabChange={setActiveTab} tabs={TABS}>
         {activeTab === 'corporate-identity' && (
