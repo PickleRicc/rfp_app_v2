@@ -62,6 +62,29 @@ ALTER TABLE company_profiles
 ALTER TABLE company_profiles
   ADD COLUMN IF NOT EXISTS tier1_complete BOOLEAN DEFAULT false;
 
+-- Primary NAICS code stored directly on profile for quick access.
+-- The naics_codes table holds additional codes; this is the primary one.
+ALTER TABLE company_profiles
+  ADD COLUMN IF NOT EXISTS primary_naics TEXT;
+
+-- Human-readable title for the primary NAICS code
+ALTER TABLE company_profiles
+  ADD COLUMN IF NOT EXISTS primary_naics_title TEXT;
+
+-- Facility clearance fields
+ALTER TABLE company_profiles
+  ADD COLUMN IF NOT EXISTS has_facility_clearance BOOLEAN DEFAULT false;
+
+ALTER TABLE company_profiles
+  ADD COLUMN IF NOT EXISTS clearance_level TEXT
+    CHECK (clearance_level IS NULL OR clearance_level IN ('Confidential', 'Secret', 'Top Secret', 'TS/SCI'));
+
+ALTER TABLE company_profiles
+  ADD COLUMN IF NOT EXISTS sponsoring_agency TEXT;
+
+ALTER TABLE company_profiles
+  ADD COLUMN IF NOT EXISTS cage_code_cleared TEXT;
+
 -----------------------------------------------------------
 -- INDEXES FOR NEW COLUMNS
 -----------------------------------------------------------

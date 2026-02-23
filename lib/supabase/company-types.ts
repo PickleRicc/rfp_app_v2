@@ -132,6 +132,24 @@ export interface CompanyProfile {
   /** DCAA-approved accounting and business system statuses */
   dcaa_approved_systems?: DCAAApprovedSystems;
 
+  /** Primary NAICS code stored directly on profile for quick access */
+  primary_naics?: string;
+
+  /** Human-readable title for the primary NAICS code */
+  primary_naics_title?: string;
+
+  /** Whether the company has a facility clearance */
+  has_facility_clearance?: boolean;
+
+  /** Facility clearance level */
+  clearance_level?: 'Confidential' | 'Secret' | 'Top Secret' | 'TS/SCI';
+
+  /** Agency sponsoring the facility clearance */
+  sponsoring_agency?: string;
+
+  /** CAGE code associated with the cleared facility */
+  cage_code_cleared?: string;
+
   /**
    * Flag indicating Tier 1 onboarding is complete.
    * Must be true before user can start an RFP (enforced in Plan 03 gate logic).
