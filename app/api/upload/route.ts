@@ -11,13 +11,55 @@ export async function POST(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   try {
     const companyId = request.headers.get('X-Company-Id');
-    
+
     if (!companyId) {
       return NextResponse.json(
         { error: 'No company selected. Please select a company before uploading.' },
         { status: 400 }
       );
     }
+
+    // === TIER 1 GATE CHECK ===
+    // Enforce that the company's Tier 1 Enterprise Intake must be complete before
+    // allowing any RFP document uploads. The tier1_complete flag is a pre-computed
+    // boolean set by the profile PUT handler after every save — single-column check
+    // avoids expensive completeness recalculation on every upload request.
+    const supabaseForGate = getServerClient();
+    const { data: gateData, error: gateError } = await supabaseForGate
+      .from('company_profiles')
+      .select('tier1_complete')
+      .eq('id', companyId)
+      .single();
+
+    if (gateError) {
+      if (gateError.code === 'PGRST116') {
+        return NextResponse.json(
+          {
+            error:
+              'Company profile not found. Please create your company profile at /company/profile before uploading.',
+            code: 'PROFILE_NOT_FOUND',
+          },
+          { status: 403 }
+        );
+      }
+      console.error('Upload gate check error:', gateError);
+      return NextResponse.json(
+        { error: 'Failed to verify Tier 1 completion status' },
+        { status: 500 }
+      );
+    }
+
+    if (!gateData?.tier1_complete) {
+      return NextResponse.json(
+        {
+          error:
+            'Tier 1 Enterprise Intake must be completed before uploading RFP documents. Please complete your company profile at /company/profile.',
+          code: 'TIER1_INCOMPLETE',
+        },
+        { status: 403 }
+      );
+    }
+    // === END TIER 1 GATE CHECK ===
 
     const formData = await request.formData();
     const file = formData.get('file') as File;

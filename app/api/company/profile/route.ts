@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { requireStaffOrResponse, getCompanyIdOrResponse } from '@/lib/auth';
 import { validateUEI, validateCAGE } from '@/lib/validation/tier1-validators';
+import { isTier1Complete } from '@/lib/validation/tier1-completeness';
 
 export async function POST(request: NextRequest) {
   const auth = await requireStaffOrResponse();
@@ -193,9 +194,57 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // === AUTO-UPDATE tier1_complete FLAG ===
+    // After every profile save, recalculate whether Tier 1 is complete and persist
+    // the flag. This keeps tier1_complete in sync without requiring a manual "mark
+    // complete" step from the user. The upload route reads this pre-computed flag
+    // (single-column check) to avoid expensive recalculation on every upload request.
+    let tier1Complete = false;
+    try {
+      // Fetch related table counts needed for completeness calculation
+      const [vehicleResult, naicsResult] = await Promise.all([
+        supabase
+          .from('contract_vehicles')
+          .select('id', { count: 'exact', head: true })
+          .eq('company_id', companyId),
+        supabase
+          .from('naics_codes')
+          .select('id', { count: 'exact', head: true })
+          .eq('company_id', companyId),
+      ]);
+
+      const extra = {
+        contractVehicleCount: vehicleResult.count ?? 0,
+        naicsCodeCount: naicsResult.count ?? 0,
+      };
+
+      tier1Complete = isTier1Complete(profile, extra);
+
+      // Only write if the flag value has changed (avoid unnecessary writes)
+      if (profile.tier1_complete !== tier1Complete) {
+        const { error: flagError } = await supabase
+          .from('company_profiles')
+          .update({ tier1_complete: tier1Complete })
+          .eq('id', companyId);
+
+        if (flagError) {
+          console.error('Error updating tier1_complete flag:', flagError);
+          // Non-fatal — profile save succeeded; flag will be corrected on next save
+        } else {
+          // Keep the returned profile object in sync with the updated flag
+          profile.tier1_complete = tier1Complete;
+        }
+      }
+    } catch (flagErr) {
+      console.error('tier1_complete recalculation error:', flagErr);
+      // Non-fatal — profile save succeeded
+    }
+    // === END AUTO-UPDATE ===
+
     return NextResponse.json({
       success: true,
       profile,
+      tier1Complete,
     });
   } catch (error) {
     console.error('Profile update error:', error);
