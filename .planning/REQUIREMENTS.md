@@ -98,13 +98,44 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (Populated by roadmapper) | | |
+| TIER1-01 | Phase 5 | Pending |
+| TIER1-02 | Phase 5 | Pending |
+| TIER1-03 | Phase 5 | Pending |
+| TIER1-04 | Phase 5 | Pending |
+| TIER1-05 | Phase 5 | Pending |
+| TIER1-06 | Phase 5 | Pending |
+| INGEST-01 | Phase 6 | Pending |
+| INGEST-02 | Phase 6 | Pending |
+| INGEST-03 | Phase 6 | Pending |
+| INGEST-04 | Phase 6 | Pending |
+| INGEST-05 | Phase 6 | Pending |
+| INGEST-06 | Phase 6 | Pending |
+| EXTRACT-01 | Phase 7 | Pending |
+| EXTRACT-02 | Phase 7 | Pending |
+| EXTRACT-03 | Phase 7 | Pending |
+| EXTRACT-04 | Phase 7 | Pending |
+| TIER2-01 | Phase 8 | Pending |
+| TIER2-02 | Phase 8 | Pending |
+| TIER2-03 | Phase 8 | Pending |
+| TIER2-04 | Phase 8 | Pending |
+| TIER2-05 | Phase 8 | Pending |
+| TIER2-06 | Phase 8 | Pending |
+| DRAFT-01 | Phase 9 | Pending |
+| DRAFT-02 | Phase 9 | Pending |
+| DRAFT-03 | Phase 9 | Pending |
+| DRAFT-04 | Phase 9 | Pending |
+| DRAFT-05 | Phase 9 | Pending |
+| DRAFT-06 | Phase 9 | Pending |
+| VALID-01 | Phase 10 | Pending |
+| VALID-02 | Phase 10 | Pending |
+| VALID-03 | Phase 10 | Pending |
+| VALID-04 | Phase 10 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 28 total
-- Mapped to phases: 0
-- Unmapped: 28 ⚠️
+- Mapped to phases: 28
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-23*
-*Last updated: 2026-02-23 after initial definition*
+*Last updated: 2026-02-23 — traceability populated by roadmapper*

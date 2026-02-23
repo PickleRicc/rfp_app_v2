@@ -1,116 +1,114 @@
-# Roadmap: RFP Proposal Generator
+# Roadmap: ClicklessAI — v2.0 Production Readiness
 
 ## Overview
 
-This roadmap completes full framework alignment for the RFP Proposal Generator, taking it from 70% to 100% compliance with the Proposal Response Generation Framework. The journey moves from visual polish (logos and branding) through professional styling (comprehensive text and table styles), to actual exhibit generation (org charts, diagrams, timelines), and culminates in production-ready output (page tracking, PDF export, quality checks, submission packages).
+This roadmap transforms ClicklessAI from a single-document prototype to a production-grade multi-document solicitation system. The six phases follow the data flow of a real proposal shop: enterprise onboarding (Tier 1) → multi-document ingestion → AI compliance extraction → dynamic data call (Tier 2) → draft generation from combined sources → end-to-end validation against real RFP packages. Completing this milestone makes the system ready for paying customers.
+
+v1.0 completed phases 1–4 (framework alignment). v2.0 begins at phase 5.
 
 ## Phases
 
 **Phase Numbering:**
-- Integer phases (1, 2, 3, 4): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+- Integer phases (5–10): v2.0 Production Readiness work
+- Decimal phases (X.1, X.2): Urgent insertions (marked with INSERTED)
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Logos & Branding** - Professional visual identity across all proposal documents
-- [x] **Phase 2: Styles & Content** - Complete text styling and structured content sections
-- [x] **Phase 3: Exhibit Generation** - Actual diagram generation (org charts, process flows, timelines)
-- [ ] **Phase 4: Pipeline & Output** - Production-ready tracking, export, and packaging
+- [ ] **Phase 5: Tier 1 Enterprise Intake** - One-time onboarding captures stable corporate data that persists across all proposals
+- [ ] **Phase 6: Multi-Document Ingestion** - System accepts full solicitation packages, classifies documents, and reconciles amendments
+- [ ] **Phase 7: Compliance Extraction** - AI extracts Section L/M requirements and admin data from reconciled package
+- [ ] **Phase 8: Tier 2 Dynamic Data Call** - System generates RFP-specific intake form driven by extraction results
+- [ ] **Phase 9: Draft Generation** - System produces compliant first draft from Tier 1 + Tier 2 + extraction data
+- [ ] **Phase 10: End-to-End Validation** - System successfully processes both ARL and METC test packages end-to-end
 
 ## Phase Details
 
-### Phase 1: Logos & Branding
-**Goal**: Proposals have professional branding with company logos and solicitation information visible throughout
-**Depends on**: Nothing (first phase)
-**Requirements**: ARCH-02, ARCH-04, ARCH-05, FORMAT-04, FORMAT-05, FORMAT-06
+### Phase 5: Tier 1 Enterprise Intake
+**Goal**: A customer can complete one-time enterprise onboarding and have that data available for every subsequent proposal
+**Depends on**: Nothing (first v2.0 phase; existing v1.0 pipeline continues to function independently)
+**Requirements**: TIER1-01, TIER1-02, TIER1-03, TIER1-04, TIER1-05, TIER1-06
 **Success Criteria** (what must be TRUE):
-  1. Company logo appears on cover page with professional placement and sizing
-  2. Company logo appears in headers on every page after cover
-  3. Solicitation number appears in headers alongside company name
-  4. Proprietary notice appears in footers on every page
-  5. Table of Contents auto-updates with field codes when user refreshes in Word
-  6. Table of Exhibits is listed in TOC and auto-updates
-**Plans**: 3 plans in 3 waves
+  1. User can enter and save all corporate identity fields (legal entity name, UEI, CAGE, primary NAICS, business size, socioeconomic certifications) in one form
+  2. System rejects invalid UEI format and invalid NAICS codes before saving, and surface SAM.gov cross-reference status
+  3. User can enter contract vehicles, ISO/CMMI/ITIL certifications, facility clearance level, and DCAA-approved system status
+  4. User can enter corporate overview, core services, enterprise win themes, key differentiators, and standard management approach text
+  5. Tier 1 data entered for a company is pre-populated (not re-entered) when that company starts a new proposal
+**Plans**: TBD
 
-Plans:
-- [x] 01-01-PLAN.md — Foundation utilities (images.ts, toc.ts)
-- [x] 01-02-PLAN.md — Header and footer generators
-- [x] 01-03-PLAN.md — Generator integration with branding
-
-### Phase 2: Styles & Content
-**Goal**: Proposals use complete professional styling system and include deliverables/benefits sections
-**Depends on**: Phase 1
-**Requirements**: STYLE-02, STYLE-04, STYLE-06, STYLE-07, STYLE-08, CONTENT-05, CONTENT-06, TRACE-04
+### Phase 6: Multi-Document Ingestion
+**Goal**: User can upload an entire solicitation package and the system produces a unified, reconciled requirement set with no outdated language carried forward
+**Depends on**: Phase 5
+**Requirements**: INGEST-01, INGEST-02, INGEST-03, INGEST-04, INGEST-05, INGEST-06
 **Success Criteria** (what must be TRUE):
-  1. Headings support Same Page, New Page, and Unnumbered variants per framework spec
-  2. Emphasis styles (Bold Intro, Intense Quote, Intense Reference) are applied correctly in generated content
-  3. Lists support 3-level bullets and numbered lists with 4 levels matching framework styles
-  4. Tables use proper heading, body, bold, and centered variant styles
-  5. Every task area includes a Deliverables subsection with structured output descriptions
-  6. Every approach section includes a Benefits callout box highlighting value propositions
-  7. Compliance matrix shows accurate page numbers (not TBD placeholders)
-**Plans**: 6 plans (3 original + 3 gap closure) in 2 waves
+  1. User can upload 10–20+ files (PDF, DOCX, XLSX) in a single solicitation upload session grouped under one solicitation number
+  2. Every uploaded document is automatically labeled with its document type (base RFP, SOO/SOW/PWS, amendment, Q&A, pricing template, DD254, clauses, CDRLs, wage determination, provisions) without user input
+  3. When an amendment supersedes language in a base document, the superseded text is flagged and only the latest version is used downstream
+  4. Q&A responses that modify scope, page limits, evaluation criteria, or submission instructions are identified and tagged so downstream extraction reflects the changes
+  5. Fillable templates (staffing plans, cost summaries, past performance forms) are identified and their required fields mapped
+**Plans**: TBD
 
-Plans:
-- [x] 02-01-PLAN.md — Complete styling system (heading variants, emphasis, lists, tables)
-- [x] 02-02-PLAN.md — Deliverables subsections and Benefits callout boxes
-- [x] 02-03-PLAN.md — Compliance matrix page number estimation
-- [x] 02-04-PLAN.md — [GAP CLOSURE] Wire numbering configs, fix bullet style ID mismatch
-- [x] 02-05-PLAN.md — [GAP CLOSURE] Apply heading variants and emphasis styles in templates
-- [x] 02-06-PLAN.md — [GAP CLOSURE] Apply table styles in table generators
-
-### Phase 3: Exhibit Generation
-**Goal**: Proposals include actual generated diagrams (org charts, process flows, timelines) instead of placeholders
-**Depends on**: Phase 2
-**Requirements**: EXHIBIT-04, EXHIBIT-05, EXHIBIT-06, PIPE-05
+### Phase 7: Compliance Extraction
+**Goal**: After ingestion, the system automatically surfaces all compliance obligations — volumes, page limits, eval factors, admin data — with no manual review required to drive the Tier 2 data call
+**Depends on**: Phase 6
+**Requirements**: EXTRACT-01, EXTRACT-02, EXTRACT-03, EXTRACT-04
 **Success Criteria** (what must be TRUE):
-  1. Org chart exhibits show actual team structure with names, roles, and reporting lines
-  2. Process diagram exhibits visualize workflows with steps, decision points, and flows
-  3. Timeline/Gantt chart exhibits display project phases with durations and milestones
-  4. All exhibit references in text correspond to actual generated exhibits (no placeholders)
-**Plans**: 4 plans (3 original + 1 gap closure) in 3 waves
+  1. System displays extracted Section L data: volume names, page limits per volume, required attachments, required forms and certifications, and formatting rules
+  2. System displays extracted Section M data: all evaluation factors and subfactors, evaluation methodology (LPTA or tradeoff), experience thresholds, and key personnel requirements
+  3. System displays extracted admin data: NAICS code, size standard, set-aside designation, contract type, period of performance, and CLIN structure
+  4. System shows rating scales and relative factor weightings from the evaluation criteria section
+**Plans**: TBD
 
-Plans:
-- [x] 03-01-PLAN.md — Diagram rendering infrastructure (cross-platform renderer, branding)
-- [x] 03-02-PLAN.md — Refactor diagram generators (org-chart, process, timeline)
-- [x] 03-03-PLAN.md — Integrate exhibits into document generator
-- [x] 03-04-PLAN.md — [GAP CLOSURE] Verify exhibit cross-references in narrative text
-
-### Phase 4: Pipeline & Output
-**Goal**: System tracks page allocation, exports to multiple formats, and produces submission-ready packages
-**Depends on**: Phase 3
-**Requirements**: PIPE-02, OUTPUT-02, OUTPUT-04, OUTPUT-05, OUTPUT-06
+### Phase 8: Tier 2 Dynamic Data Call
+**Goal**: User is presented with an RFP-specific intake form — driven by what that particular RFP requires — and can complete it before draft generation begins
+**Depends on**: Phase 7
+**Requirements**: TIER2-01, TIER2-02, TIER2-03, TIER2-04, TIER2-05, TIER2-06
 **Success Criteria** (what must be TRUE):
-  1. System tracks page counts per volume and warns when approaching RFP limits
-  2. Proposals can be exported as PDF files ready for electronic submission
-  3. Outline view export shows proposal structure for quick review
-  4. Pre-submission quality checklist is auto-generated with framework compliance items
-  5. Organized package structure creates folders for volumes, graphics, and final submissions
-**Plans**: 5 plans in 3 waves
+  1. After extraction completes, the system generates a data call form whose fields reflect what the specific RFP requires (e.g., correct number of past performance references, specific certification types)
+  2. User can confirm opportunity-level details: prime or sub role, teaming partners, contract type, and NAICS size standard for this opportunity
+  3. User can provide past performance references with the count and fields matching what the RFP extracted
+  4. User can upload key personnel resumes, certifications, and Letters of Commitment as required by the RFP
+  5. User can enter technical approach inputs: summary of approach, tools and platforms, staffing model, assumptions, and risks
+  6. User can provide compliance verification data: org certifications, individual certifications, facility clearance confirmation, NIST 800-171 score, and required attachments
+**Plans**: TBD
 
-Plans:
-- [ ] 04-01-PLAN.md — Page tracking with auto-condensing (PageTracker, ContentCondenser)
-- [ ] 04-02-PLAN.md — PDF conversion via LibreOffice headless CLI
-- [ ] 04-03-PLAN.md — Quality checklist generator and outline view
-- [ ] 04-04-PLAN.md — Package builder with Framework Part 9.1 structure
-- [ ] 04-05-PLAN.md — Pipeline integration and download UI
+### Phase 9: Draft Generation
+**Goal**: User confirms strategy at a human gate, then receives a compliant first draft that follows the RFP's volume structure, addresses every evaluation factor, and respects all formatting constraints
+**Depends on**: Phase 8
+**Requirements**: DRAFT-01, DRAFT-02, DRAFT-03, DRAFT-04, DRAFT-05, DRAFT-06
+**Success Criteria** (what must be TRUE):
+  1. Before generation begins, user is presented with a confirmation screen showing prime/sub role, teaming partners, contract type, and strategy — and must explicitly confirm before draft proceeds
+  2. Generated draft is built from Tier 1 corporate data, Tier 2 opportunity data, and extracted RFP requirements — not from a generic template
+  3. Draft volume structure matches the volume names and order specified in Section L of the specific RFP
+  4. Each evaluation factor identified in Section M has corresponding content in the draft with explicit responsive coverage
+  5. Draft content fits within page limits extracted from the RFP; system flags sections approaching or exceeding limits
+  6. Required fill-in templates (staffing plans, cost summaries, past performance forms) are populated with customer data mapped to the correct template fields
+**Plans**: TBD
+
+### Phase 10: End-to-End Validation
+**Goal**: Both ARL and METC test packages pass through the complete pipeline and produced drafts meet the acceptance criteria defined in the Blueprint
+**Depends on**: Phase 9
+**Requirements**: VALID-01, VALID-02, VALID-03, VALID-04
+**Success Criteria** (what must be TRUE):
+  1. ARL test package (18+ files) is fully ingested with every document correctly classified, all amendment changes reconciled, and no outdated language in the output
+  2. METC test package (9 files) is fully ingested with GSA-specific rules applied, WOSB set-aside recognized, and Q&A-driven page limit expansion (25 → 75 pages) reflected in extraction
+  3. Generated ARL draft passes compliance matrix coverage check: correct volume structure, all Section M evaluation factors addressed, page limits respected
+  4. Extraction accuracy for both test cases meets 95%+ benchmark when compared against manual analysis of Section L, Section M, and admin data
+**Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4
+Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Logos & Branding | 3/3 | Complete | 2026-02-02 |
-| 2. Styles & Content | 6/6 | Complete | 2026-02-04 |
-| 3. Exhibit Generation | 4/4 | Complete | 2026-02-06 |
-| 4. Pipeline & Output | 0/5 | Planned | - |
+| 5. Tier 1 Enterprise Intake | 0/TBD | Not started | - |
+| 6. Multi-Document Ingestion | 0/TBD | Not started | - |
+| 7. Compliance Extraction | 0/TBD | Not started | - |
+| 8. Tier 2 Dynamic Data Call | 0/TBD | Not started | - |
+| 9. Draft Generation | 0/TBD | Not started | - |
+| 10. End-to-End Validation | 0/TBD | Not started | - |
 
 ---
-*Roadmap created: 2026-02-02*
-*Phase 2 planned: 2026-02-04*
-*Phase 2 gap closure plans: 2026-02-04*
-*Phase 3 planned: 2026-02-05*
-*Phase 3 gap closure plan: 2026-02-06*
-*Phase 4 planned: 2026-02-09*
+*v1.0 roadmap (phases 1–4): Complete as of 2026-02-09*
+*v2.0 roadmap created: 2026-02-23*
