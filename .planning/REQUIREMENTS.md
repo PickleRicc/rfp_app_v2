@@ -1,152 +1,110 @@
-# Requirements: RFP Proposal Generator
+# Requirements: ClicklessAI — RFP Proposal Generator
 
-**Defined:** 2026-02-01
-**Core Value:** Generated proposals indistinguishable from expert gov proposal writers
+**Defined:** 2026-02-23
+**Core Value:** Generated proposals indistinguishable from expert government proposal writers — the kind that win contracts.
 
-## v1 Requirements
+## v2.0 Requirements
 
-Requirements for full Proposal Response Generation Framework alignment.
+Requirements for production readiness per ClicklessAI Blueprint and consultant (Mary Morris) feedback.
 
-### Document Architecture (ARCH)
+### Enterprise Intake — Tier 1 (TIER1)
 
-- [x] **ARCH-01**: Cover page with solicitation info, company name, date, volume ID
-- [x] **ARCH-02**: Company logo on cover page with professional branding
-- [x] **ARCH-03**: Cover letter with CO address, capability statement, discriminators, signature
-- [x] **ARCH-04**: Dynamic Table of Contents using DOCX field codes (auto-updatable)
-- [x] **ARCH-05**: Table of Exhibits listing in TOC
-- [x] **ARCH-06**: Volume structure (Technical, Management, Past Performance, Price)
-- [x] **ARCH-07**: Appendices (Resumes, Certifications, Detailed Past Performance)
+- [ ] **TIER1-01**: User can enter corporate identity (legal entity name, UEI, CAGE, primary NAICS, business size, socioeconomic certifications)
+- [ ] **TIER1-02**: System validates UEI format, NAICS codes, and performs SAM.gov cross-reference checks
+- [ ] **TIER1-03**: User can enter active contract vehicles, ISO/CMMI/ITIL status, facility clearance level, DCAA-approved systems
+- [ ] **TIER1-04**: User can enter corporate overview, core services, enterprise win themes, key differentiators, standard management approach
+- [ ] **TIER1-05**: Tier 1 data persists across all proposals for a given customer
+- [ ] **TIER1-06**: System enforces min/max word counts and completeness checks on capability fields
 
-### Requirements Traceability (TRACE)
+### Multi-Document Ingestion (INGEST)
 
-- [x] **TRACE-01**: Requirement boxes with blue border/shading after section headings
-- [x] **TRACE-02**: Cross-reference notation in headings `[RFQ X.X; PWS REQ X.X]`
-- [x] **TRACE-03**: Compliance matrix Excel with all columns and status coloring
-- [ ] **TRACE-04**: Accurate page numbers in compliance matrix (currently TBD)
+- [ ] **INGEST-01**: User can upload 10-20+ files per solicitation (PDF, DOCX, XLSX) grouped by solicitation number
+- [ ] **INGEST-02**: System auto-classifies document types (base RFP, SOO/SOW/PWS, amendment, Q&A, pricing template, DD254, clauses, CDRLs, wage determination, provisions)
+- [ ] **INGEST-03**: System reconciles amendments against base documents, flags superseded language, and ensures latest version controls
+- [ ] **INGEST-04**: System parses government Q&A responses and identifies answers that modify scope, page limits, evaluation criteria, or submission instructions
+- [ ] **INGEST-05**: System identifies fillable templates (staffing plans, cost summaries, past perf forms) and maps required fields
+- [ ] **INGEST-06**: System tracks document version lineage showing which amendment/Q&A changed which requirement
 
-### Writing Styles (STYLE)
+### Compliance Extraction (EXTRACT)
 
-- [x] **STYLE-01**: 4-level heading hierarchy with auto-numbering
-- [ ] **STYLE-02**: Heading variants (Same Page, New Page, Unnumbered)
-- [x] **STYLE-03**: Body text styles (10pt, 11pt, 12pt)
-- [ ] **STYLE-04**: Emphasis styles (Bold Intro, Intense Quote, Intense Reference)
-- [x] **STYLE-05**: Bullet list styles (level 1, 2)
-- [ ] **STYLE-06**: Bullet level 3 and table bullet variants
-- [ ] **STYLE-07**: Numbered list styles (4 levels)
-- [ ] **STYLE-08**: Table styles (heading, body, bold, centered variants)
+- [ ] **EXTRACT-01**: System extracts Section L data (volume structure, page limits per volume, required attachments, forms/certs, formatting rules)
+- [ ] **EXTRACT-02**: System extracts Section M data (evaluation factors/subfactors, methodology LPTA vs tradeoff, experience thresholds, key personnel requirements)
+- [ ] **EXTRACT-03**: System extracts admin data (NAICS code, size standard, set-aside designation, contract type, period of performance, CLIN structure)
+- [ ] **EXTRACT-04**: System captures rating scales and relative weightings from evaluation criteria
 
-### Exhibit System (EXHIBIT)
+### Dynamic Data Call — Tier 2 (TIER2)
 
-- [x] **EXHIBIT-01**: Unified sequential exhibit numbering and tracking
-- [x] **EXHIBIT-02**: Exhibit cross-references with bold+italic formatting
-- [x] **EXHIBIT-03**: Call-out boxes with border, shading, strategic placement
-- [x] **EXHIBIT-04**: Org chart generation (actual diagram, not placeholder)
-- [x] **EXHIBIT-05**: Process diagram generation
-- [x] **EXHIBIT-06**: Timeline/Gantt chart generation
-- [x] **EXHIBIT-07**: Exhibit validation (references vs. exhibits)
+- [ ] **TIER2-01**: System auto-generates RFP-specific data call form based on extraction results (fields vary per RFP)
+- [ ] **TIER2-02**: User can confirm opportunity details (prime/sub role, teaming partners, contract type, NAICS size confirmation)
+- [ ] **TIER2-03**: User can provide past performance references (count driven by RFP-extracted requirements)
+- [ ] **TIER2-04**: User can upload key personnel resumes, certifications, and Letters of Commitment
+- [ ] **TIER2-05**: User can provide technical approach inputs (summary of approach, tools/platforms, staffing model, assumptions, risks)
+- [ ] **TIER2-06**: System collects compliance verification data (org certs, individual certs, facility clearance, NIST 800-171 score, required attachments)
 
-### Section Templates (TEMPL)
+### Draft Generation (DRAFT)
 
-- [x] **TEMPL-01**: Executive summary with understanding, solution, why-us structure
-- [x] **TEMPL-02**: Technical approach with task areas, requirement boxes, proof points
-- [x] **TEMPL-03**: Management approach with org structure, staffing, communication, QC
-- [x] **TEMPL-04**: Transition plan with 4-phase structure
-- [x] **TEMPL-05**: Past performance with contract details, relevance, achievements
-- [x] **TEMPL-06**: Resume template with header, summary, education, experience
+- [ ] **DRAFT-01**: System presents human confirmation gate before draft generation (prime/sub, teaming, strategy validation)
+- [ ] **DRAFT-02**: System generates compliant draft from combined Tier 1 + Tier 2 + extraction data
+- [ ] **DRAFT-03**: Draft follows volume structure specified in Section L of the specific RFP
+- [ ] **DRAFT-04**: Draft addresses every evaluation factor identified in Section M
+- [ ] **DRAFT-05**: Draft respects all formatting constraints from RFP (page limits, font sizes, margin requirements)
+- [ ] **DRAFT-06**: System identifies required fill-in templates and maps customer data to correct fields
 
-### Content Generation (CONTENT)
+### End-to-End Validation (VALID)
 
-- [x] **CONTENT-01**: Compliance language patterns ("Company will..." for "shall")
-- [x] **CONTENT-02**: Win theme integration with callout boxes
-- [x] **CONTENT-03**: Ghosting context for AI prompts
-- [x] **CONTENT-04**: Proof points tied to proposed approaches
-- [ ] **CONTENT-05**: Deliverables subsection per task area
-- [ ] **CONTENT-06**: Benefits callout per approach section
+- [ ] **VALID-01**: System processes ARL test case (18+ files) with correct classification, amendment reconciliation, and extraction
+- [ ] **VALID-02**: System processes METC test case (9 files) with GSA-specific rules and Q&A-driven page limit changes
+- [ ] **VALID-03**: Generated ARL draft passes compliance matrix coverage check (correct volume structure, eval factor coverage)
+- [ ] **VALID-04**: Extraction accuracy meets 95%+ benchmark against manual analysis of test cases
 
-### Formatting (FORMAT)
+## v1.0 Requirements (Complete)
 
-- [x] **FORMAT-01**: US Letter page size with 1-inch margins
-- [x] **FORMAT-02**: Headers with company name and volume title
-- [x] **FORMAT-03**: Footers with page numbers (Page X of Y)
-- [x] **FORMAT-04**: Company logo in headers
-- [x] **FORMAT-05**: Solicitation number in headers
-- [x] **FORMAT-06**: Proprietary notice in footers
-- [x] **FORMAT-07**: Arial font with proper sizing
+All v1.0 Framework Alignment requirements are validated. See PROJECT.md Validated section for full list.
 
-### Generation Pipeline (PIPE)
+**Summary:** 34 requirements complete across Document Architecture, Traceability, Styles, Exhibits, Templates, Content, Formatting, Pipeline, and Output categories.
 
-- [x] **PIPE-01**: Section-to-requirement mapping
-- [ ] **PIPE-02**: Page allocation tracking with limit warnings
-- [x] **PIPE-03**: AI content generation with compliance prompts
-- [x] **PIPE-04**: Proof point injection from past performance
-- [x] **PIPE-05**: Actual exhibit generation (not placeholders)
-- [x] **PIPE-06**: Compliance verification and gap analysis
+**Remaining v1.0 items (carried forward or superseded):**
+- TRACE-04 (accurate page numbers) — superseded by DRAFT-05 page limit enforcement
+- STYLE-02, STYLE-04, STYLE-06, STYLE-07, STYLE-08 — completed in v1.0 Phase 2 gap closure plans
+- CONTENT-05, CONTENT-06 — completed in v1.0 Phase 2
+- PIPE-02 (page allocation) — superseded by DRAFT-05
+- OUTPUT-02, OUTPUT-04, OUTPUT-05, OUTPUT-06 — completed in v1.0 Phase 4
 
-### Output & Quality (OUTPUT)
+## Future Requirements
 
-- [x] **OUTPUT-01**: DOCX export with all styles applied
-- [ ] **OUTPUT-02**: PDF export option
-- [x] **OUTPUT-03**: Compliance matrix Excel export
-- [ ] **OUTPUT-04**: Outline view export for structure review
-- [ ] **OUTPUT-05**: Pre-submission quality checklist automation
-- [ ] **OUTPUT-06**: Organized package structure (folders for volumes, graphics)
-
-## v2 Requirements
-
-Deferred to future release.
-
-### Advanced Features
+Deferred beyond v2.0.
 
 - **ADV-01**: Acronym management (define on first use, glossary)
 - **ADV-02**: Color team review version with highlighted themes and comments
-- **ADV-03**: Section L compliance checker (automated format verification)
+- **ADV-03**: Automated Section L format verification (beyond extraction)
 - **ADV-04**: Alt text for accessibility on all exhibits
 - **ADV-05**: Real-time collaboration features
+- **ADV-06**: Pricing calculation engine (currently manual)
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
 | Mobile app | Desktop workflow sufficient for proposal writers |
-| Pricing calculation | Price volumes prepared manually |
 | Template designer UI | Templates managed in code |
 | OCR for scanned PDFs | Require text-based PDFs |
-| Multi-user collaboration | Single-user tool, external review process |
+| Past performance library in Tier 1 | Per consultant: per-opportunity asset, Tier 2 only |
+| Resume bank in Tier 1 | Per consultant: dynamic, opportunity-specific, Tier 2 only |
+| Real-time collaboration | Single-user tool, external review process |
 
 ## Traceability
 
+Which phases cover which requirements. Updated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ARCH-02 | Phase 1 | Complete |
-| ARCH-04 | Phase 1 | Complete |
-| ARCH-05 | Phase 1 | Complete |
-| TRACE-04 | Phase 2 | Pending |
-| STYLE-02 | Phase 2 | Pending |
-| STYLE-04 | Phase 2 | Pending |
-| STYLE-06 | Phase 2 | Pending |
-| STYLE-07 | Phase 2 | Pending |
-| STYLE-08 | Phase 2 | Pending |
-| EXHIBIT-04 | Phase 3 | Complete |
-| EXHIBIT-05 | Phase 3 | Complete |
-| EXHIBIT-06 | Phase 3 | Complete |
-| CONTENT-05 | Phase 2 | Pending |
-| CONTENT-06 | Phase 2 | Pending |
-| FORMAT-04 | Phase 1 | Complete |
-| FORMAT-05 | Phase 1 | Complete |
-| FORMAT-06 | Phase 1 | Complete |
-| PIPE-02 | Phase 4 | Pending |
-| PIPE-05 | Phase 3 | Complete |
-| OUTPUT-02 | Phase 4 | Pending |
-| OUTPUT-04 | Phase 4 | Pending |
-| OUTPUT-05 | Phase 4 | Pending |
-| OUTPUT-06 | Phase 4 | Pending |
+| (Populated by roadmapper) | | |
 
 **Coverage:**
-- v1 requirements: 42 total
-- Already complete: 34 (81%)
-- Remaining: 8 (19%)
-- Mapped to phases: 8/8 remaining (100%)
+- v2.0 requirements: 28 total
+- Mapped to phases: 0
+- Unmapped: 28 ⚠️
 
 ---
-*Requirements defined: 2026-02-01*
-*Last updated: 2026-02-06 after Phase 3 completion*
+*Requirements defined: 2026-02-23*
+*Last updated: 2026-02-23 after initial definition*
