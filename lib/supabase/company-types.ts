@@ -1,5 +1,35 @@
 // Company Intake System Types
 // Based on Company_Intake_Framework.md
+// Updated: Phase 5 Tier 1 Enterprise Intake — added ISOCMMIStatus, DCAAApprovedSystems,
+// and new Tier 1 fields to CompanyProfile.
+
+// ===== TIER 1 ENTERPRISE INTAKE TYPES =====
+
+/**
+ * ISO/CMMI quality and process certification status.
+ * Stored as JSONB in company_profiles.iso_cmmi_status.
+ */
+export interface ISOCMMIStatus {
+  iso_9001: boolean;
+  iso_27001: boolean;
+  iso_20000: boolean;
+  cmmi_dev_level: number | null;
+  cmmi_svc_level: number | null;
+  itil_certified: boolean;
+}
+
+/**
+ * DCAA-approved accounting and business systems status.
+ * Stored as JSONB in company_profiles.dcaa_approved_systems.
+ */
+export interface DCAAApprovedSystems {
+  accounting: boolean;
+  estimating: boolean;
+  purchasing: boolean;
+  timekeeping: boolean;
+  compensation: boolean;
+  billing: boolean;
+}
 
 // ===== CORE INFORMATION =====
 
@@ -63,6 +93,50 @@ export interface CompanyProfile {
   completeness_score: number;
   created_at: string;
   updated_at: string;
+
+  // ===== TIER 1 ENTERPRISE INTAKE FIELDS =====
+  // Added in Phase 5 migration (supabase-tier1-enterprise-migration.sql).
+  // All optional (?) because existing rows won't have these values populated yet.
+
+  /** SAM.gov business size standard classification */
+  business_size?: 'Small' | 'Other Than Small' | 'Large';
+
+  /**
+   * Socioeconomic certification codes from SAM.gov.
+   * Stored as TEXT[] — standardized enumerated values always queried with the profile.
+   * Common values: '8(a)', 'HUBZone', 'SDVOSB', 'WOSB', 'EDWOSB', 'SDB'
+   */
+  socioeconomic_certs?: string[];
+
+  /**
+   * Longer-form corporate overview for proposals (max 3000 chars).
+   * Distinct from elevator_pitch — this is the full narrative used in proposal boilerplate.
+   */
+  corporate_overview?: string;
+
+  /** Narrative summary of core service areas (max 2000 chars) */
+  core_services_summary?: string;
+
+  /** Reusable enterprise-level win theme statements */
+  enterprise_win_themes?: string[];
+
+  /** Narrative summary of key differentiators (max 2000 chars) */
+  key_differentiators_summary?: string;
+
+  /** Standard management approach text (max 3000 chars) */
+  standard_management_approach?: string;
+
+  /** ISO/CMMI quality and process certification statuses */
+  iso_cmmi_status?: ISOCMMIStatus;
+
+  /** DCAA-approved accounting and business system statuses */
+  dcaa_approved_systems?: DCAAApprovedSystems;
+
+  /**
+   * Flag indicating Tier 1 onboarding is complete.
+   * Must be true before user can start an RFP (enforced in Plan 03 gate logic).
+   */
+  tier1_complete?: boolean;
 }
 
 // ===== CERTIFICATIONS & REGISTRATIONS =====
