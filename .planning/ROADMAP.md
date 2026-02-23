@@ -14,7 +14,7 @@ v1.0 completed phases 1–4 (framework alignment). v2.0 begins at phase 5.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 5: Tier 1 Enterprise Intake** - One-time onboarding captures stable corporate data that persists across all proposals
+- [x] **Phase 5: Tier 1 Enterprise Intake** - One-time onboarding captures stable corporate data that persists across all proposals (completed 2026-02-23)
 - [ ] **Phase 6: Multi-Document Ingestion** - System accepts full solicitation packages, classifies documents, and reconciles amendments
 - [ ] **Phase 7: Compliance Extraction** - AI extracts Section L/M requirements and admin data from reconciled package
 - [ ] **Phase 8: Tier 2 Dynamic Data Call** - System generates RFP-specific intake form driven by extraction results
@@ -106,7 +106,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 5. Tier 1 Enterprise Intake | 2/3 | In Progress|  |
+| 5. Tier 1 Enterprise Intake | 3/3 | Complete   | 2026-02-23 |
 | 6. Multi-Document Ingestion | 0/TBD | Not started | - |
 | 7. Compliance Extraction | 0/TBD | Not started | - |
 | 8. Tier 2 Dynamic Data Call | 0/TBD | Not started | - |
