@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { requireStaffOrResponse, getCompanyIdOrResponse } from '@/lib/auth';
+import { validateUEI, validateCAGE } from '@/lib/validation/tier1-validators';
 
 export async function POST(request: NextRequest) {
   const auth = await requireStaffOrResponse();
@@ -8,6 +9,28 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const supabase = getServerClient();
+
+    // Validate UEI format if provided
+    if (body.uei_number) {
+      const ueiResult = validateUEI(body.uei_number);
+      if (!ueiResult.valid) {
+        return NextResponse.json(
+          { error: `Invalid UEI: ${ueiResult.error}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate CAGE code format if provided
+    if (body.cage_code) {
+      const cageResult = validateCAGE(body.cage_code);
+      if (!cageResult.valid) {
+        return NextResponse.json(
+          { error: `Invalid CAGE code: ${cageResult.error}` },
+          { status: 400 }
+        );
+      }
+    }
 
     // Create new company profile (no longer checking for existing since we support multiple)
     const { data: profile, error } = await supabase
@@ -36,6 +59,19 @@ export async function POST(request: NextRequest) {
         vision_statement: body.vision_statement || null,
         core_values: body.core_values || [],
         completeness_score: 25, // Initial score from core info
+
+        // === TIER 1 ENTERPRISE INTAKE FIELDS (Phase 5) ===
+        // New fields added by supabase-tier1-enterprise-migration.sql
+        business_size: body.business_size || null,
+        socioeconomic_certs: body.socioeconomic_certs || [],
+        corporate_overview: body.corporate_overview || null,
+        core_services_summary: body.core_services_summary || null,
+        enterprise_win_themes: body.enterprise_win_themes || [],
+        key_differentiators_summary: body.key_differentiators_summary || null,
+        standard_management_approach: body.standard_management_approach || null,
+        iso_cmmi_status: body.iso_cmmi_status || {},
+        dcaa_approved_systems: body.dcaa_approved_systems || {},
+        tier1_complete: false, // Always false on creation — set by gate enforcement (Plan 03)
       })
       .select()
       .single();
@@ -105,6 +141,38 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
     const supabase = getServerClient();
+
+    // === SERVER-SIDE VALIDATION FOR TIER 1 REGISTRATION FIELDS ===
+    // Validate UEI format if present in the update body
+    if (body.uei_number !== undefined) {
+      const ueiResult = validateUEI(body.uei_number);
+      if (!ueiResult.valid) {
+        return NextResponse.json(
+          { error: `Invalid UEI: ${ueiResult.error}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate CAGE code format if present in the update body
+    if (body.cage_code !== undefined) {
+      const cageResult = validateCAGE(body.cage_code);
+      if (!cageResult.valid) {
+        return NextResponse.json(
+          { error: `Invalid CAGE code: ${cageResult.error}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Note: NAICS validation is readiness-only here — NAICS codes are managed in the
+    // separate naics_codes table. Primary NAICS updates that come through this route
+    // in the future should call validateNAICS() from @/lib/validation/tier1-validators.
+
+    // Note: New Tier 1 fields flow through automatically via spread (...body):
+    // business_size, socioeconomic_certs, corporate_overview, core_services_summary,
+    // enterprise_win_themes, key_differentiators_summary, standard_management_approach,
+    // iso_cmmi_status, dcaa_approved_systems, tier1_complete
 
     // Update profile for selected company
     const { data: profile, error } = await supabase
