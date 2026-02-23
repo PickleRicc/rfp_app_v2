@@ -1,125 +1,136 @@
 # Technology Stack
 
-**Analysis Date:** 2026-02-01
+**Analysis Date:** 2026-02-23
 
 ## Languages
 
 **Primary:**
-- TypeScript 5.x - Used across all application code, APIs, and library utilities
-- JavaScript - Build configuration and tooling
+- TypeScript 5.x - All application code, strict mode enabled
+- TSX (React) - UI components and page layouts
+- JavaScript - Configuration files and build processes
 
 **Secondary:**
-- Python - External PDF extraction microservice (separate from Node.js app)
-- SQL - Supabase database queries and migrations
+- Python - External PDF extraction microservice (not part of main codebase)
 
 ## Runtime
 
 **Environment:**
-- Node.js 20+ (Next.js 16.1.4 requirement)
+- Node.js (version specified via package.json, likely 18+)
 
 **Package Manager:**
-- npm
-- Lockfile: `package-lock.json` (present)
+- npm 10.x+
+- Lockfile: `package-lock.json` present
 
 ## Frameworks
 
 **Core:**
-- Next.js 16.1.4 - Full-stack React framework for app/api routes and server rendering
-- React 19.2.3 - UI component framework
-- React DOM 19.2.3 - React rendering for web
+- Next.js 16.1.4 - Full-stack React framework with App Router
+- React 19.2.3 - UI library
+- React DOM 19.2.3 - React rendering
 
-**Styling:**
-- Tailwind CSS 4.x - Utility-first CSS framework with PostCSS
-- PostCSS 4.x (via `@tailwindcss/postcss`) - CSS transformation
+**UI Components & Styling:**
+- Tailwind CSS 4.x - Utility-first CSS framework
+- Radix UI - Headless component library
+  - `@radix-ui/react-dropdown-menu` 2.1.4 - Dropdown components
+  - `@radix-ui/react-progress` 1.1.1 - Progress indicators
+  - `@radix-ui/react-select` 2.1.4 - Select dropdowns
+  - `@radix-ui/react-slot` 1.1.1 - Primitive slot component
+- Lucide React 0.454.0 - Icon library
+- CVA (class-variance-authority) 0.7.1 - Type-safe CSS composition
+- clsx 2.1.1 - Conditional className utility
+- tailwind-merge 3.3.1 - Merge Tailwind classes safely
+
+**Document Generation:**
+- docx 9.5.1 - DOCX (Microsoft Word) file generation
+- ExcelJS 4.4.0 - Excel workbook generation for compliance matrices
+- archiver 7.0.1 - ZIP file creation for package downloads
+- JSZip 3.10.1 - ZIP file reading/parsing in JavaScript
+- Mermaid CLI 11.12.0 - Diagram generation from text
 
 **Testing:**
-- Not detected - No test framework configured (jest, vitest, etc.)
+- eslint 9.x - Linting
+- eslint-config-next 16.1.4 - Next.js ESLint configuration
 
 **Build/Dev:**
-- ESLint 9 - Code linting with Next.js config
-- TypeScript compiler - Type checking and compilation
+- PostCSS 4.x - CSS processing (via tailwindcss plugin)
+- TypeScript compiler - Built into Next.js
 
 ## Key Dependencies
 
 **Critical:**
-- `@supabase/supabase-js` 2.91.1 - PostgreSQL database client and auth
-- `@anthropic-ai/sdk` 0.71.2 - Claude AI API for proposal content generation
-- `inngest` 3.49.3 - Workflow orchestration and job queue
-- `docx` 9.5.1 - Generate .docx (Word) proposal documents programmatically
-- `exceljs` 4.4.0 - Generate .xlsx compliance matrix spreadsheets
-- `archiver` 7.0.1 - Create ZIP archives for proposal downloads
-- `@mermaid-js/mermaid-cli` 11.12.0 - Render Mermaid diagrams (org charts, process flows) to PNG/SVG
+- @anthropic-ai/sdk 0.71.2 - Claude AI API client for content generation
+  - Used in: `lib/anthropic/client.ts`
+  - Model: claude-sonnet-4-5-20250929
+
+- @supabase/supabase-js 2.91.1 - Supabase client for database operations
+  - Used in: `lib/supabase/client.ts`
+
+- @supabase/ssr 0.8.0 - Server-side rendering for Supabase auth
+  - Used in: `lib/supabase/server.ts`, `middleware.ts`
+
+- inngest 3.49.3 - Background job orchestration
+  - Used in: `lib/inngest/client.ts`, `app/api/inngest/route.ts`
+  - Three main functions: document classifier, RFP intelligence analyzer, response generator
 
 **Infrastructure:**
-- `pdf-parse` 2.4.5 - Parse PDF text (fallback, primary: Python service)
-- `dotenv` 17.2.3 - Load environment variables from .env files
-- `@types/archiver` 7.0.0 - TypeScript definitions for archiver
+- pdf-parse 2.4.5 - PDF text extraction (optional - external service preferred)
+  - Note: Deployment uses Python microservice instead (`PDF_SERVICE_URL`)
+
+- libreoffice-convert 1.8.1 - Document format conversion
+  - Format conversion capability for generated documents
+
+- tmp 0.2.5 - Temporary file management
+  - Used for working with generated files during processing
+
+- dotenv 17.2.3 - Environment variable loading
+  - Used for development configuration
 
 ## Configuration
 
 **Environment:**
-- `.env` - Contains secrets (Supabase keys, Anthropic API key, Inngest keys)
-- `.env.local` - Local development overrides
-- Environment variables required:
-  - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Public Supabase key (sent to browser)
-  - `SUPABASE_SERVICE_ROLE_KEY` - Server-side admin key (never exposed to client)
-  - `ANTHROPIC_API_KEY` - Claude API credentials
-  - `INNGEST_EVENT_KEY` - Inngest event signing
-  - `INNGEST_SIGNING_KEY` - Inngest webhook verification
-  - `PDF_SERVICE_URL` (optional) - External Python PDF extraction service, defaults to `http://localhost:8000`
+Configuration via environment variables (.env file - not committed):
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL (public)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key (public)
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase admin key (private, server-only)
+- `ANTHROPIC_API_KEY` - Claude API key (private, server-only)
+- `PDF_SERVICE_URL` - Python PDF extraction service endpoint (default: http://localhost:8000)
+- `NEXT_PUBLIC_APP_URL` - Application URL for redirects
+- `NODE_ENV` - Environment (development/production)
 
 **Build:**
-- `tsconfig.json` - TypeScript compiler settings with path alias `@/*` mapping to project root
-- `next.config.ts` - Next.js build configuration (minimal)
-- `eslint.config.mjs` - ESLint rules via flat config format
-- `postcss.config.mjs` - PostCSS plugins for Tailwind
+- `tsconfig.json` - TypeScript compilation settings
+  - Target: ES2017
+  - Module: ESNext
+  - JSX: react-jsx
+  - Path alias: `@/*` maps to root directory
+  - Strict mode: enabled
+
+- `next.config.ts` - Next.js configuration (currently minimal)
+
+- `postcss.config.mjs` - PostCSS configuration
+  - Uses @tailwindcss/postcss plugin
+
+- `.eslintrc` - ESLint configuration (implicit via eslint-config-next)
 
 ## Platform Requirements
 
 **Development:**
-- Node.js 20+
-- npm or yarn
-- Mermaid CLI (installed via npm, requires graphviz for rendering)
-- Optional: Python 3.x with PDF extraction service running locally
+- Node.js 18+ (inferred from TypeScript and Next.js 16 requirements)
+- npm 10+
+- Python 3.8+ (only for PDF extraction microservice, optional)
 
 **Production:**
-- Vercel (assumed deployment target based on Next.js conventions)
-- Supabase instance (cloud PostgreSQL)
-- Anthropic API access
-- Inngest cloud/self-hosted
-- Optional: External Python PDF extraction service
+- Node.js runtime for Next.js deployment
+- External Supabase PostgreSQL database
+- Inngest cloud account for job orchestration
+- Anthropic API access for Claude models
+- PDF extraction microservice (Python-based) or compatible alternative
 
-## External Service Integration Points
-
-**Supabase (Database + Auth):**
-- Hosted PostgreSQL database
-- Real-time subscriptions capability
-- Auth system (not currently used for user login)
-- Storage buckets (referenced but implementation details in integration doc)
-
-**Anthropic (AI/LLM):**
-- Claude Sonnet 4.5 (latest model: `claude-sonnet-4-5-20250929`)
-- Used for proposal content generation, compliance analysis, gap detection
-
-**Inngest (Workflow Engine):**
-- Event-driven job processing
-- Three-stage RFP analysis pipeline:
-  - Stage 0: Document classification
-  - Stage 1: RFP intelligence extraction
-  - Stage 2: Proposal response generation
-
-**Mermaid Diagram Rendering:**
-- Converts Mermaid DSL to PNG/SVG
-- Used for org charts and process diagrams in proposals
-- Requires CLI execution via `child_process`
-
-**PDF Extraction (External Service):**
-- Python microservice at `PDF_SERVICE_URL` (default: `http://localhost:8000`)
-- Endpoint: `/extract-text` (POST with file)
-- Falls back to raw text if unavailable
-- Returns: `{ text: string, pages: number, character_count: number }`
+**Deployment Targets:**
+- Vercel (optimized for Next.js)
+- Self-hosted Node.js compatible platform
+- Docker containerization (Dockerfile not present in main repo)
 
 ---
 
-*Stack analysis: 2026-02-01*
+*Stack analysis: 2026-02-23*

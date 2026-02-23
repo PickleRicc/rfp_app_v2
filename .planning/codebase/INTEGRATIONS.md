@@ -1,151 +1,164 @@
 # External Integrations
 
-**Analysis Date:** 2026-02-01
+**Analysis Date:** 2026-02-23
 
 ## APIs & External Services
 
-**Large Language Models:**
-- Anthropic Claude API - Content generation, compliance analysis, RFP intelligence extraction
+**AI/Content Generation:**
+- Anthropic Claude API - AI-powered RFP analysis and response generation
   - SDK: `@anthropic-ai/sdk` 0.71.2
-  - Auth: `ANTHROPIC_API_KEY` (API key via environment variable)
-  - Model: `claude-sonnet-4-5-20250929` (defined in `lib/anthropic/client.ts`)
-  - Usage: Proposal content templates, gap analysis, compliance statement generation
+  - Auth: `ANTHROPIC_API_KEY` (environment variable)
+  - Client: `lib/anthropic/client.ts`
+  - Model: claude-sonnet-4-5-20250929
+  - Uses: RFP intelligence analysis, proposal response generation, content enhancement
 
-**Workflow Orchestration:**
-- Inngest - Asynchronous job processing and event coordination
+**Job Orchestration:**
+- Inngest - Background job and workflow orchestration
   - SDK: `inngest` 3.49.3
-  - Auth: `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` (environment variables)
-  - App ID: `rfp-analyzer`
-  - Functions hosted at: `app/api/inngest/route.ts` (serves Stage 0, 1, 2 functions)
-  - Three-stage pipeline:
-    - `documentClassifier` - Classify uploaded RFP documents
-    - `rfpIntelligenceAnalyzer` - Extract requirements and intelligence
-    - `rfpResponseGenerator` - Generate proposal content
+  - Client: `lib/inngest/client.ts`
+  - Webhook endpoint: `POST /api/inngest` (handles Inngest signing)
+  - Functions:
+    - `documentClassifier` - Stage 0: RFP document classification
+    - `rfpIntelligenceAnalyzer` - Stage 1: Extract RFP requirements and structure
+    - `rfpResponseGenerator` - Stage 2: Generate proposal responses
+  - Event triggering: `document.uploaded` event triggered after file upload
 
-**Diagram Rendering:**
-- Mermaid CLI - Converts Mermaid diagrams to images
-  - SDK: `@mermaid-js/mermaid-cli` 11.12.0
-  - Execution: Via `child_process.exec()` in Node.js
-  - Output formats: PNG/SVG
-  - Usage: Organizational charts (`lib/generation/exhibits/org-chart.ts`), process diagrams (`lib/generation/exhibits/process-diagram.ts`)
-  - Temporary file storage: System temp directory with `.mmd` and image files
-
-**PDF Text Extraction:**
-- Python Microservice (External)
-  - Endpoint: `${PDF_SERVICE_URL}/extract-text` (configured via `process.env.PDF_SERVICE_URL`, default: `http://localhost:8000`)
-  - Transport: HTTP POST with multipart form data
-  - Response: `{ text: string, pages: number, character_count: number }`
-  - Fallback: If service unavailable, uses `file.text()` raw fallback (degraded quality)
-  - Error handling: TypeError on connection failure returns 503 with helpful message directing to `pdf-service/README.md`
+**Document Processing:**
+- Python PDF Extraction Microservice (external)
+  - Endpoint: `PDF_SERVICE_URL` environment variable (default: http://localhost:8000)
+  - Route: `POST /extract-text`
+  - Used by: `app/api/upload/route.ts`
+  - Returns: `{ text: string, pages: number, character_count: number }`
+  - Fallback: Raw file reading if service unavailable (degraded mode)
 
 ## Data Storage
 
 **Databases:**
-- PostgreSQL (via Supabase)
-  - Provider: Supabase (ykjayxpcxmelrjibpjxh.supabase.co)
-  - Connection: `NEXT_PUBLIC_SUPABASE_URL` (public) + `SUPABASE_SERVICE_ROLE_KEY` (admin)
+- Supabase PostgreSQL
+  - Connection: `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` (public)
+  - Service role: `SUPABASE_SERVICE_ROLE_KEY` (private, server-only)
   - Client: `@supabase/supabase-js` 2.91.1
-  - Tables referenced:
-    - `documents` - RFP/proposal documents with `company_id`
-    - `rfp_responses` - Generated proposal responses with `compliance_matrix_url`
-    - `proposal_volumes` - Individual proposal volumes with `docx_url`, `volume_type`, `response_id`
-    - `companies` - Company profiles and settings
-    - Additional tables for personnel, capabilities, certifications, boilerplate, past performance, differentiators, etc.
+  - SSR support: `@supabase/ssr` 0.8.0
+  - Auth: Supabase built-in authentication (JWT-based sessions)
+  - Tables include:
+    - `documents` - Uploaded RFP documents
+    - `rfp_responses` - Generated proposal responses
+    - `proposal_volumes` - Individual proposal sections
+    - `company_profiles` - Company information and branding
+    - `section_results` - RFP requirement extraction results
+    - `processing_logs` - Job execution logs
 
 **File Storage:**
-- Supabase Storage (implied via URL references)
-  - Stores: Generated .docx proposal volumes, .xlsx compliance matrices
-  - Access: Via `docx_url`, `compliance_matrix_url` fields in database
-
-**Local File System:**
-- Temporary files for Mermaid diagram generation in system temp directory
-- PDF extraction service would write locally (external to Node app)
+- Local filesystem (development)
+  - Documents stored at `/uploads/{filename}`
+  - Generated DOCX files and compliance matrices stored on disk
+  - ZIP archives created in memory for downloads
+- Production: Likely Supabase Storage or similar cloud bucket (implementation not visible)
 
 **Caching:**
-- Redis/Memcache: Not detected
-- In-memory: Inngest handles request caching for workflow state
+- None detected - Redis or similar not in use
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- Custom authentication (no third-party auth detected)
-- Supabase Auth capability available but not implemented for user login
-- Multi-tenant isolation: `company_id` used as isolation key in requests (via `X-Company-Id` header in `app/api/documents/route.ts`, etc.)
-- Server-side admin operations use service role key directly
+- Supabase Auth (built-in)
+  - Implementation: JWT-based session tokens stored in HTTP-only cookies
+  - Auth flow: `middleware.ts` enforces authentication on protected routes
+  - Scopes: Two user types managed via database lookup:
+    - Staff users: Access internal dashboard (`/`, `/documents`, `/company`, `/proposals`)
+    - Client users: Access portal (`/portal`) - linked via `company_profiles.client_user_id`
+  - Session management: Cookies handled by Supabase SSR adapter
+  - Middleware path: `middleware.ts` (excludes Inngest webhook at `/api/inngest`)
+  - Callback route: `GET /auth/callback` - Supabase OAuth redirect
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- None detected - No Sentry, Rollbar, or error tracking service
+- None detected - no Sentry, Rollbar, or similar
 
 **Logs:**
-- Console logging only
-  - Debug logs: Anthropic client initialization (`lib/anthropic/client.ts`)
-  - Debug logs: PDF extraction with metrics (`app/api/upload/route.ts`)
-  - Error logs: Scattered throughout with `console.error()`
-  - No centralized logging service (ELK, DataDog, CloudWatch)
+- Console-based logging (development)
+  - Examples: `console.log()`, `console.error()`, `console.warn()`
+  - Used extensively in Inngest functions and API routes
+- Structured logging likely via Inngest functions (captures job execution)
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- Assumed: Vercel (Next.js native platform)
-- Could also be: Self-hosted Node.js server, AWS Lambda, Docker
+- Vercel (inferred from Next.js framework and typical deployment pattern)
+- Alternative: Self-hosted Node.js environment
 
 **CI Pipeline:**
-- None detected - No GitHub Actions, GitLab CI, or other pipeline configured
-- ESLint available for pre-commit linting but not enforced
+- None detected - No GitHub Actions, GitLab CI, or similar visible
 
 ## Environment Configuration
 
-**Required env vars (Critical):**
-- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL (public, safe to expose)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Public Supabase key (safe to expose)
-- `SUPABASE_SERVICE_ROLE_KEY` - Server-side admin key (SECRET, never expose)
-- `ANTHROPIC_API_KEY` - Claude API key (SECRET)
-- `INNGEST_EVENT_KEY` - Inngest event key (SECRET)
-- `INNGEST_SIGNING_KEY` - Inngest signing key (SECRET)
+**Required env vars (production):**
 
-**Optional env vars:**
-- `PDF_SERVICE_URL` - External PDF extraction service URL (defaults to `http://localhost:8000`)
+Public (safe to expose in `NEXT_PUBLIC_*`):
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase public key
+- `NEXT_PUBLIC_APP_URL` - Application base URL for redirects
+
+Private (server-only, .env.local):
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase admin key for server-side operations
+- `ANTHROPIC_API_KEY` - Claude API key
+- `PDF_SERVICE_URL` - PDF extraction service URL (default: http://localhost:8000)
 
 **Secrets location:**
-- Development: `.env` and `.env.local` files (git-ignored)
-- Production: Environment variables set in hosting platform (Vercel, Docker, etc.)
-- Current state: `.env` file contains live secrets (security concern - should be rotated)
+- Local development: `.env.local` file (git-ignored)
+- Production: Environment variables set in deployment platform (Vercel, etc.)
+- Not committed to repository
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- Inngest webhooks at `app/api/inngest/route.ts` (HTTP GET/POST/PUT)
-  - Receives workflow triggers and state updates from Inngest cloud/self-hosted
-  - Serves three event-driven functions
+- `POST /api/inngest` - Inngest webhook for job execution
+  - Expects: Inngest-signed requests with function events
+  - Excludes: Authentication required (Inngest uses signing key)
+  - Handled by: `inngest/next` middleware
 
 **Outgoing:**
-- None detected - No notifications to external services, Slack, email, webhooks
+- Supabase Auth callbacks: `GET /auth/callback`
+  - Receives: OAuth provider redirect with auth code
+  - Not a true webhook - handled as part of OAuth flow
 
-## Document Processing Pipeline
+**Event Publishing:**
+- Inngest events triggered from:
+  - `app/api/upload/route.ts` - `document.uploaded` event after file upload
+  - `app/api/generate-proposal/route.ts` - Proposal generation trigger
 
-**File Format Support:**
-- Input: PDF, text files
-- Output: .docx (proposals), .xlsx (compliance matrix), .zip (download bundle)
-- Libraries:
-  - `docx` 9.5.1 - Generate Word documents with formatting, tables, headers/footers
-  - `exceljs` 4.4.0 - Generate Excel spreadsheets for compliance matrix
-  - `archiver` 7.0.1 - Create ZIP archives for multi-file downloads
-  - `pdf-parse` 2.4.5 - PDF text extraction (fallback)
-  - Mermaid CLI - Diagram rendering for exhibits
+## API Endpoints (Internal)
 
-## API Routes Using Integrations
+**Document Management:**
+- `POST /api/upload` - Upload RFP document
+  - Auth: Staff required
+  - Triggers: Inngest document classifier workflow
+  - Returns: Document ID and status
 
-| Route | Integration | Purpose |
-|-------|-------------|---------|
-| `POST /api/upload` | Anthropic, Inngest, Supabase, PDF Service | Upload RFP, extract text, trigger analysis pipeline |
-| `POST /api/generate-proposal` | Anthropic, Inngest, Supabase | Trigger proposal generation |
-| `GET /api/proposals/[id]/download` | Supabase Storage, archiver | Download proposal + compliance matrix as ZIP |
-| `GET /api/inngest` | Inngest | Webhook handler for workflow events |
-| `GET /api/documents` | Supabase | Fetch company documents |
-| `GET/POST /api/company/*` | Supabase | Manage company profile, personnel, capabilities, etc. |
+- `GET /api/documents/[id]/progress` - Poll document processing progress
+
+- `GET /api/documents/[id]/cancel` - Cancel processing job
+
+**Proposal Generation:**
+- `POST /api/generate-proposal` - Start proposal generation
+  - Auth: Staff required
+  - Triggers: Inngest response generator workflow
+
+- `GET /api/proposals/[id]/download` - Download proposal package
+  - Auth: Staff required
+  - Returns: ZIP file with all volumes and compliance matrix
+  - Uses: archiver to create ZIP streams
+  - Files included: proposal volumes (DOCX), compliance matrix (XLSX)
+
+**Company Profile:**
+- `GET /api/company/profile` - Company branding and metadata
+- `POST/PUT /api/company/profile` - Update company profile
+- Related endpoints: boilerplate, capabilities, certifications, differentiators, personnel, past-performance
+
+**Authentication:**
+- `GET /api/auth/me` - Current user info and company context
 
 ---
 
-*Integration audit: 2026-02-01*
+*Integration audit: 2026-02-23*

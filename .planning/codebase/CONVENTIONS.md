@@ -1,178 +1,119 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-02-01
+**Analysis Date:** 2026-02-23
 
 ## Naming Patterns
 
 **Files:**
-- Page components: `[route-name]/page.tsx` (Next.js App Router convention)
-- API routes: `[resource]/route.ts` with HTTP method exports
-- Client components: PascalCase with `.tsx` extension (e.g., `CompanySelector.tsx`, `AppHeader.tsx`)
-- Utility files: camelCase (e.g., `json-extractor.ts`, `paragraph-helper.ts`)
-- Context files: `[Context].tsx` (e.g., `CompanyContext.tsx`)
+- Kebab-case for most files: `stage0-classifier.ts`, `page-tracker.ts`, `content-condenser.ts`
+- PascalCase for React components: `CompanySelector.tsx`, `DocumentProgress.tsx`, `AppHeader.tsx`
+- Lowercase with hyphens for directories: `lib/generation/docx/`, `lib/inngest/functions/`
+- Index files for barrel exports: `lib/generation/pipeline/index.ts` exports all pipeline utilities
 
 **Functions:**
-- Components: PascalCase for both function components and arrow function exports
-  - Example: `export default function Home()` or `export default function CompanySelector()`
-- API handlers: lowercase HTTP method names (`GET`, `POST`, `PUT`, `DELETE` as exports)
-  - Example: `export async function GET(request: NextRequest)`
-- Utility/helper functions: camelCase
-  - Example: `getCompanyIdFromRequest()`, `generateComplianceMatrix()`, `findRequirementMapping()`
-- Event handlers: `handle[Action]` camelCase
-  - Example: `handleUpload()`, `handleSelectCompany()`, `handleClickOutside()`
+- camelCase for function names: `generateProposalVolume()`, `createFetchWithCompany()`, `getCompanyIdFromRequest()`
+- Prefix conventions for specific patterns:
+  - `get*` for retrievers: `getServerClient()`, `getNextExhibitNumber()`
+  - `create*` for factories: `createFetchWithCompany()`, `createProposalHeader()`
+  - `generate*` for generators: `generateProposalVolume()`, `generateOrgChart()`
 
 **Variables:**
-- State: camelCase for both value and setter
-  - Example: `const [isOpen, setIsOpen] = useState(false);`
-  - Example: `const [selectedCompanyId, setSelectedCompanyId] = useState(null);`
-- Constants (module-level): UPPER_SNAKE_CASE
-  - Example: `const STORAGE_KEY = 'rfp_app_selected_company_id';`
-  - Example: `const PDF_SERVICE_URL = process.env.PDF_SERVICE_URL || 'http://localhost:8000';`
-  - Example: `const MODEL = 'claude-sonnet-4-5-20250929';`
-- Destructured values: camelCase, maintain property names from objects
-  - Example: `const { selectedCompany, companies, selectCompany, loading } = useCompany();`
+- camelCase throughout: `selectedCompanyId`, `logoBuffer`, `filteredCompanies`
+- Prefix `is` or `has` for booleans: `isOpen`, `hasError`, `isClient`
+- State setters follow `set{Name}` pattern: `setIsOpen()`, `setSelectedCompany()`
 
-**Types:**
-- Interfaces: PascalCase with `Type` suffix when describing component or context data
-  - Example: `interface CompanyProfile { ... }`
-  - Example: `interface CompanyContextType { ... }`
-  - Example: `interface ComplianceEntry { ... }`
-- Type aliases: PascalCase
-- Database field names: snake_case (map from Supabase database)
-  - Example: `company_name`, `cage_code`, `uei_number`, `completeness_score`
+**Types & Interfaces:**
+- PascalCase for types and interfaces: `CompanyProfile`, `AuthResult`, `ResponseStatus`, `BrandingOptions`
+- File location: Type definitions co-located in same file as usage or in dedicated `types.ts` files
+  - Example: `lib/supabase/types.ts` for database types, `lib/supabase/company-types.ts` for company-related types
+- Union types spelled out with pipes: `DocumentStatus = 'pending' | 'processing' | 'completed' | 'failed'`
 
 ## Code Style
 
 **Formatting:**
-- Tool: No explicit formatter configured (eslint-config-next used, no `.prettierrc`)
-- Spacing: 2 spaces for indentation (observed in files)
-- Line length: No strict limit enforced
-- String quotes: Single quotes for consistency (observed pattern in codebase)
+- ESLint with Next.js defaults (eslint-config-next core-web-vitals and typescript)
+- Configuration: `eslint.config.mjs` (flat config format, ESLint v9+)
+- No Prettier config detected - formatted per eslint rules
+- 2-space indentation (observed throughout codebase)
 
 **Linting:**
-- Tool: ESLint 9 with Next.js core web vitals and TypeScript support
-- Config: `eslint.config.mjs` (flat config format)
+- ESLint configured with: `eslint.config.mjs`
 - Extends: `eslint-config-next/core-web-vitals` and `eslint-config-next/typescript`
-- Key ignores: `.next/**`, `out/**`, `build/**`, `next-env.d.ts`
+- Custom ignores: `.next/`, `out/`, `build/`, `next-env.d.ts`
+- Run linting: `npm run lint`
 
-**TypeScript Configuration:**
-- Strict mode: Enabled (`"strict": true`)
+**TypeScript:**
+- Strict mode enabled: `"strict": true`
 - Target: ES2017
 - Module resolution: bundler
-- JSX: react-jsx
-- Path aliases: `@/*` maps to root directory `./`
+- JSX: react-jsx (React 19+)
+- Path alias configured: `@/*` maps to project root for absolute imports
 
 ## Import Organization
 
 **Order:**
-1. Third-party React/Next.js imports (`react`, `next/...`)
-2. Third-party library imports (`@supabase/...`, `@anthropic-ai/...`, etc.)
-3. Local imports with path aliases (`@/lib/...`, `@/app/...`)
-4. Type imports as needed
-
-**Examples from codebase:**
-```typescript
-// From app/page.tsx
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useCompany } from '@/lib/context/CompanyContext';
-import Link from 'next/link';
-
-// From app/api/upload/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerClient } from '@/lib/supabase/client';
-import { inngest } from '@/lib/inngest/client';
-```
+1. External packages: `import { NextRequest, NextResponse } from 'next/server'`
+2. Type imports: `import type { ClassValue } from 'clsx'`
+3. Absolute path imports: `import { getServerClient } from '@/lib/supabase/client'`
+4. Relative imports: `import { generateProposalVolume } from './generator'`
+5. Type exports after code imports: `import { ..., type PageLimitStatus } from '@/lib/generation/pipeline'`
 
 **Path Aliases:**
-- Only alias used: `@/*` pointing to project root
-- All local imports use `@/` prefix: `@/lib/...`, `@/app/...`
+- All internal imports use `@/` alias pointing to project root
+- Examples: `@/lib/supabase/client`, `@/lib/inngest/functions`, `@/lib/generation/docx/generator`
+- Relative imports used only within same feature directory
+
+**Barrel Files:**
+- Barrel pattern (re-exports) used in pipeline module: `lib/generation/pipeline/index.ts`
+- Collects and re-exports types and functions: `export { PageTracker, ... } from './page-tracker'`
+- Simplifies consumer imports: `import { PageTracker, condenseContent } from '@/lib/generation/pipeline'`
 
 ## Error Handling
 
 **Patterns:**
-- API routes: Try-catch wrapper around entire route handler
-  - Log errors with `console.error()` including context-specific message
-  - Return `NextResponse.json()` with `error` key and HTTP status code
-  - Status codes: 400 for validation, 404 for not found, 500 for server errors, 503 for service unavailable
+- Throw Error with descriptive messages for critical failures
+  - Example: `throw new Error('Document not found or has no company association')`
+  - Example: `throw new Error('No company selected. Please select a company first.')`
+- Try-catch for async operations with error context preservation
+  - Example in `lib/context/CompanyContext.tsx`: catches fetch errors and logs with context
+- API routes return NextResponse.json() with status codes:
+  - 400 for validation failures: `NextResponse.json({ error: '...' }, { status: 400 })`
+  - 401 for unauthorized: `NextResponse.json({ error: 'Unauthorized' }, { status: 401 })`
+  - 403 for forbidden: `NextResponse.json({ error: '...' }, { status: 403 })`
+  - 404 for not found: `NextResponse.json({ error: '...' }, { status: 404 })`
+- Auth helper wraps errors: `getAuth()` returns null values, `requireStaffOrResponse()` throws/returns NextResponse
+- Inngest functions log errors to database via `processing_logs` table
 
-**Example pattern:**
-```typescript
-export async function GET(request: NextRequest) {
-  try {
-    const companyId = request.headers.get('X-Company-Id');
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'No company selected' },
-        { status: 400 }
-      );
-    }
-    // ... logic
-    return NextResponse.json({ data });
-  } catch (error) {
-    console.error('Context-specific fetch error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-```
-
-- Client components: Try-catch in async functions, throw for state updates
-  - Log errors with context: `console.error('Operation description:', error);`
-  - Update component state with error object: `setResult({ error: 'Human-readable message' })`
-
-**Example pattern:**
-```typescript
-try {
-  const response = await fetch('/api/endpoint');
-  if (!response.ok) throw new Error('Failed to fetch data');
-  const data = await response.json();
-  // ... process data
-} catch (error) {
-  console.error('Upload error:', error);
-  setResult({ error: 'Upload failed' });
-}
-```
-
-- Supabase operations: Check for `error` return value from destructured response
-  - Pattern: `const { data, error } = await supabase.from(...)`
-  - Check error and log immediately
+**Error Types:**
+- String errors thrown directly (not Error objects always wrapped)
+- Error instanceof checks: `e instanceof Error ? e.message : 'Unauthorized'`
 
 ## Logging
 
-**Framework:** `console` (no dedicated logging library)
+**Framework:** console methods (no logging library)
 
 **Patterns:**
-- `console.error()` - for error conditions with context
-  - Format: `console.error('[Context] specific operation:', error);`
-  - Example: `console.error('Capabilities fetch error:', error);`
-- `console.log()` - for informational messages (observed in client.ts)
-  - Example: `console.log('🔑 Initializing Anthropic client...');`
-  - Emoji prefixes used for visual scanning: 🔑 (config), ✅ (success), ❌ (failure), 📄 (document), etc.
-- `console.warn()` - for degradation warnings
-  - Example: `console.warn('⚠️ Using raw file content as fallback - AI may not process it correctly');`
-
-**When to log:**
-- Errors: Always log the error object
-- Significant operations: Log start of long operations (PDF extraction, proposal generation)
-- Fallback behavior: Log when using alternative code paths
-- Client-side: Minimal logging to console for debugging
+- Development: Emoji prefixes for visual scanning
+  - `console.log('🔑 Initializing Anthropic client...')`
+  - `console.log('✅ Anthropic client initialized...')`
+  - `console.warn('⚠️  No sections found in content')`
+  - `console.error('Error generating appendices:', error)`
+- Used in: `lib/anthropic/client.ts`, `lib/generation/docx/generator.ts`, `lib/generation/docx/images.ts`
+- Context passed: Include relevant data in logs for debugging
+  - Example: `console.log('📝 generateSections called with:', { volumeType, ... })`
+- Levels used: `console.log()`, `console.warn()`, `console.error()`
+- Note: Logging appears development-focused (emoji use suggests debugging aid, not production)
 
 ## Comments
 
 **When to Comment:**
-- Above complex logic or non-obvious algorithms
-- JSDoc blocks for exported functions and interfaces
-- Inline comments for "why" not "what" (code already shows what)
-- React component layout comments for major sections (observed in CompanySelector.tsx)
+- JSDoc blocks for exported functions, especially with complex signatures
+- File-level comments explaining module purpose
+- Inline comments for non-obvious logic or algorithm explanations
+- Mark future work: `// TODO: Could implement smart range detection (3.1-3.5)`
 
 **JSDoc/TSDoc:**
-- Used for public API functions and utilities
-- Format: Multi-line /** */ blocks
-- Include purpose, parameters (if complex), return value
-- Example from `lib/api-helpers.ts`:
+- Function documentation format (example from `lib/api-helpers.ts`):
   ```typescript
   /**
    * Extracts the company_id from request headers
@@ -180,72 +121,70 @@ try {
    */
   export function getCompanyIdFromRequest(request: NextRequest): string
   ```
-
-- Framework Part references in JSDoc for context
-  - Example: `/** Compliance Matrix Generator (Framework Part 2.3) */`
-
-**Inline Comments:**
-- Used sparingly for non-obvious business logic
-- Explain intent, not implementation
-- Example: `// If company not found in list, clear selection`
+- Parameters and return types documented
+- Module docstrings at file top: `lib/generation/pipeline/index.ts` demonstrates pattern
+- Used selectively - not every function requires docs
 
 ## Function Design
 
-**Size:** No strict size limits observed, but functions tend to be:
-- Page components: 150-200 lines (including JSX)
-- API handlers: 50-100 lines per method
-- Utility functions: 20-80 lines
-- Business logic generators: 100-250+ lines (complex operations)
+**Size:**
+- Functions sized to fit single responsibility (Stage-2 response generator is exception at ~800 lines)
+- Typical utility functions: 5-50 lines
+- Complex generation functions: 100-300 lines with step.run() async subdivisions
 
 **Parameters:**
-- API handlers: Receive `NextRequest` object
-- Components: Destructure props inline or use `{ children }` pattern
-- Helper functions: Pass data objects rather than multiple primitives
-- Avoid optional parameters; use defaults in function body
+- Named parameters over positional for complex operations
+- Example: `generateProposalVolume(volumeType: string, content: any, companyProfile: any, ...)`
+- `any` type used for flexible content handling (indicates area for improvement)
 
 **Return Values:**
-- API handlers: Always return `NextResponse.json()` or throw
-- Components: Return JSX
-- Utilities: Return typed data or Promise-wrapped data
-- Async operations: Return Promise with explicit type annotation
+- Explicit return types for public functions
+- Promise<> for async operations
+- Type unions for multiple outcomes: `AuthResult | NextResponse`
+- Objects returned with typed fields: `{ docxBuffer: Buffer, pdfBuffer: Buffer | null }`
 
 ## Module Design
 
 **Exports:**
-- Default export for page components: `export default function Page() {}`
-- Named exports for utilities and contexts: `export function helper() {}`, `export const anthropic = ...`
-- Context exports both Provider and hook: `export function CompanyProvider() {}` and `export function useCompany() {}`
+- Named exports for functions and types
+- Default exports rarely used (only in templates: `lib/templates/rfp-response-template.ts`)
+- Specific named exports preferred for clarity
 
 **Barrel Files:**
-- Not observed in codebase; each file imported individually
-- Example: `import { useCompany } from '@/lib/context/CompanyContext'` (direct import)
+- Used to aggregate related exports
+- Example: `lib/generation/pipeline/index.ts` groups pipeline functionality
+- Reduces import path verbosity for consumers
+- Re-exports with type annotations: `export { PageTracker, ... type PageLimitStatus }`
 
-**File Organization:**
-- One component per file
-- One context per file (Provider + hook in same file)
-- Utility/helper functions grouped by domain (all database helpers in one file, all generation helpers in another)
-- API routes follow Next.js convention: one route handler per `route.ts` file
+**Organizational Pattern:**
+- Organized by feature/domain:
+  - `lib/generation/` - document generation
+  - `lib/inngest/functions/` - async workflow stages
+  - `lib/supabase/` - database clients and types
+  - `app/api/` - API route handlers
+  - `app/components/` - React components
+  - `lib/context/` - React context providers
+- Functions grouped by concern (parsing, formatting, persistence)
 
-## Client vs Server Code
+## Async & Promises
 
-**'use client' directive:**
-- Applied to components that use browser APIs or React hooks (useState, useRef, useContext, useEffect)
-- Example files: `app/page.tsx`, `app/components/CompanySelector.tsx`, `app/components/AppHeader.tsx`
-- Server components (no directive): API routes and layout files unless they use hooks
+**Patterns:**
+- Async/await throughout (not raw Promise chains)
+- Inngest step.run() for async composition: `await step.run('fetch-data', async () => { ... })`
+- Promise.all() for parallel operations: `await Promise.all([...queries])`
+- Error handling at each step for fault isolation
 
-**Server Client Pattern:**
-- Supabase client initialized with `getServerClient()` in server-side code
-- Returns authenticated client for API route handlers
+## React Component Conventions
 
-## Tailwind CSS Usage
-
-**Pattern:** Inline class strings using className attribute
-- Example: `className="flex items-center gap-3 px-4 py-2 bg-white border border-gray-300 rounded-lg"`
-- Responsive prefixes: `sm:`, `md:`, `lg:` used for breakpoints
-- State prefixes: `hover:`, `focus:`, `disabled:` used for interactive states
-- Dynamic classes: Conditional className strings using template literals
-  - Example: `` className={`w-full px-4 py-3 text-left ... ${selectedCompany?.id === company.id ? 'bg-blue-50' : ''}`} ``
+**Patterns:**
+- Functional components with hooks exclusively
+- Client-side boundary marked: `'use client'` at top of component file
+- Server components (no marker) in app/ routes
+- Prop types via interface: `CompanyProfile` interface in CompanyContext.tsx
+- Event handlers: `handleClickOutside`, `handleSelectCompany` naming pattern
+- State management via Context API (CompanyContext) for company selection
+- Refs for DOM access: `const dropdownRef = useRef<HTMLDivElement>(null)`
 
 ---
 
-*Convention analysis: 2026-02-01*
+*Convention analysis: 2026-02-23*

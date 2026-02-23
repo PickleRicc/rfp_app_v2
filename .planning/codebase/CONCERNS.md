@@ -1,631 +1,297 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-02-01
+**Analysis Date:** 2026-02-23
 
 ## Tech Debt
 
-### 1. **Exposed Secrets in .env File**
+**Extensive Debug Logging in Production Code:**
+- Issue: Multiple `console.log()` and `console.error()` statements left throughout codebase intended for debugging remain in production code
+- Files: `lib/anthropic/client.ts`, `lib/inngest/functions/stage2-response-generator.ts`, `lib/generation/docx/generator.ts`, `lib/generation/exhibits/org-chart.ts`, `lib/generation/exhibits/render.ts`, and 30+ other files
+- Impact: Performance degradation from excessive logging, information leakage in production logs, noise when debugging real issues
+- Fix approach: Implement proper logging library (winston/pino) with environment-based log levels; remove all console.log statements or wrap with logger configuration
 
-**Issue:** API keys and service credentials are stored in plaintext in `.env` and `.env.local`
+**1,107+ Instances of `any` Type Usage:**
+- Issue: Widespread use of `any` type and `@ts-ignore` comments bypasses TypeScript type safety
+- Files: Throughout `lib/` and `app/` directories, particularly `lib/generation/docx/generator.ts`, `lib/inngest/functions/`
+- Impact: Silent runtime errors, reduced IDE support, harder refactoring, maintenance burden increases
+- Fix approach: Create comprehensive type definitions for volume structures, company data shapes, and API responses; incrementally replace `any` with proper types
 
-**Files:**
-- `C:/Users/eharr/Dev_2026/rfp_app_v2/.env` (lines 2-5)
-- `C:/Users/eharr/Dev_2026/rfp_app_v2/.env.local`
+**Dynamic Require for Appendix Generators:**
+- Issue: `require()` used dynamically in `lib/generation/docx/generator.ts:374-376` to import appendix templates to avoid circular dependencies
+- Files: `lib/generation/docx/generator.ts` (lines 374-376)
+- Impact: Build-time circular dependency indicates architectural problem; runtime require is slower and harder to tree-shake
+- Fix approach: Refactor to eliminate circular dependencies by moving shared types to common module or using dependency injection
 
-**Impact:**
-- CRITICAL: Supabase service role key exposed (full database admin access)
-- CRITICAL: Anthropic API key exposed (can be used to generate unlimited content)
-- Compromise allows attacker to drain API credits and access all company/RFP data
+**Manual Type Casting in Promise.all Destructuring:**
+- Issue: Multiple destructuring patterns of Supabase query results don't validate data shape before use
+- Files: `lib/inngest/functions/stage2-response-generator.ts:88-100`, `app/api/company/status/route.ts`, similar patterns in `app/api/company/` routes
+- Impact: Typo in column name or schema mismatch will crash at runtime instead of at query time
+- Fix approach: Create typed Supabase query builders or use validation library (zod/io-ts) to validate responses
 
-**Current mitigation:**
-- `.env` file is not explicitly in `.gitignore` (should verify)
-
-**Recommendations:**
-- Store all secrets in environment variables only, never commit to git
-- Use `.env.example` with placeholder values for documentation
-- Rotate all exposed keys immediately
-- Consider using Supabase's built-in secret management or cloud provider tools (AWS Secrets Manager, Azure Key Vault)
-- Add pre-commit hooks to prevent accidental secret commits
-
----
-
-### 2. **Monolithic PDF Service Integration**
-
-**Issue:** PDF extraction service is external and not error-handled gracefully
-
-**Files:** `app/api/upload/route.ts` (line 6)
-
-**Impact:**
-- If PDF_SERVICE_URL fails, entire upload pipeline fails
-- Dependency on external service (http://localhost:8000) for production builds
-- No fallback mechanism if service is unreachable
-
-**Current mitigation:**
-- Basic try-catch on `app/api/upload/route.ts:54-55`
-- Error logged but user still gets generic "Upload error" message
-
-**Recommendations:**
-- Add circuit breaker pattern for PDF service calls
-- Implement retry logic with exponential backoff
-- Provide better error messages to users ("PDF extraction service unavailable, please try again later")
-- Consider making PDF extraction optional if it fails (allow document analysis to proceed without extracted text)
-
----
-
-### 3. **Heavy Use of `any` Types**
-
-**Issue:** TypeScript `any` types used throughout codebase, reducing type safety
-
-**Files:**
-- `lib/generation/docx/generator.ts:24` - `exhibits: any[]`
-- `lib/inngest/functions/stage2-response-generator.ts:216` - `volumesMetadata: Record<string, any>`
-- Multiple API route files use `error: any` in catch blocks
-
-**Impact:**
-- Reduces compile-time error detection
-- Makes refactoring dangerous (can't trust TypeScript to find breaking changes)
-- Increases runtime bugs in complex data transformations
-
-**Recommendations:**
-- Define proper TypeScript interfaces for all data structures
-- Use strict TypeScript mode in `tsconfig.json`
-- Replace `Record<string, any>` with discriminated unions
-- Create interfaces for Volume, Section, CompanyData structures
-
----
-
-### 4. **Insufficient Error Handling in Async Pipelines**
-
-**Issue:** Long-running generation pipeline (Inngest) has limited error recovery
-
-**Files:** `lib/inngest/functions/stage2-response-generator.ts` (lines 316-322)
-
-**Impact:**
-- If one volume fails to generate, others continue but process state becomes inconsistent
-- Error messages logged to console but not returned to user or database in consistent format
-- No retry mechanism for individual volume generation failures
-
-**Current mitigation:**
-- Try-catch around volume generation (lines 238-322)
-- Errors stored in volume object: `{ error: true, message: ... }` (line 201-204)
-
-**Recommendations:**
-- Implement step-level retry logic in Inngest function
-- Store all errors in database for user visibility
-- Create error summary and return to user dashboard
-- Consider dead-letter queue for failed generations
-
----
+**Shell Command Execution Without Input Validation:**
+- Issue: `renderMermaidToPng()` builds shell command with string interpolation; while quoted, still vulnerable to path traversal in outputFilename
+- Files: `lib/generation/exhibits/render.ts:87` - `const command = npx mmdc -i "${tempInputPath}" -o "${outputPath}" -b ${backgroundColor} -w ${width} -s 2${configArgs}`
+- Impact: Malicious outputFilename could write files outside intended directory
+- Fix approach: Validate outputFilename (no .. or absolute paths), use parameterized command building (execa package)
 
 ## Known Bugs
 
-### 1. **Undefined Values in Past Performance Highlights**
+**Past Performance Data Structure Mismatch:**
+- Symptoms: DEBUG logs in `stage2-response-generator.ts:102-113` checking if achievements exist and are arrays suggest data inconsistency
+- Files: `lib/inngest/functions/stage2-response-generator.ts:102-113`
+- Trigger: When generating proposals with past performance records; appears inconsistent whether achievements are JSON array or string
+- Workaround: Code checks and handles both cases but logs suggest uncertainty about data format
 
-**Issue:** Performance achievement data shows "undefined: undefined (undefined)" in generated documents
+**HTML Preview Generation Deprecated:**
+- Symptoms: HTML preview step marked as skipped with comment "volumes only have metadata now"
+- Files: `lib/inngest/functions/stage2-response-generator.ts:601-633`
+- Trigger: Triggered when response.generate event fires
+- Workaround: Currently generates empty HTML and stores it; no functional preview available
 
-**Symptom:**
-```
-Performance Highlights
-  • undefined: undefined (undefined)
-  • undefined: undefined (undefined)
-```
-
-**Files:**
-- `lib/generation/templates/past-performance.ts:162-183` (template logic)
-- Data source: `companyData.pastPerformance[].achievements` (not validated)
-
-**Root cause:**
-Achievement objects have null/undefined fields for `metric_type`, `statement`, or `metric_value`. Database query returns records but achievement data structure incomplete.
-
-**Trigger:**
-Generate proposal with past performance that has achievements records but missing required fields.
-
-**Workaround:**
-None. Appears as broken text in proposal.
-
-**Investigation needed:**
-- Check if achievements are AI-generated or populated from intake forms
-- Verify database schema for `past_performance.achievements` JSONB column
-- Add defensive validation before rendering achievements
-
----
-
-### 2. **Compliance Matrix Generation Partially Implemented**
-
-**Issue:** Compliance matrix exists in code but may not be fully integrated into proposal generation
-
-**Files:**
-- `lib/generation/compliance/matrix-generator.ts` (249 lines)
-- `lib/generation/volumes/compliance-matrix.ts` (288 lines)
-- Called from: `lib/inngest/functions/stage2-response-generator.ts:344`
-
-**Problem:**
-Matrix is generated as Excel file, but unclear if:
-1. It's saved alongside proposal volumes
-2. It's integrated into Word documents
-3. Section-to-requirement mapping is accurate
-
-**Evidence:**
-- CRITICAL_FIXES_COMPLETE.md (dated Jan 30) claims compliance matrix is implemented
-- But CONTENT_GENERATION_GAPS.md (Jan 29) lists it as critical missing feature
-- Recent changes suggest implementation was rushed
-
-**Risk:**
-Users may think compliance matrix is auto-generated but it's actually incomplete or inaccurate.
-
----
-
-### 3. **Cross-Reference Extraction Limited**
-
-**Issue:** Only 2 cross-references appearing in generated proposals despite 152 requirements
-
-**Files:**
-- `lib/generation/content/cross-references.ts`
-- Data source: `rfp_requirements` table
-
-**Problem:**
-Requirement reference extraction depends on `requirement_number` field being populated. If data uses different format (e.g., "REQ 001" vs "3.1"), extraction fails.
-
-**Status:**
-CRITICAL_FIXES_COMPLETE.md claims this is fixed (Jan 30), but needs verification that:
-1. `formatRequirementReference()` properly handles all requirement formats
-2. Database requirements have `requirement_number` field populated
-3. Fallback logic works when primary field is missing
-
----
+**Exhibit Validation May Not Detect Actual Issues:**
+- Symptoms: Validation runs but only checks tracked references, not actual content in generated DOCX
+- Files: `lib/inngest/functions/stage2-response-generator.ts:635-650`
+- Trigger: After volumes are generated
+- Workaround: References logged as warnings but don't halt processing
 
 ## Security Considerations
 
-### 1. **No API Authentication for Internal Routes**
+**API Key Logging on Startup:**
+- Risk: Anthropic API key substring logged to console (even if partial, indicates key exists)
+- Files: `lib/anthropic/client.ts:3-5`
+- Current mitigation: Only first 20 chars logged (not full key)
+- Recommendations:
+  - Remove all API key logging including partial keys
+  - Use logger configured to redact secrets automatically
+  - Add ESLint rule to warn on process.env usage in console calls
 
-**Issue:** API endpoints use Supabase auth but assume user is authenticated
+**Database Single-Record Queries Without Null Checks:**
+- Risk: Multiple `.single()` calls on Supabase queries can throw if record doesn't exist or multiple records match; insufficient error handling
+- Files:
+  - `lib/generation/content/boilerplate.ts:1`
+  - `lib/inngest/functions/stage2-response-generator.ts:62, 160, 167`
+  - `app/api/company/boilerplate/route.ts`
+  - All `app/api/company/*/[id]/route.ts` files (30+ instances)
+- Current mitigation: Some wrapped in try-catch, but many aren't
+- Recommendations:
+  - Wrap all `.single()` with explicit error handling
+  - Consider using `.maybeSingle()` where appropriate
+  - Create helper function `getSingleOrThrow()` with consistent error messages
 
-**Files:** All files in `app/api/` directory
-
-**Risk:**
-- If Supabase auth is bypassed or token leaked, attacker can access/modify:
-  - All RFP documents
-  - All company data
-  - All generated proposals
-  - All requirements
-
-**Current protection:**
-- Relies on Supabase JWT authentication
-- No additional authorization checks (role-based access control)
-
-**Recommendations:**
-- Add request-level authentication validation in API middleware
-- Implement role-based access control (RBAC) for company and document ownership
-- Add request logging for audit trail
-- Validate user ownership of resources before operations
-
----
-
-### 2. **Service Role Key Used on Server**
-
-**Issue:** `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS (Row Level Security)
-
-**Files:** `lib/supabase/client.ts:10-11`
-
-**Risk:**
-- Allows unrestricted access to all database tables
-- If key is compromised, no RLS protection
-- Not following principle of least privilege
-
-**Current usage:**
-- Used in Inngest functions and API routes
-
-**Recommendations:**
-- Use specific row-level security policies for each operation
-- Create database roles with minimal required permissions for each function
-- Use authenticated user context where possible (with JWT tokens)
-- Limit service role usage to admin operations only
-
----
-
-### 3. **No Input Validation on File Uploads**
-
-**Issue:** PDF upload accepts any file without validation
-
-**Files:** `app/api/upload/route.ts` (lines 10-80)
-
-**Risk:**
-- Could upload malicious files (not just PDFs)
-- No file size limit validation
-- No content-type validation before PDF service processing
-
-**Current protection:**
-- PDF service processes file, but what if malicious file sent?
-
-**Recommendations:**
-- Validate file extension (must be .pdf)
-- Validate Content-Type header
-- Implement file size limits (max 50MB suggested)
-- Scan uploaded files with security scanner before processing
-- Store upload logs for audit trail
-
----
+**Mermaid/Puppeteer Execution with Filesystem Access:**
+- Risk: Creating temp files in system temp directory; potential for race conditions or file descriptor exhaustion
+- Files: `lib/generation/exhibits/render.ts:33-141`
+- Current mitigation:
+  - Random filename generation with timestamp and random string
+  - Cleanup in finally block
+  - 60 second timeout
+- Recommendations:
+  - Use uuid instead of Date.now() + Math.random() for better collision avoidance
+  - Implement retry logic for cleanup failures
+  - Monitor temp directory size in production
+  - Consider streaming output instead of files where possible
 
 ## Performance Bottlenecks
 
-### 1. **Synchronous AI Generation in Long-Running Function**
+**Large File Operations in Memory:**
+- Problem: DOCX generation loads entire document into memory before converting to buffer; PDF conversion happens in same step
+- Files: `lib/inngest/functions/stage2-response-generator.ts:367-380`, `lib/generation/docx/generator.ts`
+- Cause: `generateProposalVolume()` returns Document object with all Paragraph objects held in memory; then converted to buffer; then PDF conversion happens synchronously
+- Improvement path:
+  - Stream DOCX generation to file instead of buffer
+  - Implement PDF conversion as separate async step
+  - Use worker threads for PDF rendering to avoid blocking main thread
 
-**Issue:** Anthropic API calls block entire Inngest function until completion
+**Synchronous Data Serialization for Supabase:**
+- Problem: `volumesMetadata` object manually constructed in lines 304-314 to strip Paragraph objects before storing; inefficient
+- Files: `lib/inngest/functions/stage2-response-generator.ts:303-314`
+- Cause: Volume objects contain docx-library Paragraph objects that can't be serialized; metadata rebuilt from sections
+- Improvement path: Decouple content generation from document building; generate plain content first, then build DOCX
 
-**Files:** `lib/inngest/functions/stage2-response-generator.ts` (Stages 2, 3, 4+)
+**Page Counting Loops Through All Sections:**
+- Problem: Multiple iterations through volume sections to count pages, estimate limits, track allocations
+- Files: `lib/inngest/functions/stage2-response-generator.ts:385-402` (multiple loops)
+- Cause: Page tracking, section mapping, and content condensing all iterate independently
+- Improvement path: Single pass through sections collecting all needed metrics at once
 
-**Problem:**
-- Each volume generation waits for AI response sequentially
-- With 4 volumes + exhibits + compliance matrix, generation takes several minutes
-- User sees long wait with no progress updates
-
-**Current symptom:**
-- Users report 2.6+ minute generation times
-
-**Improvement path:**
-- Parallelize volume generation (concurrent API calls instead of sequential)
-- Implement streaming for long content chunks
-- Add progress webhooks to update UI during generation
-- Consider caching frequently generated sections (boilerplate, win themes)
-
----
-
-### 2. **Inefficient Requirement-to-Section Mapping**
-
-**Issue:** Section mapper runs after all content generated, checking every requirement against every section
-
-**Files:** `lib/generation/planning/section-mapper.ts` (408 lines)
-
-**Problem:**
-- O(n*m) complexity: n=152 requirements × m=50+ sections
-- Runs as full table scan, not indexed queries
-- Repeats after each volume generation
-
-**Recommendation:**
-- Build requirement-to-section map during content generation, not after
-- Create database indexes on requirement_number and section title
-- Cache mapping results to avoid recalculation
-
----
-
-### 3. **Large JSONB Data Structures in Database**
-
-**Issue:** Company data fetched with Promise.all() loads all related tables
-
-**Files:** `lib/inngest/functions/stage2-response-generator.ts:68-80`
-
-**Problem:**
-- 11 separate Supabase queries run in parallel
-- Some tables may have large amounts of data (achievements JSONB, past performance details)
-- No pagination or limit clauses
-
-**Impact:**
-- Large network payload
-- Slow deserialization of JSONB
-- Unnecessary data loaded that may not be used
-
-**Recommendation:**
-- Add SELECT limit to only fetch necessary fields
-- Implement pagination for large collections (past performance, certifications)
-- Consider denormalizing frequently-accessed data
-
----
+**Console Logging Overhead:**
+- Problem: 50+ console.log calls in critical path functions
+- Files: `lib/generation/docx/generator.ts`, `lib/generation/exhibits/org-chart.ts`, `lib/generation/exhibits/render.ts`
+- Cause: Verbose debugging left in production
+- Improvement path: Replace with conditional logging based on DEBUG env var
 
 ## Fragile Areas
 
-### 1. **DOCX Generation with Mutable Paragraph Objects**
+**Proposal Volume Generation Pipeline:**
+- Files: `lib/inngest/functions/stage2-response-generator.ts` (774 lines - largest single function)
+- Why fragile:
+  - Single monolithic function orchestrating 8+ major steps
+  - Multiple nested loops and data transformations
+  - Paragraph objects must stay alive throughout; serialization boundaries poorly defined
+  - Step.run() calls spread across function with unclear dependency order
+  - Any step failure could leave response in partial state
+- Safe modification:
+  - Add comprehensive logging at step boundaries
+  - Create separate functions for each major phase
+  - Use transactions or checkpoints to make process resumable
+  - Add step validators to confirm data shape before handoff
+- Test coverage: No unit tests; integration tests would be needed but complex setup required
 
-**Issue:** Paragraph objects must remain in-memory live instances throughout generation
+**Database Schema Assumptions:**
+- Files: 50+ API routes, `lib/inngest/functions/stage1-rfp-intelligence.ts`, `lib/inngest/functions/stage2-response-generator.ts`
+- Why fragile:
+  - Supabase queries don't validate schema exists
+  - Column names hardcoded throughout (`company_id`, `solicitation_number`, `achievements`, etc.)
+  - No migration validation at startup
+  - Some files reference fields that may not exist (e.g., achievements in past_performance)
+- Safe modification:
+  - Create migration verification script that runs on startup
+  - Use database schema types generated from Supabase
+  - Add schema change detection/warnings
+- Test coverage: No database integration tests
 
-**Files:**
-- `lib/generation/docx/generator.ts` (511 lines)
-- `lib/inngest/functions/stage2-response-generator.ts:229-290`
-
-**Why fragile:**
-- Objects cannot be serialized/deserialized (loses live references)
-- Must keep all volumes in memory until saveDocxToBuffer() called
-- If process crashes before saveDocxToBuffer(), all work is lost
-- Makes testing difficult (can't mock Paragraph objects)
-
-**Risk areas:**
-- Win themes integration (integrateWinThemes at line 257)
-- Appendix generation (if implemented)
-- Any code that transforms Paragraph arrays
-
-**Safe modification:**
-- Only modify sections array structure, not individual Paragraph objects
-- Call saveDocxToBuffer() immediately after generation
-- Add transaction-like behavior (save to temp file first, then move to final location)
-- Test with minimal Paragraph counts (5-10) not full documents
-
-**Test coverage:**
-- No unit tests found for Paragraph transformation logic
-- Critical business logic with zero test coverage
-
----
-
-### 2. **Heavy Dependency on Anthropic API Availability**
-
-**Issue:** Core content generation blocked on Anthropic API uptime
-
-**Files:**
-- `lib/anthropic/client.ts`
-- `lib/inngest/functions/stage1-rfp-intelligence.ts` (AI extraction)
-- `lib/inngest/functions/stage2-response-generator.ts` (AI content generation)
-
-**What breaks:**
-- Cannot generate proposals without AI
-- No fallback content generation
-- API timeouts or rate limits will fail entire batch
-
-**Impact:**
-- If Anthropic has outage, all pending generations fail
-- Customer loses data until API recovers
-
-**Improvement path:**
-- Implement response caching for common RFP sections
-- Add fallback template content for system outages
-- Build local LLM fallback (Ollama, LLaMA) for critical path
-- Add circuit breaker with graceful degradation
-
----
-
-### 3. **Minimal Volume Number Validation**
-
-**Issue:** Volume types and ordering not validated during generation
-
-**Files:** `lib/inngest/functions/stage2-response-generator.ts:237-322`
-
-**Problem:**
-- Code assumes volumes are generated: technical, management, past_performance, price
-- If new volume type added, no validation ensures proper structure
-- If volume generation fails, missing volume creates downstream errors
-
-**Safe modification:**
-- Add enum for valid volume types
-- Validate each volume before adding to array
-- Check required sections present before declaring volume complete
-- Log warnings for unexpected volume structures
-
----
+**Mermaid CLI Rendering:**
+- Files: `lib/generation/exhibits/render.ts`
+- Why fragile:
+  - Depends on external CLI tool (`mmdc` via npx)
+  - No version pinning for mermaid-cli
+  - Complex command line argument building prone to quoting issues
+  - Timeout is hard-coded at 60 seconds (insufficient for large diagrams)
+  - No fallback if diagram rendering fails
+- Safe modification:
+  - Version pin mermaid-cli in package.json
+  - Use execa package for safe command building
+  - Make timeout configurable per diagram
+  - Add retry logic with exponential backoff
+- Test coverage: No tests for render failures
 
 ## Scaling Limits
 
-### 1. **Single-Server File Storage**
+**Inngest Function Execution Timeout:**
+- Current capacity: Single response generation must complete in default Inngest timeout (appears to be 1 hour based on typical SaaS defaults)
+- Limit: Complex proposals with 50+ pages of content, multiple volumes, exhibit generation can exceed timeout
+- Scaling path:
+  - Break response generator into multiple chained functions
+  - Implement streaming response recording (update status table as volumes complete)
+  - Add progress tracking for long-running operations
 
-**Current capacity:**
-Files saved to `/tmp` directory on single server
+**Database Connection Pool:**
+- Current capacity: Not configured in code; using Supabase defaults (likely 10-20 concurrent connections)
+- Limit: Concurrent proposal generation will exhaust connections if 10+ simultaneous requests happen
+- Scaling path:
+  - Explicit connection pool configuration in Supabase client
+  - Queue-based processing to limit concurrent operations
+  - Connection retry logic with backoff
 
-**Limit:**
-- Filesystem max file size: ~16TB (theoretical)
-- Practical: Once /tmp fills up, generation fails
-- No disk space monitoring or cleanup
+**Memory Usage During PDF Conversion:**
+- Current capacity: Entire DOCX loaded into memory + PDF conversion in-process
+- Limit: Large proposals (100+ pages) with images will exhaust Node.js heap
+- Scaling path:
+  - Stream-based DOCX and PDF generation
+  - Worker thread pool for PDF conversion
+  - Document chunking for very large proposals
 
-**Scaling path:**
-- Migrate to cloud storage (S3, Azure Blob, GCS)
-- Implement auto-cleanup of old files (>30 days)
-- Monitor disk usage and alert on thresholds
-
----
-
-### 2. **No Database Connection Pooling Configured**
-
-**Issue:** Each Inngest step creates new Supabase client
-
-**Files:** Multiple files calling `getServerClient()`
-
-**Current capacity:**
-- Each client uses single connection
-- With multiple concurrent generations, connection pool can exhaust
-- Supabase free tier: ~50 concurrent connections
-
-**Scaling limit:**
-~10-20 concurrent proposal generations before hitting connection limits
-
-**Scaling path:**
-- Implement connection pooling (pgBouncer in connection pool mode)
-- Reuse client instance across function (pass as parameter)
-- Add connection limit monitoring
-
----
-
-### 3. **No Rate Limiting on API Endpoints**
-
-**Issue:** No rate limiting on upload, generation, or download endpoints
-
-**Files:** All `app/api/` routes
-
-**Risk:**
-- One malicious user could create 1000 documents, exhausting resources
-- Anthropic API could be hammered with requests
-- Database could be overwhelmed
-
-**Scaling impact:**
-- As user count grows, denial-of-service risk increases
-
-**Scaling path:**
-- Add rate limiting middleware (3 generations per user per hour)
-- Implement queue system for proposals (first-come-first-served)
-- Monitor API usage and alert on spikes
-
----
+**File System Temp Directory:**
+- Current capacity: Mermaid rendering creates temp files in system temp dir; cleanup sometimes fails
+- Limit: 1000+ concurrent diagram renders could fill disk or exceed inode limits
+- Scaling path:
+  - Implement temp file tracking and periodic cleanup
+  - Monitor disk usage
+  - Consider ramdisk for temp files in production
 
 ## Dependencies at Risk
 
-### 1. **docx Library v9.5.1 - Limited TOC Support**
+**@anthropic-ai/sdk (^0.71.2):**
+- Risk: Major version changes could break Claude API calls; no upper bound on version
+- Impact: Automatic updates via npm could introduce breaking changes
+- Migration plan:
+  - Pin to specific major version (e.g., ~0.71.2)
+  - Add changelog review to release process
+  - Create abstraction layer for Claude calls to ease migration
 
-**Risk:** TOC generation requires Word field codes which `docx` library doesn't fully support
+**@mermaid-js/mermaid-cli (^11.12.0):**
+- Risk: Depends on Puppeteer which depends on Chromium; CLI tool via npx adds network/download dependency
+- Impact: Network failures during diagram render; Chromium downloads can fail or be slow
+- Migration plan:
+  - Consider using mermaid-js library directly instead of CLI
+  - Pre-download Chromium as build step
+  - Implement fallback diagram generator (graphviz or similar)
 
-**Impact:**
-- Table of Contents must be generated manually as static content
-- Cannot create true dynamic TOC fields
-- Workaround reduces professionalism of deliverables
+**libreoffice-convert (^1.8.1):**
+- Risk: Depends on system-level LibreOffice installation; unmaintained package
+- Impact: May not work in serverless environments; version compatibility unknown
+- Migration plan:
+  - Evaluate replacing with libreoffice API calls directly
+  - Consider pdf-lib or other pure Node.js alternatives for PDF generation
 
-**Migration plan:**
-- Monitor `docx` library updates for TOC field support
-- Alternative: python-docxtpl (would require separate service)
-- Alternative: Use LibreOffice for post-processing (external dependency)
-
----
-
-### 2. **Anthropic API SDK v0.71.2 - Streaming Not Fully Tested**
-
-**Risk:** Using Anthropic SDK with long-running content generation
-
-**Impact:**
-- No streaming support implemented (waits for full response)
-- If API returns 10,000+ token response, wait time increases
-- Memory usage high for large responses
-
-**Migration plan:**
-- Upgrade to latest Anthropic SDK (ensure streaming API implemented)
-- Implement token streaming for real-time content display
-- Consider switching to OpenAI API if issues persist (larger ecosystem)
-
----
-
-### 3. **Inngest v3.49.3 - No Built-in Retry Strategy**
-
-**Risk:** Job failures not automatically retried
-
-**Impact:**
-- If Anthropic API timeout occurs, entire proposal generation fails
-- User must manually retry (or doesn't know to retry)
-- No exponential backoff
-
-**Migration plan:**
-- Implement Inngest retry config: `{ retries: 3, timeout: 30000 }`
-- Add step-level retries for external API calls
-- Monitor job failure rates and alert on spikes
-
----
+**docx (^9.5.1):**
+- Risk: Large module with complex internals; Paragraph objects not properly serializable
+- Impact: Can't store volumes in database as JSON; must regenerate or keep workarounds
+- Migration plan:
+  - Evaluate prettier-word for more modern architecture
+  - Create abstraction layer to reduce coupling
+  - Consider custom DOCX builder for compliance documents
 
 ## Missing Critical Features
 
-### 1. **User Authentication & Authorization Not Implemented**
+**No Proposal Versioning:**
+- Problem: Generated proposals can't be rolled back; no history of content changes
+- Blocks: A/B testing proposals, compliance audit trails, client change requests
 
-**Issue:** API endpoints assume authentication but don't fully implement it
+**No Real-Time Progress Tracking:**
+- Problem: Client sees "Processing..." without knowing what phase or how long it will take
+- Blocks: User experience for large proposals; no ability to cancel mid-generation
 
-**Problem:**
-- No session management
-- No company/user association tracking
-- No audit logging of who accessed/modified what
-- Multi-tenant data isolation not enforced
+**No Multi-Language Support:**
+- Problem: All templates hardcoded in English; international clients can't generate proposals in their language
+- Blocks: Global market expansion
 
-**Blocks:**
-- Cannot support multiple companies in same deployment
-- Cannot track user actions for compliance
-- Data leakage risk if user context lost
+**No Proposal Template Customization:**
+- Problem: Sections and structure are hardcoded; clients can't customize which volumes to generate
+- Blocks: Flexibility for different RFP types (simplified vs comprehensive)
 
----
-
-### 2. **No Proposal Version Control**
-
-**Issue:** Once proposal generated, no way to track changes or revert
-
-**Problem:**
-- User generates proposal, then edits RFP, re-generates
-- Original proposal lost
-- No audit trail of proposal evolution
-
-**Blocks:**
-- Users can't compare versions
-- Can't rollback to previous proposal if new version worse
-- No history for compliance/audit purposes
-
----
-
-### 3. **Missing Download Format Options**
-
-**Issue:** Only DOCX format supported for proposal volumes
-
-**Problem:**
-- No PDF export (evaluators expect PDF)
-- No Markdown output (for content reuse)
-- No HTML output (for web viewing)
-
-**Impact:**
-- Users must use Word to convert to PDF
-- Cannot embed proposals in web-based submissions
-
----
+**No Error Recovery:**
+- Problem: If any step in response generation fails, entire proposal generation fails; no partial recovery
+- Blocks: Robustness at scale; expensive to retry
 
 ## Test Coverage Gaps
 
-### 1. **No Unit Tests for Content Generation**
+**No Tests for Critical Inngest Functions:**
+- What's not tested: `rfpResponseGenerator` (774 lines), `rfpIntelligenceAnalyzer` (439 lines) - the core business logic
+- Files: `lib/inngest/functions/stage1-rfp-intelligence.ts`, `lib/inngest/functions/stage2-response-generator.ts`
+- Risk: Breaking changes go undetected until production; regression bugs common after refactoring
+- Priority: High - these functions handle end-to-end proposal generation
 
-**What's not tested:**
-- Paragraph object creation and transformation
-- Win themes integration with content
-- Cross-reference extraction and formatting
-- Compliance matrix generation accuracy
+**No Tests for DOCX Generation:**
+- What's not tested: Document structure, numbering, styling, cover letters, compliance matrices
+- Files: `lib/generation/docx/generator.ts` (466 lines), `lib/generation/volumes/*.ts`
+- Risk: Broken Word documents reach clients; formatting regressions silent
+- Priority: High - output quality directly affects product reputation
 
-**Files:**
-- `lib/generation/templates/*.ts` (all without tests)
-- `lib/generation/content/*.ts` (all without tests)
-- `lib/generation/compliance/*.ts` (all without tests)
+**No Tests for Database Queries:**
+- What's not tested: Error handling when records missing, schema mismatches, query failures
+- Files: 50+ API route files with `.single()` calls, data fetch patterns
+- Risk: Production errors from null/undefined assumptions
+- Priority: High - availability and data integrity
 
-**Risk:**
-- Content generation changes could break proposal formatting silently
-- Requirement-to-section mapping could be incorrect without detected
-- Achievements data could show as undefined without catching it
+**No Tests for PDF Conversion:**
+- What's not tested: Rendering failures, timeout handling, temp file cleanup, large document handling
+- Files: `lib/generation/pipeline/pdf-converter.ts`, `lib/generation/exhibits/render.ts`
+- Risk: Silent PDF generation failures; disk space issues; memory exhaustion
+- Priority: Medium - degraded gracefully with console warnings but not tested
 
-**Priority:**
-HIGH - These are critical business logic with zero safety net
+**No Tests for Page Tracking/Content Condensing:**
+- What's not tested: Page counting accuracy, condense callback triggering, edge cases (very long section names, no content)
+- Files: `lib/generation/pipeline/page-tracker.ts`, `lib/generation/pipeline/content-condenser.ts`
+- Risk: Proposals exceed page limits; condensing logic never invoked
+- Priority: Medium - compliance feature but no coverage
 
----
-
-### 2. **No Integration Tests for Full Proposal Generation**
-
-**What's not tested:**
-- End-to-end: RFP upload → extraction → AI generation → DOCX output
-- Error handling when Anthropic API fails
-- Error handling when database queries fail
-- File system cleanup after generation
-
-**Risk:**
-- Full pipeline could be broken and nobody notices
-- Errors in Inngest steps silently fail without user notification
-- Temp files could accumulate and fill disk
-
-**Priority:**
-MEDIUM - Should test before scaling to production
+**No End-to-End Tests:**
+- What's not tested: Complete flow from RFP upload to downloadable proposal
+- Files: All of `lib/inngest/`, `app/api/`, integration with database
+- Risk: Critical user flows may be broken between versions
+- Priority: High - full regression suite needed
 
 ---
 
-### 3. **No Validation Tests for Data Quality**
-
-**What's not tested:**
-- Requirement data structure validation
-- Company data completeness checks
-- Achievement data presence validation
-- Section structure validation
-
-**Risk:**
-- Bad data in database generates bad proposals silently
-- No way to detect data quality issues before generation
-- "Undefined" values appear in final proposal without warning
-
-**Priority:**
-HIGH - Critical for proposal quality assurance
-
----
-
-## Summary Table
-
-| Category | Severity | Count | Status |
-|----------|----------|-------|--------|
-| Tech Debt | Critical | 2 | Requires immediate fix (secrets exposure) |
-| Tech Debt | High | 2 | Should fix soon (error handling, type safety) |
-| Known Bugs | Critical | 2 | Blocks proposal quality (undefined values, partial implementation) |
-| Known Bugs | Medium | 1 | Needs verification (cross-references) |
-| Security | Critical | 3 | Requires urgent remediation (auth, secrets, validation) |
-| Performance | High | 3 | Impacts user experience (generation speed, resource efficiency) |
-| Fragile Areas | High | 3 | High-risk modification areas (DOCX, AI dependency, validation) |
-| Scaling Limits | Medium | 3 | Will fail as scale increases (storage, connections, rate limiting) |
-| Missing Features | Critical | 3 | Blocks multi-user and production use |
-| Test Gaps | Critical | 3 | Zero coverage on critical logic |
-
----
-
-*Concerns audit: 2026-02-01*
+*Concerns audit: 2026-02-23*
