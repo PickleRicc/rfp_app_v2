@@ -14,7 +14,7 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 - [x] **TIER1-03**: User can enter active contract vehicles, ISO/CMMI/ITIL status, facility clearance level, DCAA-approved systems
 - [x] **TIER1-04**: User can enter corporate overview, core services, enterprise win themes, key differentiators, standard management approach
 - [x] **TIER1-05**: Tier 1 data persists across all proposals for a given customer
-- [ ] **TIER1-06**: System enforces min/max word counts and completeness checks on capability fields
+- [x] **TIER1-06**: System enforces min/max word counts and completeness checks on capability fields
 
 ### Multi-Document Ingestion (INGEST)
 
@@ -103,7 +103,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TIER1-03 | Phase 5 | Complete |
 | TIER1-04 | Phase 5 | Complete |
 | TIER1-05 | Phase 5 | Complete |
-| TIER1-06 | Phase 5 | Pending |
+| TIER1-06 | Phase 5 | Complete |
 | INGEST-01 | Phase 6 | Pending |
 | INGEST-02 | Phase 6 | Pending |
 | INGEST-03 | Phase 6 | Pending |
