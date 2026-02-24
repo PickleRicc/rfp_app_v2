@@ -145,7 +145,7 @@ export function SolicitationUploader({ solicitationId, onUploadComplete }: Solic
           // Update each file's status based on server response
           for (const doc of docs) {
             if (!documentIds.includes(doc.id)) continue;
-            if (doc.processing_status === "classified") {
+            if (doc.processing_status === "classified" || doc.processing_status === "reconciled") {
               // Find the filename by document ID
               setFiles((prev) =>
                 prev.map((f) =>
@@ -171,6 +171,7 @@ export function SolicitationUploader({ solicitationId, onUploadComplete }: Solic
             .every(
               (d) =>
                 d.processing_status === "classified" ||
+                d.processing_status === "reconciled" ||
                 d.processing_status === "failed"
             );
 
