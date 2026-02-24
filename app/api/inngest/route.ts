@@ -4,6 +4,7 @@ import { documentClassifier } from '@/lib/inngest/functions/stage0-classifier';
 import { rfpIntelligenceAnalyzer } from '@/lib/inngest/functions/stage1-rfp-intelligence';
 import { rfpResponseGenerator } from '@/lib/inngest/functions/stage2-response-generator';
 import { solicitationDocumentClassifier } from '@/lib/inngest/functions/solicitation-classifier';
+import { solicitationReconciler } from '@/lib/inngest/functions/solicitation-reconciler';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -12,5 +13,6 @@ export const { GET, POST, PUT } = serve({
     rfpIntelligenceAnalyzer,
     rfpResponseGenerator,
     solicitationDocumentClassifier,
+    solicitationReconciler,
   ],
 });
