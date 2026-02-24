@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 6 of 10 (Multi-Document Ingestion)
-Plan: 4 of 4 in current phase (COMPLETE — all plans done)
+Plan: 5 of 5 in current phase (COMPLETE — all plans done including gap closure)
 Status: Phase 6 complete — ready for Phase 7
-Last activity: 2026-02-24 — 06-04 complete: all 3 tasks done (solicitation detail page, ReconciliationView, AmendmentChainView, TemplateFieldsPanel, solicitations list page, nav link, human verification approved).
+Last activity: 2026-02-24 — 06-05 complete: gap closure — is_superseded/superseded_by writes added to reconcile-amendments step in solicitation-reconciler.ts.
 
 Progress: [██████░░░░] ~40%
 
@@ -28,7 +28,7 @@ Progress: [██████░░░░] ~40%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 5. Tier 1 Enterprise Intake | 3 done | ~38 min | ~13 min |
-| 6. Multi-Document Ingestion | 3 done | ~20 min | ~7 min |
+| 6. Multi-Document Ingestion | 5 done | ~25 min | ~5 min |
 | 7. Compliance Extraction | TBD | - | - |
 | 8. Tier 2 Dynamic Data Call | TBD | - | - |
 | 9. Draft Generation | TBD | - | - |
@@ -42,6 +42,7 @@ Progress: [██████░░░░] ~40%
 | Phase 06 P02 | 6 | 2 tasks | 6 files |
 | Phase 06 P03 | 6 | 2 tasks | 6 files |
 | Phase 06 P04 | 5 | 2 tasks | 6 files |
+| Phase 06 P05 | 5 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Recent decisions affecting current work:
 - [Phase 06 P04]: AmendmentChainView shows "Base Document — No Amendments" simplified view when no amendments exist — avoids empty chain UI
 - [Phase 06 P04]: Undo button shows expand/collapse only when text exists — reduces visual clutter for metadata-only changes
 - [Phase 06 P04]: Human verified full end-to-end flow (all 11 verification steps) — complete multi-document ingestion pipeline confirmed working
+- [Phase 06-05]: Supersession writes scoped inside insertError else-block — only written when document_reconciliations insert succeeds, preventing is_superseded=true without corresponding reconciliation records
+- [Phase 06-05]: Base document marked superseded only when supersedes_section change_type exists — additive_section or general_modification changes do not trigger is_superseded
 
 ### Pending Todos
 
@@ -94,8 +97,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 06-04-PLAN.md — Phase 6 fully complete
+Stopped at: Completed 06-05-PLAN.md — Phase 6 fully complete (including gap closure)
 Resume file: Phase 7 (Compliance Extraction) — next phase
 
 ---
-*State updated: 2026-02-24 (06-03 complete)*
+*State updated: 2026-02-24 (06-05 complete — gap closure)*
