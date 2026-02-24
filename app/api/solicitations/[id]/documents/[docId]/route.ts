@@ -30,12 +30,13 @@ import {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; docId: string } }
+  { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   const auth = await requireStaffOrResponse();
   if (auth instanceof NextResponse) return auth;
 
   try {
+    const { id: solicitationId, docId } = await params;
     const companyId = request.headers.get('X-Company-Id');
 
     if (!companyId) {
@@ -44,8 +45,6 @@ export async function GET(
         { status: 400 }
       );
     }
-
-    const { id: solicitationId, docId } = params;
     const supabase = getServerClient();
 
     // Verify the solicitation belongs to the requesting company
@@ -119,12 +118,13 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string; docId: string } }
+  { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   const auth = await requireStaffOrResponse();
   if (auth instanceof NextResponse) return auth;
 
   try {
+    const { id: solicitationId, docId } = await params;
     const companyId = request.headers.get('X-Company-Id');
 
     if (!companyId) {
@@ -134,7 +134,6 @@ export async function PATCH(
       );
     }
 
-    const { id: solicitationId, docId } = params;
     const supabase = getServerClient();
 
     // Verify the solicitation belongs to the requesting company

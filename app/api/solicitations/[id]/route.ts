@@ -13,12 +13,13 @@ import type { UpdateSolicitationRequest } from '@/lib/supabase/solicitation-type
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireStaffOrResponse();
   if (auth instanceof NextResponse) return auth;
 
   try {
+    const { id } = await params;
     const companyId = request.headers.get('X-Company-Id');
 
     if (!companyId) {
@@ -28,7 +29,6 @@ export async function GET(
       );
     }
 
-    const { id } = params;
     const supabase = getServerClient();
 
     // Fetch the solicitation, verify it belongs to the requesting company
@@ -86,12 +86,13 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireStaffOrResponse();
   if (auth instanceof NextResponse) return auth;
 
   try {
+    const { id } = await params;
     const companyId = request.headers.get('X-Company-Id');
 
     if (!companyId) {
@@ -101,7 +102,6 @@ export async function PATCH(
       );
     }
 
-    const { id } = params;
     const supabase = getServerClient();
 
     // Verify the solicitation belongs to the requesting company before modifying

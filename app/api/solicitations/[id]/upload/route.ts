@@ -76,12 +76,13 @@ async function extractTextFromFile(file: File): Promise<string> {
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireStaffOrResponse();
   if (auth instanceof NextResponse) return auth;
 
   try {
+    const { id: solicitationId } = await params;
     const companyId = request.headers.get('X-Company-Id');
 
     if (!companyId) {
@@ -128,8 +129,6 @@ export async function POST(
       );
     }
     // === END TIER 1 GATE CHECK ===
-
-    const { id: solicitationId } = params;
 
     // Verify the solicitation exists and belongs to the requesting company
     const { data: solicitation, error: solError } = await supabase
