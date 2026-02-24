@@ -216,33 +216,29 @@ ALTER TABLE document_reconciliations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE template_field_mappings ENABLE ROW LEVEL SECURITY;
 
 -- solicitations: authenticated users can read/write their own company's data
-CREATE POLICY IF NOT EXISTS solicitations_authenticated_policy
-  ON solicitations
-  FOR ALL
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'solicitations_authenticated_policy' AND tablename = 'solicitations') THEN
+    CREATE POLICY solicitations_authenticated_policy ON solicitations FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- solicitation_documents: authenticated users access via parent solicitation
-CREATE POLICY IF NOT EXISTS solicitation_documents_authenticated_policy
-  ON solicitation_documents
-  FOR ALL
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'solicitation_documents_authenticated_policy' AND tablename = 'solicitation_documents') THEN
+    CREATE POLICY solicitation_documents_authenticated_policy ON solicitation_documents FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- document_reconciliations: authenticated users access via parent solicitation
-CREATE POLICY IF NOT EXISTS document_reconciliations_authenticated_policy
-  ON document_reconciliations
-  FOR ALL
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'document_reconciliations_authenticated_policy' AND tablename = 'document_reconciliations') THEN
+    CREATE POLICY document_reconciliations_authenticated_policy ON document_reconciliations FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- template_field_mappings: authenticated users access via parent document
-CREATE POLICY IF NOT EXISTS template_field_mappings_authenticated_policy
-  ON template_field_mappings
-  FOR ALL
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'template_field_mappings_authenticated_policy' AND tablename = 'template_field_mappings') THEN
+    CREATE POLICY template_field_mappings_authenticated_policy ON template_field_mappings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END $$;
