@@ -15,6 +15,7 @@ import {
   Plus,
   LogOut,
   User,
+  FolderOpen,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -31,6 +32,7 @@ const navigation = [
   { name: "Documents", href: "/documents", icon: FileText },
   { name: "Company Data", href: "/company", icon: Building2 },
   { name: "All Companies", href: "/companies", icon: Users },
+  { name: "Solicitations", href: "/solicitations", icon: FolderOpen },
 ];
 
 export function Header() {
