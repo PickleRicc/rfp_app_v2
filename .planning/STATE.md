@@ -39,6 +39,7 @@ Progress: [█████░░░░░] ~28%
 | Phase 05 P02 | 8 | 3 tasks | 5 files |
 | Phase 05 P03 | 15 | 3 tasks | 7 files |
 | Phase 06 P01 | 3 | 3 tasks | 5 files |
+| Phase 06 P02 | 6 | 2 tasks | 6 files |
 | Phase 06 P03 | 6 | 2 tasks | 6 files |
 
 ## Accumulated Context
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - [Phase 06]: solicitations UNIQUE (company_id, solicitation_number) prevents duplicate packages per company
 - [Phase 06]: solicitation_documents.superseded_by is a self-referencing FK tracking version lineage within the same table
 - [Phase 06]: template_field_mappings.tag ('action_required' | 'reference_only') distinguishes critical fills from informational fields
+- [Phase 06 P02]: extractTextFromFile falls back to file.text() on PDF service failure — avoids hard blocking on PDF service unavailability
+- [Phase 06 P02]: check-all-classified counts both 'classified' and 'failed' as done — prevents reconciliation from being blocked by one bad document
+- [Phase 06 P02]: Polling uses 3s interval with 40 attempt max (2 min) — matches Inngest cold-start + Claude latency budget
 - [Phase 06]: Amendment chain compares each amendment against original base document — lineage via is_superseded/superseded_by handled by Inngest step
 - [Phase 06]: Only all-documents-failed sets solicitation status to 'failed' — partial failures log per-doc and continue
 - [Phase 06]: Manual reclassification always resets classification_confidence to 'high' — user review is more certain than AI
