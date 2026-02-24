@@ -1144,6 +1144,8 @@ export function ComplianceExtractionView({
   const [reExtractingCategories, setReExtractingCategories] = useState<Set<ExtractionCategory>>(
     new Set()
   );
+  // When true, polling continues even with 0 rows (extraction just triggered, Inngest creating rows)
+  const extractionTriggeredRef = useRef(false);
 
   const pollAttemptsRef = useRef(0);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1173,7 +1175,10 @@ export function ComplianceExtractionView({
 
   // ── Determine if polling should continue ───────────────────
   const shouldPoll = useCallback((data: ComplianceExtractionsByCategory | null): boolean => {
-    if (!data) return false;
+    if (!data) return extractionTriggeredRef.current;
+    // If extraction was just triggered, keep polling until rows appear with completed/failed status
+    const totalRows = CATEGORY_ORDER.reduce((sum, cat) => sum + (data[cat]?.length ?? 0), 0);
+    if (totalRows === 0 && extractionTriggeredRef.current) return true;
     for (const category of CATEGORY_ORDER) {
       const rows = data[category] || [];
       for (const row of rows) {
@@ -1193,14 +1198,16 @@ export function ComplianceExtractionView({
       const poll = async () => {
         if (pollAttemptsRef.current >= 60) {
           // Max 60 attempts = 5 minutes
+          extractionTriggeredRef.current = false;
           return;
         }
         pollAttemptsRef.current += 1;
         const freshData = await fetchExtractions();
-        if (freshData && shouldPoll(freshData)) {
+        if (shouldPoll(freshData || null)) {
           pollTimerRef.current = setTimeout(poll, 5000);
         } else {
           pollTimerRef.current = null;
+          extractionTriggeredRef.current = false;
           // Clear any re-extracting state for categories that are now done
           if (freshData) {
             setReExtractingCategories((prev) => {
@@ -1362,29 +1369,32 @@ export function ComplianceExtractionView({
   const handleExtractNow = async () => {
     if (!companyId) return;
     try {
-      const headers = new Headers({
-        "Content-Type": "application/json",
-        "X-Company-Id": companyId,
+      // Mark all categories as re-extracting for UI feedback
+      setReExtractingCategories(new Set(CATEGORY_ORDER));
+      extractionTriggeredRef.current = true;
+      setLoading(true);
+      // Single call triggers the full Inngest extraction pipeline
+      await fetch(`/api/solicitations/${solicitationId}/compliance`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Company-Id": companyId,
+        },
+        body: JSON.stringify({ action: "extract-all" }),
       });
-      // Trigger re-extract for all categories
-      for (const category of CATEGORY_ORDER) {
-        setReExtractingCategories((prev) => new Set(prev).add(category));
-        await fetch(`/api/solicitations/${solicitationId}/compliance`, {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify({ category, action: "re-extract" }),
-        });
-      }
       pollAttemptsRef.current = 0;
       if (pollTimerRef.current) {
         clearTimeout(pollTimerRef.current);
         pollTimerRef.current = null;
       }
-      // Reload and poll
+      // Start polling — extractionTriggered flag ensures polling continues even with 0 rows
       const data = await fetchExtractions();
-      if (data) startPolling(data);
+      setLoading(false);
+      startPolling(data || null);
     } catch (err) {
       console.error("Extract now error:", err);
+      setLoading(false);
+      extractionTriggeredRef.current = false;
     }
   };
 
@@ -1423,6 +1433,26 @@ export function ComplianceExtractionView({
     (sum, cat) => sum + (extractions?.[cat]?.length ?? 0),
     0
   );
+
+  if (totalExtractions === 0 && extractionTriggeredRef.current) {
+    // Extraction just triggered — show skeleton loaders while waiting for Inngest to create rows
+    return (
+      <div className="space-y-4">
+        {CATEGORY_ORDER.map((cat) => (
+          <div key={cat} className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="flex items-center gap-3 p-4">
+              <span className="text-muted-foreground">{CATEGORY_ICONS[cat]}</span>
+              <span className="font-semibold text-sm">{EXTRACTION_CATEGORY_LABELS[cat]}</span>
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+            <div className="border-t border-border">
+              <SkeletonRows count={4} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (totalExtractions === 0) {
     return (

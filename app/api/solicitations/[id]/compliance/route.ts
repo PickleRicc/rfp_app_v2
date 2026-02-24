@@ -197,7 +197,7 @@ export async function PATCH(
       extraction_id?: string;
       field_value?: unknown;
       category?: ExtractionCategory;
-      action?: 're-extract' | 'revert';
+      action?: 'extract-all' | 're-extract' | 'revert';
     };
 
     // ─── Operation 1: Edit a value ───────────────────────────────────────────
@@ -256,7 +256,20 @@ export async function PATCH(
       });
     }
 
-    // ─── Operation 2: Re-extract a category ──────────────────────────────────
+    // ─── Operation 2a: Extract all (initial extraction trigger) ──────────────
+    if (body.action === 'extract-all') {
+      await inngest.send({
+        name: 'solicitation.reconciliation.complete',
+        data: { solicitationId },
+      });
+
+      return NextResponse.json({
+        message: 'Full compliance extraction triggered',
+        note:    'All 4 categories will be extracted via Inngest pipeline',
+      });
+    }
+
+    // ─── Operation 2b: Re-extract a category ─────────────────────────────────
     if (body.action === 're-extract') {
       const validCategories: ExtractionCategory[] = [
         'section_l', 'section_m', 'admin_data', 'rating_scales',
@@ -290,10 +303,11 @@ export async function PATCH(
         );
       }
 
-      // Send Inngest event to trigger re-extraction for this category
+      // Trigger full pipeline — upsert logic handles re-extraction correctly
+      // (skips user overrides, updates existing rows, inserts new ones)
       await inngest.send({
-        name: 'solicitation.compliance.re-extract',
-        data: { solicitationId, category: body.category },
+        name: 'solicitation.reconciliation.complete',
+        data: { solicitationId },
       });
 
       return NextResponse.json({
