@@ -5,30 +5,30 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Generated proposals indistinguishable from expert government proposal writers — the kind that win contracts.
-**Current focus:** Phase 5 — Tier 1 Enterprise Intake
+**Current focus:** Phase 6 — Multi-Document Ingestion
 
 ## Current Position
 
-Phase: 5 of 10 (Tier 1 Enterprise Intake)
-Plan: 3 of 3 in current phase (COMPLETE)
-Status: Phase 5 complete
-Last activity: 2026-02-23 — 05-03 complete: Tier 1 completeness calculator (0-100 weighted score), status API, progress bar, RFP upload gate (TIER1_INCOMPLETE 403), and auto-sync of tier1_complete flag. Human verified end-to-end flow. Phase 5 Tier 1 Enterprise Intake is fully complete.
+Phase: 6 of 10 (Multi-Document Ingestion)
+Plan: 1 of 4 in current phase (COMPLETE)
+Status: Phase 6 in progress
+Last activity: 2026-02-24 — 06-01 complete: solicitations/solicitation_documents/document_reconciliations/template_field_mappings schema, TypeScript types, and CRUD API for solicitation package management.
 
-Progress: [███░░░░░░░] ~13%
+Progress: [████░░░░░░] ~18%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed (v2.0): 3
-- Average duration: 12 min
-- Total execution time: ~38 min
+- Total plans completed (v2.0): 4
+- Average duration: 10 min
+- Total execution time: ~41 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 5. Tier 1 Enterprise Intake | 3 done | ~38 min | ~13 min |
-| 6. Multi-Document Ingestion | TBD | - | - |
+| 6. Multi-Document Ingestion | 1 done | ~3 min | ~3 min |
 | 7. Compliance Extraction | TBD | - | - |
 | 8. Tier 2 Dynamic Data Call | TBD | - | - |
 | 9. Draft Generation | TBD | - | - |
@@ -38,6 +38,7 @@ Progress: [███░░░░░░░] ~13%
 | Phase 05 P01 | 15 | 3 tasks | 4 files |
 | Phase 05 P02 | 8 | 3 tasks | 5 files |
 | Phase 05 P03 | 15 | 3 tasks | 7 files |
+| Phase 06 P01 | 3 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,9 @@ Recent decisions affecting current work:
 - 05-03: Upload gate checks pre-computed tier1_complete flag (single-column SELECT) not live completeness recalculation — avoids joins/scoring on every upload
 - 05-03: isTier1Complete threshold is 80 (not 100) with Corporate Identity floor — informational fields (ISO/CMMI, DCAA) can remain blank without blocking gate
 - 05-03: tier1_complete auto-syncs after every profile PUT — eliminates separate mark-complete UX step
+- [Phase 06]: solicitations UNIQUE (company_id, solicitation_number) prevents duplicate packages per company
+- [Phase 06]: solicitation_documents.superseded_by is a self-referencing FK tracking version lineage within the same table
+- [Phase 06]: template_field_mappings.tag ('action_required' | 'reference_only') distinguishes critical fills from informational fields
 
 ### Pending Todos
 
@@ -74,9 +78,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 05-03-PLAN.md — Phase 5 Tier 1 Enterprise Intake fully complete
-Resume file: Next phase — 06-multi-document-ingestion
+Last session: 2026-02-24
+Stopped at: Completed 06-01-PLAN.md — solicitation ingestion data layer (schema, types, CRUD API)
+Resume file: 06-02-PLAN.md (document upload and multi-file ingestion)
 
 ---
-*State updated: 2026-02-23 (05-03 complete)*
+*State updated: 2026-02-24 (06-01 complete)*
