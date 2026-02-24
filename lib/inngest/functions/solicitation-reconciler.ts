@@ -221,6 +221,46 @@ export const solicitationReconciler = inngest.createFunction(
             console.error('Failed to insert amendment reconciliation records:', insertError);
           } else {
             totalRecords = results.length;
+
+            // Mark base document as superseded if any supersedes_section changes exist
+            const hasSupersededSections = results.some(r => r.change_type === 'supersedes_section');
+            const latestAmendment = amendments[amendments.length - 1];
+
+            if (hasSupersededSections && latestAmendment) {
+              const { error: baseSupersededError } = await supabase
+                .from('solicitation_documents')
+                .update({
+                  is_superseded: true,
+                  superseded_by: latestAmendment.id,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', baseDoc.id);
+
+              if (baseSupersededError) {
+                console.error('Failed to mark base document as superseded:', baseSupersededError);
+              }
+            }
+
+            // Mark earlier amendments as superseded by their successor
+            if (amendments.length > 1) {
+              for (let i = 0; i < amendments.length - 1; i++) {
+                const { error: amendSupersededError } = await supabase
+                  .from('solicitation_documents')
+                  .update({
+                    is_superseded: true,
+                    superseded_by: amendments[i + 1].id,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', amendments[i].id);
+
+                if (amendSupersededError) {
+                  console.error(
+                    `Failed to mark amendment ${amendments[i].id} as superseded:`,
+                    amendSupersededError
+                  );
+                }
+              }
+            }
           }
         }
 
