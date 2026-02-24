@@ -1,18 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 06-multi-document-ingestion
 source: [06-01-SUMMARY.md, 06-02-SUMMARY.md, 06-03-SUMMARY.md, 06-04-SUMMARY.md, 06-05-SUMMARY.md]
 started: 2026-02-24T18:00:00Z
-updated: 2026-02-24T18:00:00Z
+updated: 2026-02-24T19:30:00Z
 ---
 
 ## Current Test
 
-number: 5
-name: AI document classification with colored badges (retry)
-expected: |
-  The app header/nav bar shows a "Solicitations" link alongside existing nav items (Upload RFP, Documents, Company Data, All Companies). Clicking it navigates to /solicitations.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -42,42 +38,42 @@ severity: major
 
 ### 6. Reclassify document via dropdown
 expected: Clicking a document type badge in the classification table opens a dropdown with all 11 document types. Selecting a different type updates the badge immediately (optimistic UI). The confidence resets to "high" since user manually classified it.
-result: [pending]
+result: pass
 
 ### 7. Solicitation detail page with tabs
 expected: Navigating to /solicitations/{id} shows the solicitation detail page with: header (solicitation number, agency, status badge, document count), and three tabs: Documents, Reconciliation, Templates.
-result: [pending]
+result: pass
 
 ### 8. Amendment chain view on Documents tab
 expected: The Documents tab shows an amendment chain visualization above the classification table. If amendments exist: horizontal chain showing base RFP -> Amendment 1 -> Amendment 2, with the latest amendment marked "ACTIVE" (green). Superseded documents appear faded with strikethrough. If no amendments: shows "Base Document — No Amendments" simplified view.
-result: [pending]
+result: pass
 
 ### 9. Fillable and Superseded badges on Documents tab
 expected: Documents that are fillable templates show a "Fillable" badge (rose). Documents where is_superseded=true show a "Superseded" badge (red with strikethrough styling). These badges appear above or alongside the classification table.
-result: [pending]
+result: pass
 
 ### 10. Reconciliation tab — strikethrough and source badges
 expected: The Reconciliation tab shows changes grouped by target document ("Changes to: {filename}"). Each reconciliation shows: source badge ("Amendment" in amber or "Q&A Response" in green), change type badge (e.g., "Supersedes Section", "Modifies Page Limit"), section reference, original text with strikethrough, and replacement text with a colored left border accent.
-result: [pending]
+result: pass
 
 ### 11. Reconciliation undo/restore toggle
 expected: Each reconciliation record has an Undo/Restore button. Clicking "Undo" removes the strikethrough from original text and marks the change as "Overridden by user". Clicking "Restore" re-applies the strikethrough. The toggle updates immediately.
-result: [pending]
+result: pass
 
 ### 12. Templates tab — fillable fields with type hints
 expected: The Templates tab lists each fillable template document with a "Fillable" badge and an "Action Required" (red) or "Reference Only" (gray) tag. Below each document: a table of fields showing field name, type hint (text/number/date/boolean/selection), required indicator (red for required), auto-fill suggestion (source + current value if available), and section reference.
-result: [pending]
+result: pass
 
 ### 13. Empty states
 expected: When no reconciliation changes exist, the Reconciliation tab shows "No reconciliation changes detected". When no fillable templates exist, the Templates tab shows "No fillable templates detected in this solicitation package".
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 13
-passed: 3
+passed: 11
 issues: 2
-pending: 8
+pending: 0
 skipped: 0
 
 ## Gaps
