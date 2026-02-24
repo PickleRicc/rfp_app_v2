@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 6 of 10 (Multi-Document Ingestion)
-Plan: 3 of 4 in current phase (COMPLETE)
+Plan: 4 of 4 in current phase (CHECKPOINT — awaiting human verification)
 Status: Phase 6 in progress
-Last activity: 2026-02-24 — 06-03 complete: reconciliation engine, template detector, Inngest reconciler function, and API endpoints for listing/toggling reconciliations and reclassifying documents.
+Last activity: 2026-02-24 — 06-04 tasks 1-2 complete: solicitation detail page, ReconciliationView, AmendmentChainView, TemplateFieldsPanel, solicitations list page, nav link added. Paused at checkpoint:human-verify (Task 3).
 
 Progress: [█████░░░░░] ~28%
 
@@ -41,6 +41,7 @@ Progress: [█████░░░░░] ~28%
 | Phase 06 P01 | 3 | 3 tasks | 5 files |
 | Phase 06 P02 | 6 | 2 tasks | 6 files |
 | Phase 06 P03 | 6 | 2 tasks | 6 files |
+| Phase 06 P04 | 5 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [Phase 06]: Amendment chain compares each amendment against original base document — lineage via is_superseded/superseded_by handled by Inngest step
 - [Phase 06]: Only all-documents-failed sets solicitation status to 'failed' — partial failures log per-doc and continue
 - [Phase 06]: Manual reclassification always resets classification_confidence to 'high' — user review is more certain than AI
+- [Phase 06 P04]: EnhancedDocumentTable wraps DocumentClassificationTable rather than forking it — preserves Plan 02 reclassify behavior
+- [Phase 06 P04]: fetchTemplateFields only queries template-eligible types — mirrors Inngest reconciler pre-filter to avoid wasteful API calls
+- [Phase 06 P04]: ReconciliationView groups by target_document_id — shows which base document each amendment/Q&A modified
 
 ### Pending Todos
 
@@ -87,8 +91,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 06-03-PLAN.md — reconciliation engine, template detector, Inngest reconciler, and API endpoints
-Resume file: 06-04-PLAN.md (reconciliation review UI)
+Stopped at: 06-04-PLAN.md Task 3 checkpoint:human-verify — complete multi-document ingestion flow verification
+Resume file: 06-04-PLAN.md Task 3 (checkpoint continuation — user must verify flow, then resume)
 
 ---
 *State updated: 2026-02-24 (06-03 complete)*
