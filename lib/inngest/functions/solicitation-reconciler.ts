@@ -539,6 +539,15 @@ export const solicitationReconciler = inngest.createFunction(
         total_doc_count: allDocs?.length || 0,
       });
 
+      // Trigger compliance extraction pipeline (Phase 7)
+      // Only send when status is 'ready' — do not trigger if all documents failed
+      if (finalSolicitationStatus === 'ready') {
+        await inngest.send({
+          name: 'solicitation.reconciliation.complete',
+          data: { solicitationId },
+        });
+      }
+
       return finalSolicitationStatus;
     });
 
