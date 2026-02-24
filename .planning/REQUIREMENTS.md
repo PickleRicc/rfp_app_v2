@@ -27,10 +27,10 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 
 ### Compliance Extraction (EXTRACT)
 
-- [ ] **EXTRACT-01**: System extracts Section L data (volume structure, page limits per volume, required attachments, forms/certs, formatting rules)
-- [ ] **EXTRACT-02**: System extracts Section M data (evaluation factors/subfactors, methodology LPTA vs tradeoff, experience thresholds, key personnel requirements)
-- [ ] **EXTRACT-03**: System extracts admin data (NAICS code, size standard, set-aside designation, contract type, period of performance, CLIN structure)
-- [ ] **EXTRACT-04**: System captures rating scales and relative weightings from evaluation criteria
+- [x] **EXTRACT-01**: System extracts Section L data (volume structure, page limits per volume, required attachments, forms/certs, formatting rules)
+- [x] **EXTRACT-02**: System extracts Section M data (evaluation factors/subfactors, methodology LPTA vs tradeoff, experience thresholds, key personnel requirements)
+- [x] **EXTRACT-03**: System extracts admin data (NAICS code, size standard, set-aside designation, contract type, period of performance, CLIN structure)
+- [x] **EXTRACT-04**: System captures rating scales and relative weightings from evaluation criteria
 
 ### Dynamic Data Call — Tier 2 (TIER2)
 
@@ -110,10 +110,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INGEST-04 | Phase 6 | Complete |
 | INGEST-05 | Phase 6 | Complete |
 | INGEST-06 | Phase 6 | Complete |
-| EXTRACT-01 | Phase 7 | Pending |
-| EXTRACT-02 | Phase 7 | Pending |
-| EXTRACT-03 | Phase 7 | Pending |
-| EXTRACT-04 | Phase 7 | Pending |
+| EXTRACT-01 | Phase 7 | Complete |
+| EXTRACT-02 | Phase 7 | Complete |
+| EXTRACT-03 | Phase 7 | Complete |
+| EXTRACT-04 | Phase 7 | Complete |
 | TIER2-01 | Phase 8 | Pending |
 | TIER2-02 | Phase 8 | Pending |
 | TIER2-03 | Phase 8 | Pending |
