@@ -49,7 +49,12 @@ Plans:
   3. When an amendment supersedes language in a base document, the superseded text is flagged and only the latest version is used downstream
   4. Q&A responses that modify scope, page limits, evaluation criteria, or submission instructions are identified and tagged so downstream extraction reflects the changes
   5. Fillable templates (staffing plans, cost summaries, past performance forms) are identified and their required fields mapped
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 06-01-PLAN.md — Database schema (solicitations, solicitation_documents, reconciliations, template fields), TypeScript types, solicitation CRUD API
+- [ ] 06-02-PLAN.md — Multi-file drag-drop upload UI, bulk upload API, AI document classification via Inngest
+- [ ] 06-03-PLAN.md — Amendment reconciliation engine, Q&A modification parser, fillable template detector, reconciliation Inngest function
+- [ ] 06-04-PLAN.md — Solicitation detail UI (reconciliation view, amendment chain, template fields panel), solicitations list page, human verification
 
 ### Phase 7: Compliance Extraction
 **Goal**: After ingestion, the system automatically surfaces all compliance obligations — volumes, page limits, eval factors, admin data — with no manual review required to drive the Tier 2 data call
@@ -107,7 +112,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 5. Tier 1 Enterprise Intake | 3/3 | Complete    | 2026-02-23 |
-| 6. Multi-Document Ingestion | 0/TBD | Not started | - |
+| 6. Multi-Document Ingestion | 0/4 | Not started | - |
 | 7. Compliance Extraction | 0/TBD | Not started | - |
 | 8. Tier 2 Dynamic Data Call | 0/TBD | Not started | - |
 | 9. Draft Generation | 0/TBD | Not started | - |
