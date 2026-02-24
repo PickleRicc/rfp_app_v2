@@ -66,7 +66,10 @@ Plans:
   2. System displays extracted Section M data: all evaluation factors and subfactors, evaluation methodology (LPTA or tradeoff), experience thresholds, and key personnel requirements
   3. System displays extracted admin data: NAICS code, size standard, set-aside designation, contract type, period of performance, and CLIN structure
   4. System shows rating scales and relative factor weightings from the evaluation criteria section
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 07-01-PLAN.md — Extraction data layer (DB schema, types, AI extraction engine, Inngest pipeline, API endpoints)
+- [ ] 07-02-PLAN.md — Compliance tab UI (accordion display, inline editing, confidence indicators, amendment impact, human verification)
 
 ### Phase 8: Tier 2 Dynamic Data Call
 **Goal**: User is presented with an RFP-specific intake form — driven by what that particular RFP requires — and can complete it before draft generation begins
@@ -114,7 +117,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 |-------|----------------|--------|-----------|
 | 5. Tier 1 Enterprise Intake | 3/3 | Complete    | 2026-02-23 |
 | 6. Multi-Document Ingestion | 5/5 | Complete   | 2026-02-24 |
-| 7. Compliance Extraction | 0/TBD | Not started | - |
+| 7. Compliance Extraction | 0/2 | Not started | - |
 | 8. Tier 2 Dynamic Data Call | 0/TBD | Not started | - |
 | 9. Draft Generation | 0/TBD | Not started | - |
 | 10. End-to-End Validation | 0/TBD | Not started | - |
