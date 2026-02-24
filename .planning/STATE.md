@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 6 of 10 (Multi-Document Ingestion)
-Plan: 4 of 4 in current phase (CHECKPOINT — awaiting human verification)
-Status: Phase 6 in progress
-Last activity: 2026-02-24 — 06-04 tasks 1-2 complete: solicitation detail page, ReconciliationView, AmendmentChainView, TemplateFieldsPanel, solicitations list page, nav link added. Paused at checkpoint:human-verify (Task 3).
+Plan: 4 of 4 in current phase (COMPLETE — all plans done)
+Status: Phase 6 complete — ready for Phase 7
+Last activity: 2026-02-24 — 06-04 complete: all 3 tasks done (solicitation detail page, ReconciliationView, AmendmentChainView, TemplateFieldsPanel, solicitations list page, nav link, human verification approved).
 
-Progress: [█████░░░░░] ~28%
+Progress: [██████░░░░] ~40%
 
 ## Performance Metrics
 
@@ -77,6 +77,9 @@ Recent decisions affecting current work:
 - [Phase 06 P04]: EnhancedDocumentTable wraps DocumentClassificationTable rather than forking it — preserves Plan 02 reclassify behavior
 - [Phase 06 P04]: fetchTemplateFields only queries template-eligible types — mirrors Inngest reconciler pre-filter to avoid wasteful API calls
 - [Phase 06 P04]: ReconciliationView groups by target_document_id — shows which base document each amendment/Q&A modified
+- [Phase 06 P04]: AmendmentChainView shows "Base Document — No Amendments" simplified view when no amendments exist — avoids empty chain UI
+- [Phase 06 P04]: Undo button shows expand/collapse only when text exists — reduces visual clutter for metadata-only changes
+- [Phase 06 P04]: Human verified full end-to-end flow (all 11 verification steps) — complete multi-document ingestion pipeline confirmed working
 
 ### Pending Todos
 
@@ -91,8 +94,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: 06-04-PLAN.md Task 3 checkpoint:human-verify — complete multi-document ingestion flow verification
-Resume file: 06-04-PLAN.md Task 3 (checkpoint continuation — user must verify flow, then resume)
+Stopped at: Completed 06-04-PLAN.md — Phase 6 fully complete
+Resume file: Phase 7 (Compliance Extraction) — next phase
 
 ---
 *State updated: 2026-02-24 (06-03 complete)*

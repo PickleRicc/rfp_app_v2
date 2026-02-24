@@ -51,10 +51,10 @@ Plans:
   5. Fillable templates (staffing plans, cost summaries, past performance forms) are identified and their required fields mapped
 **Plans**: 4 plans
 Plans:
-- [ ] 06-01-PLAN.md — Database schema (solicitations, solicitation_documents, reconciliations, template fields), TypeScript types, solicitation CRUD API
-- [ ] 06-02-PLAN.md — Multi-file drag-drop upload UI, bulk upload API, AI document classification via Inngest
-- [ ] 06-03-PLAN.md — Amendment reconciliation engine, Q&A modification parser, fillable template detector, reconciliation Inngest function
-- [ ] 06-04-PLAN.md — Solicitation detail UI (reconciliation view, amendment chain, template fields panel), solicitations list page, human verification
+- [x] 06-01-PLAN.md — Database schema (solicitations, solicitation_documents, reconciliations, template fields), TypeScript types, solicitation CRUD API
+- [x] 06-02-PLAN.md — Multi-file drag-drop upload UI, bulk upload API, AI document classification via Inngest
+- [x] 06-03-PLAN.md — Amendment reconciliation engine, Q&A modification parser, fillable template detector, reconciliation Inngest function
+- [x] 06-04-PLAN.md — Solicitation detail UI (reconciliation view, amendment chain, template fields panel), solicitations list page, human verification
 
 ### Phase 7: Compliance Extraction
 **Goal**: After ingestion, the system automatically surfaces all compliance obligations — volumes, page limits, eval factors, admin data — with no manual review required to drive the Tier 2 data call
