@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 6 of 10 (Multi-Document Ingestion)
-Plan: 1 of 4 in current phase (COMPLETE)
+Plan: 3 of 4 in current phase (COMPLETE)
 Status: Phase 6 in progress
-Last activity: 2026-02-24 — 06-01 complete: solicitations/solicitation_documents/document_reconciliations/template_field_mappings schema, TypeScript types, and CRUD API for solicitation package management.
+Last activity: 2026-02-24 — 06-03 complete: reconciliation engine, template detector, Inngest reconciler function, and API endpoints for listing/toggling reconciliations and reclassifying documents.
 
-Progress: [████░░░░░░] ~18%
+Progress: [█████░░░░░] ~28%
 
 ## Performance Metrics
 
@@ -28,7 +28,7 @@ Progress: [████░░░░░░] ~18%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 5. Tier 1 Enterprise Intake | 3 done | ~38 min | ~13 min |
-| 6. Multi-Document Ingestion | 1 done | ~3 min | ~3 min |
+| 6. Multi-Document Ingestion | 3 done | ~20 min | ~7 min |
 | 7. Compliance Extraction | TBD | - | - |
 | 8. Tier 2 Dynamic Data Call | TBD | - | - |
 | 9. Draft Generation | TBD | - | - |
@@ -39,6 +39,7 @@ Progress: [████░░░░░░] ~18%
 | Phase 05 P02 | 8 | 3 tasks | 5 files |
 | Phase 05 P03 | 15 | 3 tasks | 7 files |
 | Phase 06 P01 | 3 | 3 tasks | 5 files |
+| Phase 06 P03 | 6 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,9 @@ Recent decisions affecting current work:
 - [Phase 06]: solicitations UNIQUE (company_id, solicitation_number) prevents duplicate packages per company
 - [Phase 06]: solicitation_documents.superseded_by is a self-referencing FK tracking version lineage within the same table
 - [Phase 06]: template_field_mappings.tag ('action_required' | 'reference_only') distinguishes critical fills from informational fields
+- [Phase 06]: Amendment chain compares each amendment against original base document — lineage via is_superseded/superseded_by handled by Inngest step
+- [Phase 06]: Only all-documents-failed sets solicitation status to 'failed' — partial failures log per-doc and continue
+- [Phase 06]: Manual reclassification always resets classification_confidence to 'high' — user review is more certain than AI
 
 ### Pending Todos
 
@@ -79,8 +83,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 06-01-PLAN.md — solicitation ingestion data layer (schema, types, CRUD API)
-Resume file: 06-02-PLAN.md (document upload and multi-file ingestion)
+Stopped at: Completed 06-03-PLAN.md — reconciliation engine, template detector, Inngest reconciler, and API endpoints
+Resume file: 06-04-PLAN.md (reconciliation review UI)
 
 ---
-*State updated: 2026-02-24 (06-01 complete)*
+*State updated: 2026-02-24 (06-03 complete)*

@@ -20,9 +20,9 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 
 - [x] **INGEST-01**: User can upload 10-20+ files per solicitation (PDF, DOCX, XLSX) grouped by solicitation number
 - [ ] **INGEST-02**: System auto-classifies document types (base RFP, SOO/SOW/PWS, amendment, Q&A, pricing template, DD254, clauses, CDRLs, wage determination, provisions)
-- [ ] **INGEST-03**: System reconciles amendments against base documents, flags superseded language, and ensures latest version controls
-- [ ] **INGEST-04**: System parses government Q&A responses and identifies answers that modify scope, page limits, evaluation criteria, or submission instructions
-- [ ] **INGEST-05**: System identifies fillable templates (staffing plans, cost summaries, past perf forms) and maps required fields
+- [x] **INGEST-03**: System reconciles amendments against base documents, flags superseded language, and ensures latest version controls
+- [x] **INGEST-04**: System parses government Q&A responses and identifies answers that modify scope, page limits, evaluation criteria, or submission instructions
+- [x] **INGEST-05**: System identifies fillable templates (staffing plans, cost summaries, past perf forms) and maps required fields
 - [x] **INGEST-06**: System tracks document version lineage showing which amendment/Q&A changed which requirement
 
 ### Compliance Extraction (EXTRACT)
@@ -106,9 +106,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TIER1-06 | Phase 5 | Complete |
 | INGEST-01 | Phase 6 | Complete |
 | INGEST-02 | Phase 6 | Pending |
-| INGEST-03 | Phase 6 | Pending |
-| INGEST-04 | Phase 6 | Pending |
-| INGEST-05 | Phase 6 | Pending |
+| INGEST-03 | Phase 6 | Complete |
+| INGEST-04 | Phase 6 | Complete |
+| INGEST-05 | Phase 6 | Complete |
 | INGEST-06 | Phase 6 | Complete |
 | EXTRACT-01 | Phase 7 | Pending |
 | EXTRACT-02 | Phase 7 | Pending |
