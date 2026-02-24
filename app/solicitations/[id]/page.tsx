@@ -7,6 +7,7 @@ import {
   FileText,
   GitMerge,
   Layout,
+  Shield,
   Upload,
   AlertCircle,
   Loader2,
@@ -18,6 +19,7 @@ import { DocumentClassificationTable } from "@/app/components/solicitation/Docum
 import { AmendmentChainView } from "@/app/components/solicitation/AmendmentChainView";
 import { ReconciliationView } from "@/app/components/solicitation/ReconciliationView";
 import { TemplateFieldsPanel } from "@/app/components/solicitation/TemplateFieldsPanel";
+import { ComplianceExtractionView } from "@/app/components/solicitation/ComplianceExtractionView";
 import type {
   SolicitationWithDocuments,
   SolicitationDocument,
@@ -37,6 +39,7 @@ const STATUS_CONFIG: Record<
   uploading: { label: "Uploading", classes: "bg-blue-100 text-blue-700" },
   classifying: { label: "Classifying", classes: "bg-amber-100 text-amber-700" },
   reconciling: { label: "Reconciling", classes: "bg-purple-100 text-purple-700" },
+  extracting: { label: "Extracting", classes: "bg-cyan-100 text-cyan-700" },
   ready: { label: "Ready", classes: "bg-green-100 text-green-700" },
   failed: { label: "Failed", classes: "bg-red-100 text-red-700" },
 };
@@ -68,6 +71,11 @@ const TABS: Tab[] = [
     id: "reconciliation",
     label: "Reconciliation",
     icon: <GitMerge className="h-4 w-4" />,
+  },
+  {
+    id: "compliance",
+    label: "Compliance",
+    icon: <Shield className="h-4 w-4" />,
   },
   {
     id: "templates",
@@ -420,6 +428,14 @@ export default function SolicitationDetailPage() {
             reconciliations={reconciliations}
             documents={documents}
             onToggle={handleToggleReconciliation}
+          />
+        )}
+
+        {/* ======= COMPLIANCE TAB ======= */}
+        {activeTab === "compliance" && solicitation && selectedCompanyId && (
+          <ComplianceExtractionView
+            solicitationId={solicitation.id}
+            companyId={selectedCompanyId}
           />
         )}
 
