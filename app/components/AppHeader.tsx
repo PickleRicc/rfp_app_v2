@@ -40,6 +40,9 @@ export default function AppHeader() {
             <Link href="/companies" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               All Companies
             </Link>
+            <Link href="/solicitations" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+              Solicitations
+            </Link>
           </nav>
         </div>
       </div>
