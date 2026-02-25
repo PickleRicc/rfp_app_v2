@@ -3,16 +3,22 @@
  * Phase 7: Compliance Extraction
  *
  * Triggered after reconciliation completes (solicitation.reconciliation.complete).
- * Runs four parallel extraction passes (Section L, Section M, Admin Data, Rating Scales)
+ * Runs nine extraction passes (Section L, Section M, Admin Data, Rating Scales,
+ * SOW/PWS, Cost/Price, Past Performance, Key Personnel, Security Requirements)
  * using Claude, stores results in compliance_extractions table.
  *
  * Steps:
- * 1. fetch-documents       — Load solicitation + documents, build document text corpus
- * 2. extract-section-l     — AI extraction of volume structure, page limits, formatting rules
- * 3. extract-section-m     — AI extraction of evaluation factors, methodology, thresholds
- * 4. extract-admin-data    — AI extraction of NAICS, set-aside, contract type, PoP, CLINs
- * 5. extract-rating-scales — AI extraction of rating scale definitions and factor weightings
- * 6. finalize              — Count results, log summary
+ * 1.  fetch-documents           — Load solicitation + documents, build document text corpus
+ * 2.  extract-section-l         — AI extraction of volume structure, page limits, formatting rules
+ * 3.  extract-section-m         — AI extraction of evaluation factors, methodology, thresholds
+ * 4.  extract-admin-data        — AI extraction of NAICS, set-aside, contract type, PoP, CLINs
+ * 5.  extract-rating-scales     — AI extraction of rating scale definitions and factor weightings
+ * 6.  extract-sow-pws           — AI extraction of SOW/PWS/SOO, task areas, deliverables
+ * 7.  extract-cost-price        — AI extraction of cost/price instructions, templates, breakouts
+ * 8.  extract-past-performance  — AI extraction of past performance refs, recency, relevance
+ * 9.  extract-key-personnel     — AI extraction of key positions, qualifications, clearance
+ * 10. extract-security-reqs     — AI extraction of DD254, clearance, CMMC/NIST, CUI
+ * 11. finalize                  — Count results, log summary
  *
  * Error isolation: Each extraction step catches its own errors and continues.
  * A failure in Section L does not prevent Section M extraction.
@@ -30,11 +36,115 @@ import {
   extractSectionM,
   extractAdminData,
   extractRatingScales,
+  extractSowPws,
+  extractCostPrice,
+  extractPastPerformance,
+  extractKeyPersonnel,
+  extractSecurityRequirements,
   type ExtractionResult,
 } from '@/lib/ingestion/compliance-extractor';
 import type { ExtractionCategory } from '@/lib/supabase/compliance-types';
+import type { SolicitationDocumentType } from '@/lib/supabase/solicitation-types';
 
 // ===== HELPERS =====
+
+/**
+ * Document routing configuration: which document types each extraction category needs.
+ * `primary` — the main sources for this category
+ * `always`  — always appended (amendments/Q&A can modify anything)
+ * `fallback` — used only if primary yields zero texts
+ */
+const EXTRACTION_ROUTING: Record<ExtractionCategory, {
+  primary:  SolicitationDocumentType[];
+  always:   SolicitationDocumentType[];
+  fallback: SolicitationDocumentType[];
+}> = {
+  // NOTE: In task-order (IDIQ/SeaPort) and GSA schedule competitions, the main
+  // solicitation document may be classified as soo_sow_pws instead of base_rfp
+  // (e.g. a TOR or RFQ). Fallbacks include soo_sow_pws for base_rfp-dependent
+  // categories, and vice versa, to handle this cross-classification.
+  //
+  // Amendments modify the BASE SOLICITATION (instructions, eval criteria, deadlines).
+  // They do NOT modify standalone attachments (SOW/PWS, DD254, pricing templates).
+  // If those attachments change, revised versions are uploaded as new documents.
+  // Only categories sourced from the base solicitation include amendments in `always`.
+  section_l:        { primary: ['base_rfp'],                          always: ['amendment', 'qa_response'], fallback: ['soo_sow_pws'] },
+  section_m:        { primary: ['base_rfp'],                          always: ['amendment', 'qa_response'], fallback: ['soo_sow_pws'] },
+  admin_data:       { primary: ['base_rfp', 'clauses'],               always: ['amendment'],                fallback: ['soo_sow_pws', 'provisions'] },
+  rating_scales:    { primary: ['base_rfp'],                          always: ['amendment'],                fallback: ['soo_sow_pws'] },
+  sow_pws:          { primary: ['soo_sow_pws', 'base_rfp'],          always: [],                           fallback: [] },
+  cost_price:       { primary: ['base_rfp', 'pricing_template'],      always: ['amendment'],                fallback: ['soo_sow_pws'] },
+  past_performance: { primary: ['base_rfp'],                          always: ['amendment'],                fallback: ['soo_sow_pws'] },
+  key_personnel:    { primary: ['base_rfp', 'soo_sow_pws'],          always: ['amendment'],                fallback: [] },
+  security_reqs:    { primary: ['dd254', 'base_rfp', 'clauses'],     always: [],                           fallback: ['soo_sow_pws', 'provisions'] },
+};
+
+/**
+ * Select the right document texts for a given extraction category.
+ * 1. Collect texts from `primary` doc types
+ * 2. If primary yields nothing, try `fallback` types
+ * 3. Always append `always` types (amendments can modify anything)
+ */
+function getDocumentsForCategory(
+  category: ExtractionCategory,
+  documentsByType: Record<string, string[]>
+): string[] {
+  const routing = EXTRACTION_ROUTING[category];
+  if (!routing) {
+    // Unknown category — return all documents as safe fallback
+    return Object.values(documentsByType).flat();
+  }
+
+  // 1. Collect primary texts
+  let texts: string[] = [];
+  let source: 'primary' | 'fallback' | 'all-docs' = 'primary';
+  const primaryCounts: Record<string, number> = {};
+  for (const docType of routing.primary) {
+    const docs = documentsByType[docType] || [];
+    primaryCounts[docType] = docs.length;
+    texts.push(...docs);
+  }
+
+  // 2. If primary is empty, try fallback
+  const fallbackCounts: Record<string, number> = {};
+  if (texts.length === 0 && routing.fallback.length > 0) {
+    source = 'fallback';
+    for (const docType of routing.fallback) {
+      const docs = documentsByType[docType] || [];
+      fallbackCounts[docType] = docs.length;
+      texts.push(...docs);
+    }
+  }
+
+  // 3. Always append "always" types (deduplicating if already present)
+  const alwaysCounts: Record<string, number> = {};
+  for (const docType of routing.always) {
+    const docs = documentsByType[docType] || [];
+    alwaysCounts[docType] = docs.length;
+    for (const t of docs) {
+      if (!texts.includes(t)) {
+        texts.push(t);
+      }
+    }
+  }
+
+  // 4. Universal fallback: if still empty, use ALL available documents
+  //    Handles cases where expected doc types (e.g. base_rfp) don't exist
+  if (texts.length === 0) {
+    source = 'all-docs';
+    texts = Object.values(documentsByType).flat();
+  }
+
+  const totalChars = texts.reduce((sum, t) => sum + t.length, 0);
+  console.log(
+    `[doc-routing] ${category}: ${texts.length} docs (${Math.round(totalChars / 1000)}K chars) via ${source} | ` +
+    `primary=${JSON.stringify(primaryCounts)} ` +
+    (Object.keys(fallbackCounts).length > 0 ? `fallback=${JSON.stringify(fallbackCounts)} ` : '') +
+    `always=${JSON.stringify(alwaysCounts)}`
+  );
+
+  return texts;
+}
 
 /**
  * Log a processing event to the processing_logs table.
@@ -159,7 +269,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
     const { solicitationId } = event.data as { solicitationId: string };
 
     // ─── Step 1: Fetch documents and build text corpus ───────────────────────
-    const { documentTexts, primaryDocumentId } = await step.run('fetch-documents', async () => {
+    const { documentsByType, primaryDocumentId, availableTypes } = await step.run('fetch-documents', async () => {
       const supabase = getServerClient();
 
       // Verify solicitation exists
@@ -188,38 +298,49 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
       const allDocs = documents || [];
 
-      // Build ordered text corpus: base docs first, then amendments, then others
+      // Diagnostic: log every document's type, status, and text availability
+      console.log(`[doc-routing] fetch-documents: ${allDocs.length} total docs for solicitation ${solicitationId}`);
+      for (const doc of allDocs) {
+        console.log(
+          `[doc-routing]   doc=${doc.id} type=${doc.document_type} ` +
+          `superseded=${doc.is_superseded} has_text=${!!doc.extracted_text} ` +
+          `text_len=${doc.extracted_text?.length || 0}`
+        );
+      }
+
+      // Build document texts grouped by type for targeted routing
       // Skip superseded documents — their content has been replaced
-      const baseTexts: string[] = [];
-      const amendmentTexts: string[] = [];
-      const otherTexts: string[] = [];
+      const documentsByType: Record<string, string[]> = {};
       let primaryDocumentId: string | null = null;
 
       for (const doc of allDocs) {
         if (!doc.extracted_text) continue;
-        if (doc.is_superseded) continue; // Skip superseded documents
+        if (doc.is_superseded) continue;
 
-        if (doc.document_type === 'base_rfp' || doc.document_type === 'soo_sow_pws') {
-          baseTexts.push(doc.extracted_text);
-          if (!primaryDocumentId) primaryDocumentId = doc.id;
-        } else if (doc.document_type === 'amendment' || doc.document_type === 'qa_response') {
-          amendmentTexts.push(doc.extracted_text);
-        } else {
-          otherTexts.push(doc.extracted_text);
+        const docType = doc.document_type || 'other_unclassified';
+        if (!documentsByType[docType]) {
+          documentsByType[docType] = [];
+        }
+        documentsByType[docType].push(doc.extracted_text);
+
+        if ((docType === 'base_rfp' || docType === 'soo_sow_pws') && !primaryDocumentId) {
+          primaryDocumentId = doc.id;
         }
       }
 
-      // Combine: base first (most important), then amendments (may contain Section L/M changes)
-      const documentTexts = [...baseTexts, ...amendmentTexts, ...otherTexts];
+      const availableTypes = Object.keys(documentsByType);
+      const totalTexts = Object.values(documentsByType).reduce((sum, arr) => sum + arr.length, 0);
 
       await logProcessingEvent(null, 'solicitation-compliance-extractor', 'started', {
         step:             'fetch-documents',
         solicitation_id:  solicitationId,
         document_count:   allDocs.length,
-        text_sources:     documentTexts.length,
+        text_sources:     totalTexts,
+        available_types:  availableTypes,
+        docs_per_type:    Object.fromEntries(availableTypes.map(t => [t, documentsByType[t].length])),
       });
 
-      return { documentTexts, primaryDocumentId };
+      return { documentsByType, primaryDocumentId, availableTypes };
     });
 
     // ─── Step 2: Extract Section L ───────────────────────────────────────────
@@ -235,7 +356,8 @@ export const solicitationComplianceExtractor = inngest.createFunction(
         .eq('extraction_status', 'pending');
 
       try {
-        const results = await extractSectionL(documentTexts);
+        const targetDocs = getDocumentsForCategory('section_l', documentsByType);
+        const results = await extractSectionL(targetDocs);
         const upsertedCount = await upsertExtractions(
           solicitationId,
           'section_l',
@@ -275,7 +397,8 @@ export const solicitationComplianceExtractor = inngest.createFunction(
         .eq('extraction_status', 'pending');
 
       try {
-        const results = await extractSectionM(documentTexts);
+        const targetDocs = getDocumentsForCategory('section_m', documentsByType);
+        const results = await extractSectionM(targetDocs);
         const upsertedCount = await upsertExtractions(
           solicitationId,
           'section_m',
@@ -314,7 +437,8 @@ export const solicitationComplianceExtractor = inngest.createFunction(
         .eq('extraction_status', 'pending');
 
       try {
-        const results = await extractAdminData(documentTexts);
+        const targetDocs = getDocumentsForCategory('admin_data', documentsByType);
+        const results = await extractAdminData(targetDocs);
         const upsertedCount = await upsertExtractions(
           solicitationId,
           'admin_data',
@@ -353,7 +477,8 @@ export const solicitationComplianceExtractor = inngest.createFunction(
         .eq('extraction_status', 'pending');
 
       try {
-        const results = await extractRatingScales(documentTexts);
+        const targetDocs = getDocumentsForCategory('rating_scales', documentsByType);
+        const results = await extractRatingScales(targetDocs);
         const upsertedCount = await upsertExtractions(
           solicitationId,
           'rating_scales',
@@ -380,7 +505,207 @@ export const solicitationComplianceExtractor = inngest.createFunction(
       }
     });
 
-    // ─── Step 6: Finalize ─────────────────────────────────────────────────────
+    // ─── Step 6: Extract SOW / PWS / SOO ────────────────────────────────────
+    const sowPwsStats = await step.run('extract-sow-pws', async () => {
+      const supabase = getServerClient();
+
+      await supabase
+        .from('compliance_extractions')
+        .update({ extraction_status: 'extracting', updated_at: new Date().toISOString() })
+        .eq('solicitation_id', solicitationId)
+        .eq('category', 'sow_pws')
+        .eq('extraction_status', 'pending');
+
+      try {
+        const targetDocs = getDocumentsForCategory('sow_pws', documentsByType);
+        const results = await extractSowPws(targetDocs);
+        const upsertedCount = await upsertExtractions(
+          solicitationId,
+          'sow_pws',
+          results,
+          primaryDocumentId
+        );
+
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
+          step:             'extract-sow-pws',
+          fields_extracted: results.length,
+          fields_upserted:  upsertedCount,
+        });
+
+        return { fields: results.length, upserted: upsertedCount, failed: false };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error('SOW/PWS extraction failed:', errMsg);
+        await markCategoryFailed(solicitationId, 'sow_pws', errMsg);
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'failed', {
+          step:  'extract-sow-pws',
+          error: errMsg,
+        });
+        return { fields: 0, upserted: 0, failed: true, error: errMsg };
+      }
+    });
+
+    // ─── Step 7: Extract Cost / Price ─────────────────────────────────────────
+    const costPriceStats = await step.run('extract-cost-price', async () => {
+      const supabase = getServerClient();
+
+      await supabase
+        .from('compliance_extractions')
+        .update({ extraction_status: 'extracting', updated_at: new Date().toISOString() })
+        .eq('solicitation_id', solicitationId)
+        .eq('category', 'cost_price')
+        .eq('extraction_status', 'pending');
+
+      try {
+        const targetDocs = getDocumentsForCategory('cost_price', documentsByType);
+        const results = await extractCostPrice(targetDocs);
+        const upsertedCount = await upsertExtractions(
+          solicitationId,
+          'cost_price',
+          results,
+          primaryDocumentId
+        );
+
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
+          step:             'extract-cost-price',
+          fields_extracted: results.length,
+          fields_upserted:  upsertedCount,
+        });
+
+        return { fields: results.length, upserted: upsertedCount, failed: false };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error('Cost/Price extraction failed:', errMsg);
+        await markCategoryFailed(solicitationId, 'cost_price', errMsg);
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'failed', {
+          step:  'extract-cost-price',
+          error: errMsg,
+        });
+        return { fields: 0, upserted: 0, failed: true, error: errMsg };
+      }
+    });
+
+    // ─── Step 8: Extract Past Performance ─────────────────────────────────────
+    const pastPerformanceStats = await step.run('extract-past-performance', async () => {
+      const supabase = getServerClient();
+
+      await supabase
+        .from('compliance_extractions')
+        .update({ extraction_status: 'extracting', updated_at: new Date().toISOString() })
+        .eq('solicitation_id', solicitationId)
+        .eq('category', 'past_performance')
+        .eq('extraction_status', 'pending');
+
+      try {
+        const targetDocs = getDocumentsForCategory('past_performance', documentsByType);
+        const results = await extractPastPerformance(targetDocs);
+        const upsertedCount = await upsertExtractions(
+          solicitationId,
+          'past_performance',
+          results,
+          primaryDocumentId
+        );
+
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
+          step:             'extract-past-performance',
+          fields_extracted: results.length,
+          fields_upserted:  upsertedCount,
+        });
+
+        return { fields: results.length, upserted: upsertedCount, failed: false };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error('Past Performance extraction failed:', errMsg);
+        await markCategoryFailed(solicitationId, 'past_performance', errMsg);
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'failed', {
+          step:  'extract-past-performance',
+          error: errMsg,
+        });
+        return { fields: 0, upserted: 0, failed: true, error: errMsg };
+      }
+    });
+
+    // ─── Step 9: Extract Key Personnel ────────────────────────────────────────
+    const keyPersonnelStats = await step.run('extract-key-personnel', async () => {
+      const supabase = getServerClient();
+
+      await supabase
+        .from('compliance_extractions')
+        .update({ extraction_status: 'extracting', updated_at: new Date().toISOString() })
+        .eq('solicitation_id', solicitationId)
+        .eq('category', 'key_personnel')
+        .eq('extraction_status', 'pending');
+
+      try {
+        const targetDocs = getDocumentsForCategory('key_personnel', documentsByType);
+        const results = await extractKeyPersonnel(targetDocs);
+        const upsertedCount = await upsertExtractions(
+          solicitationId,
+          'key_personnel',
+          results,
+          primaryDocumentId
+        );
+
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
+          step:             'extract-key-personnel',
+          fields_extracted: results.length,
+          fields_upserted:  upsertedCount,
+        });
+
+        return { fields: results.length, upserted: upsertedCount, failed: false };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error('Key Personnel extraction failed:', errMsg);
+        await markCategoryFailed(solicitationId, 'key_personnel', errMsg);
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'failed', {
+          step:  'extract-key-personnel',
+          error: errMsg,
+        });
+        return { fields: 0, upserted: 0, failed: true, error: errMsg };
+      }
+    });
+
+    // ─── Step 10: Extract Security Requirements ───────────────────────────────
+    const securityReqsStats = await step.run('extract-security-reqs', async () => {
+      const supabase = getServerClient();
+
+      await supabase
+        .from('compliance_extractions')
+        .update({ extraction_status: 'extracting', updated_at: new Date().toISOString() })
+        .eq('solicitation_id', solicitationId)
+        .eq('category', 'security_reqs')
+        .eq('extraction_status', 'pending');
+
+      try {
+        const targetDocs = getDocumentsForCategory('security_reqs', documentsByType);
+        const results = await extractSecurityRequirements(targetDocs);
+        const upsertedCount = await upsertExtractions(
+          solicitationId,
+          'security_reqs',
+          results,
+          primaryDocumentId
+        );
+
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
+          step:             'extract-security-reqs',
+          fields_extracted: results.length,
+          fields_upserted:  upsertedCount,
+        });
+
+        return { fields: results.length, upserted: upsertedCount, failed: false };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error('Security Requirements extraction failed:', errMsg);
+        await markCategoryFailed(solicitationId, 'security_reqs', errMsg);
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'failed', {
+          step:  'extract-security-reqs',
+          error: errMsg,
+        });
+        return { fields: 0, upserted: 0, failed: true, error: errMsg };
+      }
+    });
+
+    // ─── Step 11: Finalize ────────────────────────────────────────────────────
     const summary = await step.run('finalize', async () => {
       const supabase = getServerClient();
 
@@ -401,24 +726,38 @@ export const solicitationComplianceExtractor = inngest.createFunction(
       const failedCount = failedRows?.length || 0;
 
       await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
-        step:              'finalize',
-        solicitation_id:   solicitationId,
-        total_completed:   completedCount,
-        total_failed:      failedCount,
-        section_l_fields:  sectionLStats.upserted,
-        section_m_fields:  sectionMStats.upserted,
-        admin_data_fields: adminDataStats.upserted,
-        rating_scales_fields: ratingScalesStats.upserted,
+        step:                    'finalize',
+        solicitation_id:         solicitationId,
+        total_completed:         completedCount,
+        total_failed:            failedCount,
+        available_types:         availableTypes,
+        docs_per_type:           Object.fromEntries(
+          Object.entries(documentsByType).map(([t, arr]) => [t, arr.length])
+        ),
+        section_l_fields:        sectionLStats.upserted,
+        section_m_fields:        sectionMStats.upserted,
+        admin_data_fields:       adminDataStats.upserted,
+        rating_scales_fields:    ratingScalesStats.upserted,
+        sow_pws_fields:          sowPwsStats.upserted,
+        cost_price_fields:       costPriceStats.upserted,
+        past_performance_fields: pastPerformanceStats.upserted,
+        key_personnel_fields:    keyPersonnelStats.upserted,
+        security_reqs_fields:    securityReqsStats.upserted,
       });
 
       return {
         completed: completedCount,
         failed:    failedCount,
         sections: {
-          section_l:     sectionLStats,
-          section_m:     sectionMStats,
-          admin_data:    adminDataStats,
-          rating_scales: ratingScalesStats,
+          section_l:        sectionLStats,
+          section_m:        sectionMStats,
+          admin_data:       adminDataStats,
+          rating_scales:    ratingScalesStats,
+          sow_pws:          sowPwsStats,
+          cost_price:       costPriceStats,
+          past_performance: pastPerformanceStats,
+          key_personnel:    keyPersonnelStats,
+          security_reqs:    securityReqsStats,
         },
       };
     });

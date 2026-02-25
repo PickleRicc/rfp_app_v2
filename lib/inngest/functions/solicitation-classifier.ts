@@ -72,9 +72,9 @@ export const solicitationDocumentClassifier = inngest.createFunction(
             role: 'user',
             content: `You are a government contracting expert. Analyze this solicitation document and classify it into exactly one of these 11 document types:
 
-1. base_rfp — The primary Request for Proposals / Request for Quote solicitation document (Section L, Section M, Instructions to Offerors)
-2. soo_sow_pws — Statement of Objectives, Statement of Work, or Performance Work Statement
-3. amendment — A formal amendment to the solicitation (e.g., Amendment 0001, Amendment 0002)
+1. base_rfp — The master solicitation document that contains submission instructions, evaluation criteria, and/or proposal structure. This includes ANY primary solicitation vehicle regardless of what it is called: RFP (Request for Proposal), RFQ (Request for Quotation), TOR (Task Order Request), TORP (Task Order Request Package), fair opportunity notice, or any other document that tells offerors what to submit and how proposals will be evaluated. Key signals: contains Section L/M, Instructions to Offerors, evaluation factors, proposal requirements, or submission deadlines. If a document functions as the "master solicitation" — even if it also contains a SOW/PWS section embedded within it — classify it as base_rfp, NOT soo_sow_pws.
+2. soo_sow_pws — A STANDALONE Statement of Objectives (SOO), Statement of Work (SOW), or Performance Work Statement (PWS) that is a separate attachment from the base solicitation. Key signals: describes the work to be performed, task areas, deliverables, objectives, performance requirements, or technical scope. Do NOT use this type if the SOW/PWS is embedded inside the main solicitation document — use base_rfp instead.
+3. amendment — A formal amendment or modification to the solicitation that CHANGES previously issued terms. Key signals: explicitly states "Amendment No.", "Modification No.", "SF30", references specific sections being changed, or includes a Standard Form 30 header. A document is NOT an amendment just because it references a solicitation number or contract number — attachments, SOWs, and other standalone documents also reference those numbers. Only classify as amendment if the document's PRIMARY PURPOSE is to modify the solicitation.
 4. qa_response — Official Questions and Answers or Q&A response document
 5. pricing_template — Cost/price volume templates, CLIN pricing sheets, Excel pricing workbooks
 6. dd254 — Department of Defense Contract Security Classification Specification (DD Form 254)

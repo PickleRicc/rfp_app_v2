@@ -33,7 +33,7 @@ export type SolicitationDocumentType =
 
 /** Human-readable labels for each document type (used in UI classification table badges) */
 export const DOCUMENT_TYPE_LABELS: Record<SolicitationDocumentType, string> = {
-  base_rfp: 'Base RFP',
+  base_rfp: 'Base Solicitation',
   soo_sow_pws: 'SOO/SOW/PWS',
   amendment: 'Amendment',
   qa_response: 'Q&A Response',
