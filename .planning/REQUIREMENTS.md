@@ -34,7 +34,7 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 
 ### Dynamic Data Call — Tier 2 (TIER2)
 
-- [ ] **TIER2-01**: System auto-generates RFP-specific data call form based on extraction results (fields vary per RFP)
+- [x] **TIER2-01**: System auto-generates RFP-specific data call form based on extraction results (fields vary per RFP)
 - [ ] **TIER2-02**: User can confirm opportunity details (prime/sub role, teaming partners, contract type, NAICS size confirmation)
 - [ ] **TIER2-03**: User can provide past performance references (count driven by RFP-extracted requirements)
 - [ ] **TIER2-04**: User can upload key personnel resumes, certifications, and Letters of Commitment
@@ -114,7 +114,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXTRACT-02 | Phase 7 | Complete |
 | EXTRACT-03 | Phase 7 | Complete |
 | EXTRACT-04 | Phase 7 | Complete |
-| TIER2-01 | Phase 8 | Pending |
+| TIER2-01 | Phase 8 | Complete |
 | TIER2-02 | Phase 8 | Pending |
 | TIER2-03 | Phase 8 | Pending |
 | TIER2-04 | Phase 8 | Pending |

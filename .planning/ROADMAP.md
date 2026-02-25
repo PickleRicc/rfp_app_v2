@@ -122,7 +122,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 | 5. Tier 1 Enterprise Intake | 3/3 | Complete    | 2026-02-23 |
 | 6. Multi-Document Ingestion | 5/5 | Complete   | 2026-02-24 |
 | 7. Compliance Extraction | 2/2 | Complete   | 2026-02-25 |
-| 8. Tier 2 Dynamic Data Call | 0/3 | In Progress | - |
+| 8. Tier 2 Dynamic Data Call | 1/3 | In Progress|  |
 | 9. Draft Generation | 0/TBD | Not started | - |
 | 10. End-to-End Validation | 0/TBD | Not started | - |
 

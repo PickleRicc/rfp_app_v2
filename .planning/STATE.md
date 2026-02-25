@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 8 of 10 (Tier 2 Dynamic Data Call)
-Plan: 0 of TBD in current phase
-Status: Phase 7 COMPLETE (UAT passed: 15/16 pass, 1 fixed). Phase 8 next.
-Last activity: 2026-02-25 — Phase 7 complete: compliance extraction UI, document routing, procurement-agnostic classification, per-section re-extract.
+Plan: 1 of TBD in current phase
+Status: Phase 8 Plan 01 COMPLETE — data layer (DB schema, TypeScript types, form schema generator, GET/PUT/POST/DELETE API). Plans 02 and 03 (UI) next.
+Last activity: 2026-02-25 — Phase 8 P01: Tier 2 data call data layer complete.
 
-Progress: [████████░░] ~55%
+Progress: [████████░░] ~58%
 
 ## Performance Metrics
 
@@ -30,7 +30,7 @@ Progress: [████████░░] ~55%
 | 5. Tier 1 Enterprise Intake | 3 done | ~38 min | ~13 min |
 | 6. Multi-Document Ingestion | 5 done | ~25 min | ~5 min |
 | 7. Compliance Extraction | 2 of 2 done | ~12 min | ~6 min |
-| 8. Tier 2 Dynamic Data Call | TBD | - | - |
+| 8. Tier 2 Dynamic Data Call | 1 done | ~6 min | ~6 min |
 | 9. Draft Generation | TBD | - | - |
 | 10. End-to-End Validation | TBD | - | - |
 
@@ -45,6 +45,7 @@ Progress: [████████░░] ~55%
 | Phase 06 P05 | 5 | 1 tasks | 1 files |
 | Phase 07 P01 | 6 | 3 tasks | 7 files |
 | Phase 07 P02 | — | 2+fixes | 6 files |
+| Phase 08 P01 | 6 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,10 @@ Recent decisions affecting current work:
 - [Phase 07-01]: extraction_status tracked per-field (not per-solicitation) — UI can show loading state per category independently
 - [Phase 07-01]: Event trigger only fires when reconciliation status is ready — prevents spurious extraction on failed solicitations
 - [Phase 07-01]: original_ai_value set only on first override — subsequent edits preserve the original AI value for clean revert
+- [Phase 08-01]: generateDataCallSchema() fetches only completed extractions — pending/failed rows do not pollute the schema
+- [Phase 08-01]: POST upload auto-creates data_call_response row if absent — file uploads work before first form save
+- [Phase 08-01]: Past performance default count is 3 when extraction lacks references_required — matches industry norm
+- [Phase 08-01]: Key personnel dynamic_count defaults to 0 (not a fixed number) — accurate when RFP specifies no named positions
 
 ### Pending Todos
 
@@ -104,8 +109,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Phase 7 COMPLETE — UAT passed, all issues fixed
-Resume file: Phase 8 — Tier 2 Dynamic Data Call (needs planning)
+Stopped at: Completed 08-01-PLAN.md — Tier 2 data layer complete
+Resume file: Phase 8 Plan 02 — Tier 2 data call UI (accordion form)
 
 ---
-*State updated: 2026-02-25 (Phase 7 complete — compliance extraction UI + document routing + classification fixes)*
+*State updated: 2026-02-25 (Phase 8 P01 complete — Tier 2 data call data layer: DB schema, TypeScript types, form schema generator, API endpoints)*
