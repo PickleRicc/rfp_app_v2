@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 8 of 10 (Tier 2 Dynamic Data Call)
-Plan: 1 of TBD in current phase
-Status: Phase 8 Plan 01 COMPLETE — data layer (DB schema, TypeScript types, form schema generator, GET/PUT/POST/DELETE API). Plans 02 and 03 (UI) next.
-Last activity: 2026-02-25 — Phase 8 P01: Tier 2 data call data layer complete.
+Plan: 2 of 3 in current phase
+Status: Phase 8 Plan 02 COMPLETE — Data Call accordion UI (DataCallView container, OpportunityDetailsSection, PastPerformanceSection, TechnicalApproachSection). Plan 03 (Key Personnel + Compliance Verification) next.
+Last activity: 2026-02-25 — Phase 8 P02: Data Call accordion UI complete.
 
-Progress: [████████░░] ~58%
+Progress: [████████░░] ~62%
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Progress: [████████░░] ~58%
 | Phase 07 P01 | 6 | 3 tasks | 7 files |
 | Phase 07 P02 | — | 2+fixes | 6 files |
 | Phase 08 P01 | 6 | 2 tasks | 5 files |
+| Phase 08 P02 | 4 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,9 @@ Recent decisions affecting current work:
 - [Phase 08-01]: POST upload auto-creates data_call_response row if absent — file uploads work before first form save
 - [Phase 08-01]: Past performance default count is 3 when extraction lacks references_required — matches industry norm
 - [Phase 08-01]: Key personnel dynamic_count defaults to 0 (not a fixed number) — accurate when RFP specifies no named positions
+- [Phase 08-02]: DataCallView uses JSON.stringify dirty detection — simple and reliable for nested form state
+- [Phase 08-02]: PastPerformanceSection initializes from section.dynamic_count when data array is empty — respects extraction count on first render
+- [Phase 08-02]: renderSection is a standalone function outside component — avoids hook-in-conditional pattern
 
 ### Pending Todos
 
@@ -109,8 +113,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 08-01-PLAN.md — Tier 2 data layer complete
-Resume file: Phase 8 Plan 02 — Tier 2 data call UI (accordion form)
+Stopped at: Completed 08-02-PLAN.md — Data Call accordion UI complete
+Resume file: Phase 8 Plan 03 — Key Personnel + Compliance Verification sections
 
 ---
-*State updated: 2026-02-25 (Phase 8 P01 complete — Tier 2 data call data layer: DB schema, TypeScript types, form schema generator, API endpoints)*
+*State updated: 2026-02-25 (Phase 8 P02 complete — Data Call accordion UI: DataCallView, OpportunityDetailsSection, PastPerformanceSection, TechnicalApproachSection, Data Call tab on solicitation page)*
