@@ -82,7 +82,11 @@ Plans:
   4. User can upload key personnel resumes, certifications, and Letters of Commitment as required by the RFP
   5. User can enter technical approach inputs: summary of approach, tools and platforms, staffing model, assumptions, and risks
   6. User can provide compliance verification data: org certifications, individual certifications, facility clearance confirmation, NIST 800-171 score, and required attachments
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 08-01-PLAN.md — Database schema, TypeScript types, form schema generator, API endpoints for data call
+- [ ] 08-02-PLAN.md — Data Call accordion UI with Opportunity Details, Past Performance, and Technical Approach sections
+- [ ] 08-03-PLAN.md — Key Personnel and Compliance Verification sections with file uploads, Complete Data Call validation gate
 
 ### Phase 9: Draft Generation
 **Goal**: User confirms strategy at a human gate, then receives a compliant first draft that follows the RFP's volume structure, addresses every evaluation factor, and respects all formatting constraints
@@ -117,8 +121,8 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 |-------|----------------|--------|-----------|
 | 5. Tier 1 Enterprise Intake | 3/3 | Complete    | 2026-02-23 |
 | 6. Multi-Document Ingestion | 5/5 | Complete   | 2026-02-24 |
-| 7. Compliance Extraction | 1/2 | In Progress|  |
-| 8. Tier 2 Dynamic Data Call | 0/TBD | Not started | - |
+| 7. Compliance Extraction | 2/2 | Complete   | 2026-02-25 |
+| 8. Tier 2 Dynamic Data Call | 0/3 | In Progress | - |
 | 9. Draft Generation | 0/TBD | Not started | - |
 | 10. End-to-End Validation | 0/TBD | Not started | - |
 
