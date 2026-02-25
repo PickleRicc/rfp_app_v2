@@ -11,6 +11,7 @@ import {
   Upload,
   AlertCircle,
   Loader2,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCompany } from "@/lib/context/CompanyContext";
@@ -20,6 +21,7 @@ import { AmendmentChainView } from "@/app/components/solicitation/AmendmentChain
 import { ReconciliationView } from "@/app/components/solicitation/ReconciliationView";
 import { TemplateFieldsPanel } from "@/app/components/solicitation/TemplateFieldsPanel";
 import { ComplianceExtractionView } from "@/app/components/solicitation/ComplianceExtractionView";
+import { DataCallView } from "@/app/components/datacall/DataCallView";
 import type {
   SolicitationWithDocuments,
   SolicitationDocument,
@@ -81,6 +83,11 @@ const TABS: Tab[] = [
     id: "templates",
     label: "Templates",
     icon: <Layout className="h-4 w-4" />,
+  },
+  {
+    id: "data-call",
+    label: "Data Call",
+    icon: <ClipboardCheck className="h-4 w-4" />,
   },
 ];
 
@@ -444,6 +451,14 @@ export default function SolicitationDetailPage() {
           <TemplateFieldsPanel
             documents={docsWithTemplateFields}
             templateFields={templateFields}
+          />
+        )}
+
+        {/* ======= DATA CALL TAB ======= */}
+        {activeTab === "data-call" && solicitation && selectedCompanyId && (
+          <DataCallView
+            solicitationId={solicitation.id}
+            companyId={selectedCompanyId}
           />
         )}
       </Tier1TabLayout>
