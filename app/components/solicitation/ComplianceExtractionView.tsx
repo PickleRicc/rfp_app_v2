@@ -8,6 +8,11 @@ import {
   Scale,
   Building2,
   BarChart3,
+  FileText,
+  DollarSign,
+  Trophy,
+  Users,
+  ShieldCheck,
   Loader2,
   CheckCircle,
   XCircle,
@@ -25,6 +30,11 @@ import type {
   SectionMFields,
   AdminDataFields,
   RatingScaleFields,
+  SowPwsFields,
+  CostPriceFields,
+  PastPerformanceFields,
+  KeyPersonnelFields,
+  SecurityReqsFields,
 } from "@/lib/supabase/compliance-types";
 import {
   EXTRACTION_CATEGORY_LABELS,
@@ -48,6 +58,11 @@ const CATEGORY_ICONS: Record<ExtractionCategory, React.ReactNode> = {
   section_m: <Scale className="h-5 w-5" />,
   admin_data: <Building2 className="h-5 w-5" />,
   rating_scales: <BarChart3 className="h-5 w-5" />,
+  sow_pws: <FileText className="h-5 w-5" />,
+  cost_price: <DollarSign className="h-5 w-5" />,
+  past_performance: <Trophy className="h-5 w-5" />,
+  key_personnel: <Users className="h-5 w-5" />,
+  security_reqs: <ShieldCheck className="h-5 w-5" />,
 };
 
 const CATEGORY_ORDER: ExtractionCategory[] = [
@@ -55,6 +70,11 @@ const CATEGORY_ORDER: ExtractionCategory[] = [
   "section_m",
   "admin_data",
   "rating_scales",
+  "sow_pws",
+  "cost_price",
+  "past_performance",
+  "key_personnel",
+  "security_reqs",
 ];
 
 const CONFIDENCE_BORDER: Record<ExtractionConfidence, string> = {
@@ -76,7 +96,9 @@ const WEIGHT_BADGE_COLORS: Record<string, string> = {
 // ============================================================
 
 function getCategoryStatus(extractions: ComplianceExtraction[]): ExtractionStatus {
-  if (extractions.length === 0) return "pending";
+  // Empty array = no data was extracted for this category (not "pending")
+  // The accordion body handles this with the "No data extracted" message
+  if (extractions.length === 0) return "completed";
   if (extractions.some((e) => e.extraction_status === "extracting")) return "extracting";
   if (extractions.some((e) => e.extraction_status === "pending")) return "pending";
   if (extractions.every((e) => e.extraction_status === "failed")) return "failed";
@@ -894,6 +916,597 @@ function RatingScalesRenderer({ extractions, onSave, onRevert }: RatingScalesRen
 }
 
 // ============================================================
+// SOW / PWS / SOO renderer
+// ============================================================
+
+interface SowPwsRendererProps {
+  extractions: ComplianceExtraction[];
+  onSave: (extraction: ComplianceExtraction, newValue: string) => void;
+  onRevert: (extraction: ComplianceExtraction) => void;
+}
+
+function SowPwsRenderer({ extractions, onSave, onRevert }: SowPwsRendererProps) {
+  const findField = (name: string) => extractions.find((e) => e.field_name === name);
+
+  const docTypeExt = findField("document_type");
+  const taskAreasExt = findField("task_areas");
+  const deliverablesExt = findField("deliverables");
+  const popExt = findField("period_of_performance");
+  const placeExt = findField("place_of_performance");
+
+  const taskAreas = taskAreasExt?.field_value as SowPwsFields["task_areas"] | undefined;
+  const deliverables = deliverablesExt?.field_value as SowPwsFields["deliverables"] | undefined;
+
+  return (
+    <div className="divide-y divide-border">
+      {/* Document Type */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Document Type
+        </h4>
+        {docTypeExt ? (
+          <EditableValue
+            extraction={docTypeExt}
+            displayNode={
+              docTypeExt.field_value ? (
+                <span className="inline-flex items-center gap-2 text-sm">
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                    {displayString(docTypeExt.field_value)}
+                  </span>
+                  {displayString(docTypeExt.field_value) === "SOO" && (
+                    <span className="text-xs text-muted-foreground">
+                      (Contractor generates PWS from SOO)
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <NotFound onClick={() => {}} />
+              )
+            }
+            editValue={displayString(docTypeExt.field_value)}
+            onSave={onSave}
+            onRevert={onRevert}
+          />
+        ) : (
+          <p className="text-sm italic text-gray-400">Not found</p>
+        )}
+      </div>
+
+      {/* Task Areas */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Task Areas
+        </h4>
+        {taskAreasExt ? (
+          <div className={cn("overflow-x-auto", CONFIDENCE_BORDER[taskAreasExt.confidence], "pl-3")}>
+            {taskAreas && taskAreas.length > 0 ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="pb-2 pr-4 text-left text-xs font-semibold text-muted-foreground">Task Area</th>
+                    <th className="pb-2 text-left text-xs font-semibold text-muted-foreground">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {taskAreas.map((ta, i) => (
+                    <tr key={i}>
+                      <td className="py-2 pr-4 font-medium">{ta.name}</td>
+                      <td className="py-2 text-muted-foreground">
+                        {ta.description ?? <span className="italic text-gray-400">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <span className="italic text-sm text-gray-400">No task areas found</span>
+            )}
+            {taskAreasExt.is_user_override && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700">User Override</span>
+                <button onClick={() => onRevert(taskAreasExt)} className="text-xs text-muted-foreground underline hover:text-foreground">Revert</button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm italic text-gray-400">Not found</p>
+        )}
+      </div>
+
+      {/* Deliverables */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Deliverables
+        </h4>
+        {deliverablesExt ? (
+          <div className={cn("overflow-x-auto", CONFIDENCE_BORDER[deliverablesExt.confidence], "pl-3")}>
+            {deliverables && deliverables.length > 0 ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="pb-2 pr-4 text-left text-xs font-semibold text-muted-foreground">Deliverable</th>
+                    <th className="pb-2 pr-4 text-left text-xs font-semibold text-muted-foreground">Frequency</th>
+                    <th className="pb-2 text-left text-xs font-semibold text-muted-foreground">Format</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {deliverables.map((d, i) => (
+                    <tr key={i}>
+                      <td className="py-2 pr-4 font-medium">{d.name}</td>
+                      <td className="py-2 pr-4 text-muted-foreground">
+                        {d.frequency ?? <span className="italic text-gray-400">—</span>}
+                      </td>
+                      <td className="py-2 text-muted-foreground">
+                        {d.format ?? <span className="italic text-gray-400">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <span className="italic text-sm text-gray-400">No deliverables found</span>
+            )}
+            {deliverablesExt.is_user_override && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700">User Override</span>
+                <button onClick={() => onRevert(deliverablesExt)} className="text-xs text-muted-foreground underline hover:text-foreground">Revert</button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm italic text-gray-400">Not found</p>
+        )}
+      </div>
+
+      {/* Period & Place of Performance */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Performance Details
+        </h4>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+          {[
+            { ext: popExt, label: "Period of Performance" },
+            { ext: placeExt, label: "Place of Performance" },
+          ].map(({ ext, label }) => (
+            <div key={label} className="contents">
+              <dt className="text-sm font-medium text-muted-foreground self-start pt-1">{label}</dt>
+              <dd>
+                {ext ? (
+                  <EditableValue
+                    extraction={ext}
+                    displayNode={
+                      valueIsEmpty(ext.field_value) ? (
+                        <NotFound onClick={() => {}} />
+                      ) : (
+                        <span className="text-sm">{displayString(ext.field_value)}</span>
+                      )
+                    }
+                    editValue={displayString(ext.field_value)}
+                    onSave={onSave}
+                    onRevert={onRevert}
+                  />
+                ) : (
+                  <span className="text-sm italic text-gray-400">Not found</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Cost & Pricing renderer
+// ============================================================
+
+interface CostPriceRendererProps {
+  extractions: ComplianceExtraction[];
+  onSave: (extraction: ComplianceExtraction, newValue: string) => void;
+  onRevert: (extraction: ComplianceExtraction) => void;
+}
+
+function CostPriceRenderer({ extractions, onSave, onRevert }: CostPriceRendererProps) {
+  const findField = (name: string) => extractions.find((e) => e.field_name === name);
+
+  const kvFields: Array<{ field_name: string; label: string }> = [
+    { field_name: "contract_type", label: "Contract Type" },
+    { field_name: "pricing_template", label: "Pricing Template" },
+    { field_name: "cost_realism_or_reasonableness", label: "Cost Realism / Reasonableness" },
+    { field_name: "travel_instructions", label: "Travel Instructions" },
+    { field_name: "clin_pricing", label: "CLIN Pricing Structure" },
+  ];
+
+  const breakoutExt = findField("cost_breakout_categories");
+  const breakoutCategories = breakoutExt?.field_value as string[] | undefined;
+
+  return (
+    <div className="divide-y divide-border">
+      {/* Key-value pairs */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Pricing Details
+        </h4>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+          {kvFields.map(({ field_name, label }) => {
+            const ext = findField(field_name);
+            const val = ext?.field_value;
+            return (
+              <div key={field_name} className="contents">
+                <dt className="text-sm font-medium text-muted-foreground self-start pt-1">{label}</dt>
+                <dd>
+                  {ext ? (
+                    <EditableValue
+                      extraction={ext}
+                      displayNode={
+                        valueIsEmpty(val) ? (
+                          <NotFound onClick={() => {}} />
+                        ) : (
+                          <span className="text-sm">{displayString(val)}</span>
+                        )
+                      }
+                      editValue={displayString(val)}
+                      onSave={onSave}
+                      onRevert={onRevert}
+                    />
+                  ) : (
+                    <span className="text-sm italic text-gray-400">Not found</span>
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      </div>
+
+      {/* Cost Breakout Categories */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Cost Breakout Categories
+        </h4>
+        {breakoutExt ? (
+          <div className={cn(CONFIDENCE_BORDER[breakoutExt.confidence], "pl-3")}>
+            {breakoutCategories && breakoutCategories.length > 0 ? (
+              <ul className="space-y-1 text-sm list-disc list-inside">
+                {breakoutCategories.map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <span className="italic text-sm text-gray-400">None found</span>
+            )}
+            {breakoutExt.is_user_override && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700">User Override</span>
+                <button onClick={() => onRevert(breakoutExt)} className="text-xs text-muted-foreground underline hover:text-foreground">Revert</button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm italic text-gray-400">Not found</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Past Performance renderer
+// ============================================================
+
+interface PastPerformanceRendererProps {
+  extractions: ComplianceExtraction[];
+  onSave: (extraction: ComplianceExtraction, newValue: string) => void;
+  onRevert: (extraction: ComplianceExtraction) => void;
+}
+
+function PastPerformanceRenderer({ extractions, onSave, onRevert }: PastPerformanceRendererProps) {
+  const findField = (name: string) => extractions.find((e) => e.field_name === name);
+
+  const kvFields: Array<{ field_name: string; label: string }> = [
+    { field_name: "references_required", label: "References Required" },
+    { field_name: "recency_requirement", label: "Recency Requirement" },
+    { field_name: "subcontractor_pp_evaluated", label: "Subcontractor PP Evaluated" },
+    { field_name: "ppq_form", label: "PPQ Form" },
+    { field_name: "page_limit", label: "Page Limit" },
+  ];
+
+  const relevanceExt = findField("relevance_criteria");
+  const relevanceCriteria = relevanceExt?.field_value as string[] | undefined;
+
+  return (
+    <div className="divide-y divide-border">
+      {/* Key-value pairs */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Past Performance Requirements
+        </h4>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+          {kvFields.map(({ field_name, label }) => {
+            const ext = findField(field_name);
+            const val = ext?.field_value;
+            return (
+              <div key={field_name} className="contents">
+                <dt className="text-sm font-medium text-muted-foreground self-start pt-1">{label}</dt>
+                <dd>
+                  {ext ? (
+                    <EditableValue
+                      extraction={ext}
+                      displayNode={
+                        valueIsEmpty(val) ? (
+                          <NotFound onClick={() => {}} />
+                        ) : (
+                          <span className="text-sm">{displayString(val)}</span>
+                        )
+                      }
+                      editValue={displayString(val)}
+                      onSave={onSave}
+                      onRevert={onRevert}
+                    />
+                  ) : (
+                    <span className="text-sm italic text-gray-400">Not found</span>
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      </div>
+
+      {/* Relevance Criteria */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Relevance Criteria
+        </h4>
+        {relevanceExt ? (
+          <div className={cn(CONFIDENCE_BORDER[relevanceExt.confidence], "pl-3")}>
+            {relevanceCriteria && relevanceCriteria.length > 0 ? (
+              <ul className="space-y-1 text-sm list-disc list-inside">
+                {relevanceCriteria.map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <span className="italic text-sm text-gray-400">None found</span>
+            )}
+            {relevanceExt.is_user_override && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700">User Override</span>
+                <button onClick={() => onRevert(relevanceExt)} className="text-xs text-muted-foreground underline hover:text-foreground">Revert</button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm italic text-gray-400">Not found</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Key Personnel renderer
+// ============================================================
+
+interface KeyPersonnelRendererProps {
+  extractions: ComplianceExtraction[];
+  onSave: (extraction: ComplianceExtraction, newValue: string) => void;
+  onRevert: (extraction: ComplianceExtraction) => void;
+}
+
+function KeyPersonnelRenderer({ extractions, onSave, onRevert }: KeyPersonnelRendererProps) {
+  const findField = (name: string) => extractions.find((e) => e.field_name === name);
+
+  const positionsExt = findField("positions");
+  const resumeFormatExt = findField("resume_format");
+  const locExt = findField("loc_requirements");
+  const pageLimitExt = findField("counts_against_page_limit");
+
+  const positions = positionsExt?.field_value as KeyPersonnelFields["positions"] | undefined;
+
+  return (
+    <div className="divide-y divide-border">
+      {/* Positions table */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Key Personnel Positions
+        </h4>
+        {positionsExt ? (
+          <div className={cn("overflow-x-auto", CONFIDENCE_BORDER[positionsExt.confidence], "pl-3")}>
+            {positions && positions.length > 0 ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="pb-2 pr-4 text-left text-xs font-semibold text-muted-foreground">Title</th>
+                    <th className="pb-2 pr-4 text-left text-xs font-semibold text-muted-foreground">Qualifications</th>
+                    <th className="pb-2 pr-4 text-left text-xs font-semibold text-muted-foreground">Clearance</th>
+                    <th className="pb-2 text-left text-xs font-semibold text-muted-foreground">Experience</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {positions.map((p, i) => (
+                    <tr key={i}>
+                      <td className="py-2 pr-4 font-medium">{p.title}</td>
+                      <td className="py-2 pr-4 text-muted-foreground">
+                        {p.qualifications ?? <span className="italic text-gray-400">—</span>}
+                      </td>
+                      <td className="py-2 pr-4">
+                        {p.clearance ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                            {p.clearance}
+                          </span>
+                        ) : (
+                          <span className="italic text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-2 text-muted-foreground">
+                        {p.experience ?? <span className="italic text-gray-400">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <span className="italic text-sm text-gray-400">No key personnel found</span>
+            )}
+            {positionsExt.is_user_override && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700">User Override</span>
+                <button onClick={() => onRevert(positionsExt)} className="text-xs text-muted-foreground underline hover:text-foreground">Revert</button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm italic text-gray-400">Not found</p>
+        )}
+      </div>
+
+      {/* Resume format, LOC, page limits */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Submission Requirements
+        </h4>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+          {[
+            { ext: resumeFormatExt, label: "Resume Format" },
+            { ext: locExt, label: "LOC Requirements" },
+            { ext: pageLimitExt, label: "Counts Against Page Limit" },
+          ].map(({ ext, label }) => (
+            <div key={label} className="contents">
+              <dt className="text-sm font-medium text-muted-foreground self-start pt-1">{label}</dt>
+              <dd>
+                {ext ? (
+                  <EditableValue
+                    extraction={ext}
+                    displayNode={
+                      valueIsEmpty(ext.field_value) ? (
+                        <NotFound onClick={() => {}} />
+                      ) : (
+                        <span className="text-sm">{displayString(ext.field_value)}</span>
+                      )
+                    }
+                    editValue={displayString(ext.field_value)}
+                    onSave={onSave}
+                    onRevert={onRevert}
+                    multiline
+                  />
+                ) : (
+                  <span className="text-sm italic text-gray-400">Not found</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Security Requirements renderer
+// ============================================================
+
+interface SecurityReqsRendererProps {
+  extractions: ComplianceExtraction[];
+  onSave: (extraction: ComplianceExtraction, newValue: string) => void;
+  onRevert: (extraction: ComplianceExtraction) => void;
+}
+
+function SecurityReqsRenderer({ extractions, onSave, onRevert }: SecurityReqsRendererProps) {
+  const findField = (name: string) => extractions.find((e) => e.field_name === name);
+
+  const dd254Ext = findField("dd254_required");
+  const clearanceExt = findField("clearance_levels");
+  const cmmcExt = findField("cmmc_level");
+  const nistExt = findField("nist_800_171_required");
+  const cuiExt = findField("cui_requirements");
+  const sspExt = findField("ssp_required");
+  const sprsExt = findField("sprs_score");
+
+  const clearanceLevels = clearanceExt?.field_value as string[] | undefined;
+
+  const kvFields: Array<{ ext: ComplianceExtraction | undefined; label: string }> = [
+    { ext: dd254Ext, label: "DD254 Required" },
+    { ext: cmmcExt, label: "CMMC Level" },
+    { ext: nistExt, label: "NIST 800-171 Required" },
+    { ext: cuiExt, label: "CUI Requirements" },
+    { ext: sspExt, label: "SSP Required" },
+    { ext: sprsExt, label: "SPRS Score Requirement" },
+  ];
+
+  return (
+    <div className="divide-y divide-border">
+      {/* Clearance Levels */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Clearance Levels
+        </h4>
+        {clearanceExt ? (
+          <div className={cn(CONFIDENCE_BORDER[clearanceExt.confidence], "pl-3")}>
+            {clearanceLevels && clearanceLevels.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {clearanceLevels.map((level, i) => (
+                  <span
+                    key={i}
+                    className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800"
+                  >
+                    {level}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="italic text-sm text-gray-400">None found</span>
+            )}
+            {clearanceExt.is_user_override && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-700">User Override</span>
+                <button onClick={() => onRevert(clearanceExt)} className="text-xs text-muted-foreground underline hover:text-foreground">Revert</button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm italic text-gray-400">Not found</p>
+        )}
+      </div>
+
+      {/* Security details */}
+      <div className="p-4">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Security Details
+        </h4>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+          {kvFields.map(({ ext, label }) => (
+            <div key={label} className="contents">
+              <dt className="text-sm font-medium text-muted-foreground self-start pt-1">{label}</dt>
+              <dd>
+                {ext ? (
+                  <EditableValue
+                    extraction={ext}
+                    displayNode={
+                      valueIsEmpty(ext.field_value) ? (
+                        <NotFound onClick={() => {}} />
+                      ) : (
+                        <span className="text-sm">{displayString(ext.field_value)}</span>
+                      )
+                    }
+                    editValue={displayString(ext.field_value)}
+                    onSave={onSave}
+                    onRevert={onRevert}
+                  />
+                ) : (
+                  <span className="text-sm italic text-gray-400">Not found</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // Accordion section
 // ============================================================
 
@@ -1104,6 +1717,16 @@ function CategoryContent({
       return <AdminDataRenderer extractions={extractions} onSave={onSave} onRevert={onRevert} />;
     case "rating_scales":
       return <RatingScalesRenderer extractions={extractions} onSave={onSave} onRevert={onRevert} />;
+    case "sow_pws":
+      return <SowPwsRenderer extractions={extractions} onSave={onSave} onRevert={onRevert} />;
+    case "cost_price":
+      return <CostPriceRenderer extractions={extractions} onSave={onSave} onRevert={onRevert} />;
+    case "past_performance":
+      return <PastPerformanceRenderer extractions={extractions} onSave={onSave} onRevert={onRevert} />;
+    case "key_personnel":
+      return <KeyPersonnelRenderer extractions={extractions} onSave={onSave} onRevert={onRevert} />;
+    case "security_reqs":
+      return <SecurityReqsRenderer extractions={extractions} onSave={onSave} onRevert={onRevert} />;
   }
 }
 
@@ -1114,11 +1737,16 @@ function CategoryContent({
 /**
  * ComplianceExtractionView
  *
- * Displays extracted compliance data from a solicitation in 4 accordion sections:
+ * Displays extracted compliance data from a solicitation in 9 accordion sections:
  * - Section L: Instructions to Offerors (volumes, formatting, attachments, forms)
  * - Section M: Evaluation Criteria (factors/subfactors, methodology, thresholds, personnel)
  * - Admin Data: NAICS, size standard, set-aside, contract type, PoP, CLINs
  * - Rating Scales: Per-factor rating definitions and factor weightings
+ * - SOW/PWS/SOO: Task areas, deliverables, PoP, place of performance
+ * - Cost & Pricing: Contract type, pricing template, cost breakout, realism/reasonableness
+ * - Past Performance: References, recency, relevance criteria, PPQ form
+ * - Key Personnel: Positions, qualifications, clearance, resume format, LOC
+ * - Security Requirements: DD254, clearance levels, CMMC/NIST, CUI, SSP
  *
  * Features:
  * - 5-second polling while extractions are pending/extracting (max 60 attempts = 5 min)
@@ -1176,9 +1804,8 @@ export function ComplianceExtractionView({
   // ── Determine if polling should continue ───────────────────
   const shouldPoll = useCallback((data: ComplianceExtractionsByCategory | null): boolean => {
     if (!data) return extractionTriggeredRef.current;
-    // If extraction was just triggered, keep polling until rows appear with completed/failed status
-    const totalRows = CATEGORY_ORDER.reduce((sum, cat) => sum + (data[cat]?.length ?? 0), 0);
-    if (totalRows === 0 && extractionTriggeredRef.current) return true;
+
+    // Check if any row is still pending/extracting
     for (const category of CATEGORY_ORDER) {
       const rows = data[category] || [];
       for (const row of rows) {
@@ -1187,6 +1814,16 @@ export function ComplianceExtractionView({
         }
       }
     }
+
+    // If extraction was triggered, keep polling until all 9 categories have at least 1 row.
+    // Inngest steps run sequentially — later categories won't have rows until their step runs.
+    if (extractionTriggeredRef.current) {
+      const categoriesWithData = CATEGORY_ORDER.filter(
+        (cat) => (data[cat]?.length ?? 0) > 0
+      ).length;
+      return categoriesWithData < CATEGORY_ORDER.length;
+    }
+
     return false;
   }, []);
 
@@ -1365,6 +2002,31 @@ export function ComplianceExtractionView({
     }
   };
 
+  // ── Re-extract all categories ───────────────────────────────
+  const handleReExtractAll = async () => {
+    if (!companyId) return;
+    setReExtractingCategories(new Set(CATEGORY_ORDER));
+    try {
+      await fetch(`/api/solicitations/${solicitationId}/compliance`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Company-Id": companyId,
+        },
+        body: JSON.stringify({ action: "extract-all" }),
+      });
+      pollAttemptsRef.current = 0;
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      startPolling(extractions);
+    } catch (err) {
+      console.error("Re-extract all error:", err);
+      setReExtractingCategories(new Set());
+    }
+  };
+
   // ── Trigger extraction now (empty state) ────────────────────
   const handleExtractNow = async () => {
     if (!companyId) return;
@@ -1479,6 +2141,17 @@ export function ComplianceExtractionView({
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={handleReExtractAll}
+          disabled={reExtractingCategories.size > 0}
+          className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Re-extract all sections from source documents"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${reExtractingCategories.size > 0 ? 'animate-spin' : ''}`} />
+          Re-extract All
+        </button>
+      </div>
       {CATEGORY_ORDER.map((category) => {
         const categoryExtractions = extractions?.[category] ?? [];
         return (

@@ -1,7 +1,7 @@
 /**
  * GET /api/solicitations/[id]/compliance
  * Returns compliance extractions grouped by category with extraction_status per row.
- * Response shape: { extractions: { section_l: [...], section_m: [...], admin_data: [...], rating_scales: [...] } }
+ * Response shape: { extractions: { section_l: [...], section_m: [...], admin_data: [...], rating_scales: [...], sow_pws: [...], cost_price: [...], past_performance: [...], key_personnel: [...], security_reqs: [...] } }
  *
  * PATCH /api/solicitations/[id]/compliance
  * Supports three operations:
@@ -106,11 +106,17 @@ export async function GET(
     }
 
     // Group results by category
+    // All 9 extraction categories
     const grouped: ComplianceExtractionsByCategory = {
-      section_l:     [],
-      section_m:     [],
-      admin_data:    [],
-      rating_scales: [],
+      section_l:        [],
+      section_m:        [],
+      admin_data:       [],
+      rating_scales:    [],
+      sow_pws:          [],
+      cost_price:       [],
+      past_performance: [],
+      key_personnel:    [],
+      security_reqs:    [],
     };
 
     for (const row of extractions || []) {
@@ -265,7 +271,7 @@ export async function PATCH(
 
       return NextResponse.json({
         message: 'Full compliance extraction triggered',
-        note:    'All 4 categories will be extracted via Inngest pipeline',
+        note:    'All 9 categories will be extracted via Inngest pipeline',
       });
     }
 
@@ -273,6 +279,7 @@ export async function PATCH(
     if (body.action === 're-extract') {
       const validCategories: ExtractionCategory[] = [
         'section_l', 'section_m', 'admin_data', 'rating_scales',
+        'sow_pws', 'cost_price', 'past_performance', 'key_personnel', 'security_reqs',
       ];
 
       if (!body.category || !validCategories.includes(body.category)) {
@@ -303,11 +310,10 @@ export async function PATCH(
         );
       }
 
-      // Trigger full pipeline — upsert logic handles re-extraction correctly
-      // (skips user overrides, updates existing rows, inserts new ones)
+      // Trigger extraction for just this category
       await inngest.send({
         name: 'solicitation.reconciliation.complete',
-        data: { solicitationId },
+        data: { solicitationId, category: body.category },
       });
 
       return NextResponse.json({

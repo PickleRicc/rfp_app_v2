@@ -266,7 +266,13 @@ export const solicitationComplianceExtractor = inngest.createFunction(
   { id: 'solicitation-compliance-extractor' },
   { event: 'solicitation.reconciliation.complete' },
   async ({ event, step }) => {
-    const { solicitationId } = event.data as { solicitationId: string };
+    const { solicitationId, category: targetCategory } = event.data as {
+      solicitationId: string;
+      category?: ExtractionCategory; // When set, only re-extract this category
+    };
+
+    // Helper: should we run this extraction step?
+    const shouldExtract = (cat: ExtractionCategory) => !targetCategory || targetCategory === cat;
 
     // ─── Step 1: Fetch documents and build text corpus ───────────────────────
     const { documentsByType, primaryDocumentId, availableTypes } = await step.run('fetch-documents', async () => {
@@ -345,6 +351,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
     // ─── Step 2: Extract Section L ───────────────────────────────────────────
     const sectionLStats = await step.run('extract-section-l', async () => {
+      if (!shouldExtract('section_l')) return { fields: 0, upserted: 0, failed: false, skipped: true };
       const supabase = getServerClient();
 
       // Mark section_l fields as 'extracting'
@@ -387,6 +394,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
     // ─── Step 3: Extract Section M ───────────────────────────────────────────
     const sectionMStats = await step.run('extract-section-m', async () => {
+      if (!shouldExtract('section_m')) return { fields: 0, upserted: 0, failed: false, skipped: true };
       const supabase = getServerClient();
 
       await supabase
@@ -427,6 +435,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
     // ─── Step 4: Extract Admin Data ──────────────────────────────────────────
     const adminDataStats = await step.run('extract-admin-data', async () => {
+      if (!shouldExtract('admin_data')) return { fields: 0, upserted: 0, failed: false, skipped: true };
       const supabase = getServerClient();
 
       await supabase
@@ -467,6 +476,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
     // ─── Step 5: Extract Rating Scales ───────────────────────────────────────
     const ratingScalesStats = await step.run('extract-rating-scales', async () => {
+      if (!shouldExtract('rating_scales')) return { fields: 0, upserted: 0, failed: false, skipped: true };
       const supabase = getServerClient();
 
       await supabase
@@ -507,6 +517,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
     // ─── Step 6: Extract SOW / PWS / SOO ────────────────────────────────────
     const sowPwsStats = await step.run('extract-sow-pws', async () => {
+      if (!shouldExtract('sow_pws')) return { fields: 0, upserted: 0, failed: false, skipped: true };
       const supabase = getServerClient();
 
       await supabase
@@ -547,6 +558,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
     // ─── Step 7: Extract Cost / Price ─────────────────────────────────────────
     const costPriceStats = await step.run('extract-cost-price', async () => {
+      if (!shouldExtract('cost_price')) return { fields: 0, upserted: 0, failed: false, skipped: true };
       const supabase = getServerClient();
 
       await supabase
@@ -587,6 +599,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
     // ─── Step 8: Extract Past Performance ─────────────────────────────────────
     const pastPerformanceStats = await step.run('extract-past-performance', async () => {
+      if (!shouldExtract('past_performance')) return { fields: 0, upserted: 0, failed: false, skipped: true };
       const supabase = getServerClient();
 
       await supabase
@@ -627,6 +640,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
     // ─── Step 9: Extract Key Personnel ────────────────────────────────────────
     const keyPersonnelStats = await step.run('extract-key-personnel', async () => {
+      if (!shouldExtract('key_personnel')) return { fields: 0, upserted: 0, failed: false, skipped: true };
       const supabase = getServerClient();
 
       await supabase
@@ -667,6 +681,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
     // ─── Step 10: Extract Security Requirements ───────────────────────────────
     const securityReqsStats = await step.run('extract-security-reqs', async () => {
+      if (!shouldExtract('security_reqs')) return { fields: 0, upserted: 0, failed: false, skipped: true };
       const supabase = getServerClient();
 
       await supabase

@@ -93,7 +93,15 @@ skipped: 0
   reason: "User reported: Currently, re-extract extracts all sections when clicked, not an individual section. We need a button for re-extracting all sections and re-extract for individual sections."
   severity: major
   test: 12
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "API route sends solicitation.reconciliation.complete event without category param. Inngest function always runs all 9 extraction steps regardless."
+  artifacts:
+    - path: "app/api/solicitations/[id]/compliance/route.ts"
+      issue: "Line ~315: inngest.send() sends { solicitationId } without category"
+    - path: "lib/inngest/functions/solicitation-compliance-extractor.ts"
+      issue: "Event data type has no optional category field; all 9 steps always execute"
+  missing:
+    - "Pass category in Inngest event payload from API route"
+    - "Add optional category to event data type in Inngest function"
+    - "Skip extraction steps that don't match the requested category"
+    - "Add a separate 'Re-extract All' button in the UI header"
   debug_session: ""
