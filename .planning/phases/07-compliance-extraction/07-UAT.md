@@ -58,9 +58,10 @@ result: pass
 
 ### 12. Re-extract per section works
 expected: Click "Re-extract" on any accordion section header. That section shows a skeleton/spinner while re-extracting. Other sections remain visible and unchanged.
-result: issue
+result: issue → fixed
 reported: "Currently, re-extract extracts all sections when clicked, not an individual section. We need a button for re-extracting all sections and re-extract for individual sections."
 severity: major
+fix: "4f39155 — per-section re-extract + Re-extract All button"
 
 ### 13. Document routing logs show targeted routing
 expected: Check Inngest or server console logs during extraction. Each category should show "[doc-routing]" logs with doc counts per type — e.g., section_l gets base_rfp + amendments, sow_pws gets soo_sow_pws + base_rfp, security_reqs gets dd254 + base_rfp + clauses. Categories should NOT all show the same doc count.

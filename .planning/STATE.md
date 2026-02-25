@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Generated proposals indistinguishable from expert government proposal writers — the kind that win contracts.
-**Current focus:** Phase 7 — Compliance Extraction
+**Current focus:** Phase 8 — Tier 2 Dynamic Data Call
 
 ## Current Position
 
-Phase: 7 of 10 (Compliance Extraction)
-Plan: 1 of 2 in current phase (07-01 complete)
-Status: Phase 7 in progress — 07-01 complete, 07-02 next
-Last activity: 2026-02-24 — 07-01 complete: compliance extraction backend — DB schema, extraction engine, Inngest pipeline, API endpoints.
+Phase: 8 of 10 (Tier 2 Dynamic Data Call)
+Plan: 0 of TBD in current phase
+Status: Phase 7 COMPLETE (UAT passed: 15/16 pass, 1 fixed). Phase 8 next.
+Last activity: 2026-02-25 — Phase 7 complete: compliance extraction UI, document routing, procurement-agnostic classification, per-section re-extract.
 
-Progress: [███████░░░] ~47%
+Progress: [████████░░] ~55%
 
 ## Performance Metrics
 
@@ -29,7 +29,7 @@ Progress: [███████░░░] ~47%
 |-------|-------|-------|----------|
 | 5. Tier 1 Enterprise Intake | 3 done | ~38 min | ~13 min |
 | 6. Multi-Document Ingestion | 5 done | ~25 min | ~5 min |
-| 7. Compliance Extraction | 1 of 2 done | ~6 min | ~6 min |
+| 7. Compliance Extraction | 2 of 2 done | ~12 min | ~6 min |
 | 8. Tier 2 Dynamic Data Call | TBD | - | - |
 | 9. Draft Generation | TBD | - | - |
 | 10. End-to-End Validation | TBD | - | - |
@@ -44,6 +44,7 @@ Progress: [███████░░░] ~47%
 | Phase 06 P04 | 5 | 2 tasks | 6 files |
 | Phase 06 P05 | 5 | 1 tasks | 1 files |
 | Phase 07 P01 | 6 | 3 tasks | 7 files |
+| Phase 07 P02 | — | 2+fixes | 6 files |
 
 ## Accumulated Context
 
@@ -102,9 +103,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 07-01-PLAN.md — compliance extraction backend complete
-Resume file: Phase 7, Plan 02 (07-02 — if applicable) or Phase 8
+Last session: 2026-02-25
+Stopped at: Phase 7 COMPLETE — UAT passed, all issues fixed
+Resume file: Phase 8 — Tier 2 Dynamic Data Call (needs planning)
 
 ---
-*State updated: 2026-02-24 (07-01 complete — compliance extraction backend)*
+*State updated: 2026-02-25 (Phase 7 complete — compliance extraction UI + document routing + classification fixes)*
