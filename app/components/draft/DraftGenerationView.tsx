@@ -220,7 +220,11 @@ function VolumeCard({
         `/api/solicitations/${solicitationId}/draft/volumes/${volume.id}`,
         { headers: { "X-Company-Id": companyId } }
       );
-      if (!res.ok) throw new Error("Download failed");
+      if (!res.ok) {
+        const errBody = await res.text();
+        console.error("Download API error:", res.status, errBody);
+        throw new Error(`Download failed: ${res.status}`);
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -268,11 +272,12 @@ function VolumeCard({
           <h4 className="font-semibold text-foreground">{volume.volume_name}</h4>
           <button
             onClick={handleDownload}
-            disabled={downloading}
-            className="flex flex-shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+            disabled={downloading || !volume.file_path}
+            title={!volume.file_path ? "DOCX not available — use in-app preview" : undefined}
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="h-3.5 w-3.5" />
-            {downloading ? "Downloading..." : "Download DOCX"}
+            {downloading ? "Downloading..." : !volume.file_path ? "DOCX Unavailable" : "Download DOCX"}
           </button>
         </div>
 
