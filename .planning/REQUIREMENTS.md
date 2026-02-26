@@ -45,10 +45,10 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 
 - [x] **DRAFT-01**: System presents human confirmation gate before draft generation (prime/sub, teaming, strategy validation)
 - [x] **DRAFT-02**: System generates compliant draft from combined Tier 1 + Tier 2 + extraction data
-- [ ] **DRAFT-03**: Draft follows volume structure specified in Section L of the specific RFP
-- [ ] **DRAFT-04**: Draft addresses every evaluation factor identified in Section M
-- [ ] **DRAFT-05**: Draft respects all formatting constraints from RFP (page limits, font sizes, margin requirements)
-- [ ] **DRAFT-06**: System identifies required fill-in templates and maps customer data to correct fields
+- [x] **DRAFT-03**: Draft follows volume structure specified in Section L of the specific RFP
+- [x] **DRAFT-04**: Draft addresses every evaluation factor identified in Section M
+- [x] **DRAFT-05**: Draft respects all formatting constraints from RFP (page limits, font sizes, margin requirements)
+- [x] **DRAFT-06**: System identifies required fill-in templates and maps customer data to correct fields
 
 ### End-to-End Validation (VALID)
 
@@ -122,10 +122,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TIER2-06 | Phase 8 | Complete |
 | DRAFT-01 | Phase 9 | Complete |
 | DRAFT-02 | Phase 9 | Complete |
-| DRAFT-03 | Phase 9 | Pending |
-| DRAFT-04 | Phase 9 | Pending |
-| DRAFT-05 | Phase 9 | Pending |
-| DRAFT-06 | Phase 9 | Pending |
+| DRAFT-03 | Phase 9 | Complete |
+| DRAFT-04 | Phase 9 | Complete |
+| DRAFT-05 | Phase 9 | Complete |
+| DRAFT-06 | Phase 9 | Complete |
 | VALID-01 | Phase 10 | Pending |
 | VALID-02 | Phase 10 | Pending |
 | VALID-03 | Phase 10 | Pending |

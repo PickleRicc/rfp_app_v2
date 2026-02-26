@@ -48,6 +48,7 @@ Progress: [█████████░] ~80%
 | Phase 08 P01 | 6 | 2 tasks | 5 files |
 | Phase 08 P02 | 4 | 2 tasks | 5 files |
 | Phase 08 P03 | 8 | 2 tasks + human-verify | 3 files |
+| Phase 09 P02 | 6 | 2 tasks | 3 files |
 | Phase 09 P03 | 4 | 2 tasks | 3 files |
 
 ## Accumulated Context
@@ -110,6 +111,10 @@ Recent decisions affecting current work:
 - [Phase 09-01]: Default 4-volume fallback (Technical Approach, Management, Past Performance, Cost/Price) when Section L extraction has no volume_structure
 - [Phase 09-01]: Volume download verifies company ownership via JOIN (draft_volumes → proposal_drafts.company_id) — prevents cross-company data access
 - [Phase 09-01]: Strategy confirmation assembled live at GET time (not cached) — always reflects latest Tier 1/Tier 2/extraction state
+- [Phase 09-02]: Volume type routing by keyword match (not exact name) — handles variations like "Technical Approach Vol 1" still matching technical prompt builder
+- [Phase 09-02]: Partial success policy: if ANY volume completes, proposal_drafts.status becomes 'completed' — user can see per-volume status and regenerate failed volumes
+- [Phase 09-02]: Compliance matrix stored at volume_order=999 as content_markdown only (no DOCX) — Plan 03 Draft tab renders markdown table directly
+- [Phase 09-02]: DOCX upload failure is non-fatal — volume marked 'completed' with content_markdown for in-app preview; error_message documents storage failure
 - [Phase 09-03]: DraftGenerationView holds view state machine — StrategyConfirmation is a pure display component that calls onGenerationStarted callback
 - [Phase 09-03]: Polling uses useRef for interval ID (not useState) — avoids stale closure issues and enables reliable cleanup
 
