@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, type DragEvent, type ChangeEvent } from "react";
+import { useState, useCallback, useRef, type DragEvent, type ChangeEvent, type ReactNode } from "react";
 import { Upload, FileText, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -57,6 +57,7 @@ export function SolicitationUploader({ solicitationId, onUploadComplete }: Solic
   const [files, setFiles] = useState<UploadFileEntry[]>([]);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<ReactNode | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -220,7 +221,31 @@ export function SolicitationUploader({ solicitationId, onUploadComplete }: Solic
       const data = await response.json();
 
       if (!response.ok) {
-        // Entire request failed — mark all as failed
+        // Check for Tier 1 incomplete gate — show clickable profile link
+        if (response.status === 403 && data.code === "TIER1_INCOMPLETE") {
+          setFiles((prev) =>
+            prev.map((f) => ({
+              ...f,
+              status: "failed" as FileUploadStatus,
+              error: "Company profile incomplete",
+            }))
+          );
+          setUploadError(
+            <span>
+              Your company profile is incomplete.{" "}
+              <a
+                href="/company/profile"
+                className="text-blue-600 underline hover:text-blue-800"
+              >
+                Complete your company profile
+              </a>{" "}
+              before uploading solicitation documents.
+            </span>
+          );
+          return;
+        }
+
+        // Generic error fallback — mark all as failed
         setFiles((prev) =>
           prev.map((f) => ({
             ...f,
@@ -331,6 +356,13 @@ export function SolicitationUploader({ solicitationId, onUploadComplete }: Solic
           </div>
         </div>
       </div>
+
+      {/* Tier 1 incomplete error (or other component-level upload errors) */}
+      {uploadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+          <p className="text-sm text-red-800">{uploadError}</p>
+        </div>
+      )}
 
       {/* No company warning */}
       {!selectedCompanyId && (
