@@ -563,8 +563,15 @@ export function assembleComplianceMatrixData(
     return [];
   }
 
-  const sectionMFields: SectionMFields = (sectionMExtraction[0].field_value as SectionMFields) || {};
-  const evalFactors = sectionMFields.evaluation_factors || [];
+  // Find the evaluation_factors field specifically (each extraction row is a separate field)
+  const evalFactorsRow = sectionMExtraction.find(row => row.field_name === 'evaluation_factors');
+  const evalFactors: SectionMFields['evaluation_factors'] =
+    evalFactorsRow
+      ? (Array.isArray(evalFactorsRow.field_value)
+          ? evalFactorsRow.field_value
+          : (evalFactorsRow.field_value as SectionMFields)?.evaluation_factors)
+        || []
+      : [];
 
   if (evalFactors.length === 0) {
     return [];
