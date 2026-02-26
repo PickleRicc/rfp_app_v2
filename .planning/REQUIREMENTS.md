@@ -27,10 +27,10 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 
 ### Compliance Extraction (EXTRACT)
 
-- [x] **EXTRACT-01**: System extracts Section L data (volume structure, page limits per volume, required attachments, forms/certs, formatting rules)
-- [x] **EXTRACT-02**: System extracts Section M data (evaluation factors/subfactors, methodology LPTA vs tradeoff, experience thresholds, key personnel requirements)
-- [x] **EXTRACT-03**: System extracts admin data (NAICS code, size standard, set-aside designation, contract type, period of performance, CLIN structure)
-- [x] **EXTRACT-04**: System captures rating scales and relative weightings from evaluation criteria
+- [ ] **EXTRACT-01**: System extracts Section L data (volume structure, page limits per volume, required attachments, forms/certs, formatting rules)
+- [ ] **EXTRACT-02**: System extracts Section M data (evaluation factors/subfactors, methodology LPTA vs tradeoff, experience thresholds, key personnel requirements)
+- [ ] **EXTRACT-03**: System extracts admin data (NAICS code, size standard, set-aside designation, contract type, period of performance, CLIN structure)
+- [ ] **EXTRACT-04**: System captures rating scales and relative weightings from evaluation criteria
 
 ### Dynamic Data Call — Tier 2 (TIER2)
 
@@ -48,7 +48,7 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 - [x] **DRAFT-03**: Draft follows volume structure specified in Section L of the specific RFP
 - [x] **DRAFT-04**: Draft addresses every evaluation factor identified in Section M
 - [x] **DRAFT-05**: Draft respects all formatting constraints from RFP (page limits, font sizes, margin requirements)
-- [x] **DRAFT-06**: System identifies required fill-in templates and maps customer data to correct fields
+- [ ] **DRAFT-06**: System identifies required fill-in templates and maps customer data to correct fields
 
 ### End-to-End Validation (VALID)
 
@@ -110,10 +110,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INGEST-04 | Phase 6 | Complete |
 | INGEST-05 | Phase 6 | Complete |
 | INGEST-06 | Phase 6 | Complete |
-| EXTRACT-01 | Phase 7 | Complete |
-| EXTRACT-02 | Phase 7 | Complete |
-| EXTRACT-03 | Phase 7 | Complete |
-| EXTRACT-04 | Phase 7 | Complete |
+| EXTRACT-01 | Phase 7 + 9.1 (verification) | Pending |
+| EXTRACT-02 | Phase 7 + 9.1 (verification) | Pending |
+| EXTRACT-03 | Phase 7 + 9.1 (verification) | Pending |
+| EXTRACT-04 | Phase 7 + 9.1 (verification) | Pending |
 | TIER2-01 | Phase 8 | Complete |
 | TIER2-02 | Phase 8 | Complete |
 | TIER2-03 | Phase 8 | Complete |
@@ -125,17 +125,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DRAFT-03 | Phase 9 | Complete |
 | DRAFT-04 | Phase 9 | Complete |
 | DRAFT-05 | Phase 9 | Complete |
-| DRAFT-06 | Phase 9 | Complete |
+| DRAFT-06 | Phase 9 + 9.1 (resolution) | Pending |
 | VALID-01 | Phase 10 | Pending |
 | VALID-02 | Phase 10 | Pending |
 | VALID-03 | Phase 10 | Pending |
 | VALID-04 | Phase 10 | Pending |
 
 **Coverage:**
-- v2.0 requirements: 28 total
-- Mapped to phases: 28
+- v2.0 requirements: 32 total (28 original + 4 VALID)
+- Mapped to phases: 32
 - Unmapped: 0
+- Complete: 23
+- Pending: 9 (EXTRACT-01–04 verification, DRAFT-06 resolution, VALID-01–04)
 
 ---
 *Requirements defined: 2026-02-23*
-*Last updated: 2026-02-23 — traceability populated by roadmapper*
+*Last updated: 2026-02-26 — traceability updated after v2.0 audit gap closure*

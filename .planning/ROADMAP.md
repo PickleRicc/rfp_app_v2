@@ -14,11 +14,12 @@ v1.0 completed phases 1–4 (framework alignment). v2.0 begins at phase 5.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 5: Tier 1 Enterprise Intake** - One-time onboarding captures stable corporate data that persists across all proposals (completed 2026-02-23)
-- [x] **Phase 6: Multi-Document Ingestion** - System accepts full solicitation packages, classifies documents, and reconciles amendments (completed 2026-02-24)
+- [x] **Phase 5: Tier 1 Enterprise Intake** - One-time onboarding captures stable corporate data that persists across all proposals (completed 2026-02-23)
+- [x] **Phase 6: Multi-Document Ingestion** - System accepts full solicitation packages, classifies documents, and reconciles amendments (completed 2026-02-24)
 - [x] **Phase 7: Compliance Extraction** - AI extracts Section L/M requirements and admin data from reconciled package (completed 2026-02-25)
-- [x] **Phase 8: Tier 2 Dynamic Data Call** - System generates RFP-specific intake form driven by extraction results (completed 2026-02-26)
-- [x] **Phase 9: Draft Generation** - System produces compliant first draft from Tier 1 + Tier 2 + extraction data (completed 2026-02-26)
+- [x] **Phase 8: Tier 2 Dynamic Data Call** - System generates RFP-specific intake form driven by extraction results (completed 2026-02-26)
+- [x] **Phase 9: Draft Generation** - System produces compliant first draft from Tier 1 + Tier 2 + extraction data (completed 2026-02-26)
+- [ ] **Phase 9.1: Audit Gap Closure** - INSERTED — Close verification gaps, fix draft quality issues, resolve partial requirements from v2.0 audit
 - [ ] **Phase 10: End-to-End Validation** - System successfully processes both ARL and METC test packages end-to-end
 
 ## Phase Details
@@ -105,6 +106,18 @@ Plans:
 - [x] 09-02-PLAN.md — Inngest draft generation pipeline with AI prompt assembly, per-volume DOCX generation, page limit targeting, compliance matrix
 - [x] 09-03-PLAN.md — Draft tab UI: strategy confirmation gate, generation progress, volume preview + download, page limit bars, human verification
 
+### Phase 9.1: Audit Gap Closure
+**Goal**: Close all gaps identified by the v2.0 milestone audit — create Phase 7 VERIFICATION.md, fix draft generator quality issues, resolve DRAFT-06 partial requirement, and improve Tier 1 gate UX
+**Depends on**: Phase 9
+**Requirements**: EXTRACT-01, EXTRACT-02, EXTRACT-03, EXTRACT-04 (verification), DRAFT-06 (resolution)
+**Gap Closure**: Closes gaps from v2.0 audit (2026-02-26)
+**Success Criteria** (what must be TRUE):
+  1. Phase 7 has a VERIFICATION.md confirming EXTRACT-01 through EXTRACT-04 are satisfied
+  2. Draft generator fetches field_label in its compliance_extractions SELECT (not just field_name)
+  3. SolicitationUploader maps TIER1_INCOMPLETE 403 to a clickable link to /company/profile
+  4. DRAFT-06 status resolved — owner confirms cost template [PLACEHOLDER] behavior is acceptable, or cost data injection is added
+**Plans**: TBD
+
 ### Phase 10: End-to-End Validation
 **Goal**: Both ARL and METC test packages pass through the complete pipeline and produced drafts meet the acceptance criteria defined in the Blueprint
 **Depends on**: Phase 9
@@ -119,7 +132,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
+Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 9.1 → 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -128,6 +141,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 | 7. Compliance Extraction | 2/2 | Complete   | 2026-02-25 |
 | 8. Tier 2 Dynamic Data Call | 3/3 | Complete   | 2026-02-26 |
 | 9. Draft Generation | 3/3 | Complete    | 2026-02-26 |
+| 9.1. Audit Gap Closure | 0/TBD | Not started | - |
 | 10. End-to-End Validation | 0/TBD | Not started | - |
 
 ---
