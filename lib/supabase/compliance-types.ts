@@ -12,10 +12,15 @@
  * Each category corresponds to a distinct section of the solicitation package.
  */
 export type ExtractionCategory =
-  | 'section_l'    // Instructions to Offerors — volumes, page limits, formatting
-  | 'section_m'    // Evaluation Criteria — factors, subfactors, methodology
-  | 'admin_data'   // Administrative — NAICS, size standard, set-aside, PoP, CLINs
-  | 'rating_scales'; // Rating scales and factor weightings
+  | 'section_l'        // Instructions to Offerors — volumes, page limits, formatting
+  | 'section_m'        // Evaluation Criteria — factors, subfactors, methodology
+  | 'admin_data'       // Administrative — NAICS, size standard, set-aside, PoP, CLINs
+  | 'rating_scales'    // Rating scales and factor weightings
+  | 'sow_pws'          // SOW / PWS / SOO — task areas, deliverables, PoP, place of performance
+  | 'cost_price'       // Cost & Pricing Instructions — contract type, templates, breakouts
+  | 'past_performance' // Past Performance — references, recency, relevance, PPQ
+  | 'key_personnel'    // Key Personnel — positions, qualifications, clearance, resumes
+  | 'security_reqs';   // Security Requirements — DD254, clearance, CMMC/NIST, CUI
 
 /**
  * AI confidence level for an extracted value.
@@ -36,10 +41,15 @@ export type ExtractionStatus = 'pending' | 'extracting' | 'completed' | 'failed'
  * Used in the compliance review UI to label grouped results.
  */
 export const EXTRACTION_CATEGORY_LABELS: Record<ExtractionCategory, string> = {
-  section_l:     'Section L — Instructions to Offerors',
-  section_m:     'Section M — Evaluation Criteria',
-  admin_data:    'Administrative Data',
-  rating_scales: 'Rating Scales & Weightings',
+  section_l:        'Section L — Instructions to Offerors',
+  section_m:        'Section M — Evaluation Criteria',
+  admin_data:       'Administrative Data',
+  rating_scales:    'Rating Scales & Weightings',
+  sow_pws:          'SOW / PWS / SOO',
+  cost_price:       'Cost & Pricing Instructions',
+  past_performance: 'Past Performance',
+  key_personnel:    'Key Personnel',
+  security_reqs:    'Security Requirements',
 };
 
 /**
@@ -47,10 +57,15 @@ export const EXTRACTION_CATEGORY_LABELS: Record<ExtractionCategory, string> = {
  * These strings map to Lucide React component names used in the compliance dashboard.
  */
 export const EXTRACTION_CATEGORY_ICONS: Record<ExtractionCategory, string> = {
-  section_l:     'ClipboardList',
-  section_m:     'Scale',
-  admin_data:    'Building2',
-  rating_scales: 'BarChart3',
+  section_l:        'ClipboardList',
+  section_m:        'Scale',
+  admin_data:       'Building2',
+  rating_scales:    'BarChart3',
+  sow_pws:          'FileText',
+  cost_price:       'DollarSign',
+  past_performance: 'Trophy',
+  key_personnel:    'Users',
+  security_reqs:    'ShieldCheck',
 };
 
 /**
@@ -79,7 +94,7 @@ export interface ComplianceExtraction {
   /** The document this extraction came from (null if synthesized across multiple docs) */
   source_document_id?: string | null;
 
-  /** Which of the 4 extraction categories this field belongs to */
+  /** Which of the 9 extraction categories this field belongs to */
   category: ExtractionCategory;
 
   /** Machine-readable field identifier (e.g., "volume_structure", "naics_code") */
@@ -232,4 +247,131 @@ export interface RatingScaleFields {
     weight_description?: string | null;
     relative_importance?: string | null;
   }>;
+}
+
+/**
+ * Typed structure for SOW / PWS / SOO extraction field values.
+ * Captures the requirements definition — what the contractor must do.
+ */
+export interface SowPwsFields {
+  /** Whether the document uses SOW, PWS, or SOO */
+  document_type?: 'SOW' | 'PWS' | 'SOO' | string;
+
+  /** Task areas or functional areas */
+  task_areas?: Array<{
+    name: string;
+    description?: string | null;
+  }>;
+
+  /** Deliverables required under the contract */
+  deliverables?: Array<{
+    name: string;
+    frequency?: string | null;
+    format?: string | null;
+  }>;
+
+  /** Period of performance */
+  period_of_performance?: string;
+
+  /** Place of performance */
+  place_of_performance?: string;
+}
+
+/**
+ * Typed structure for Cost & Pricing Instructions extraction field values.
+ * Captures how the offeror must structure their cost/price proposal.
+ */
+export interface CostPriceFields {
+  /** Contract type (FFP, T&M, cost-reimbursement, hybrid) */
+  contract_type?: string;
+
+  /** Whether a government-furnished pricing template is provided */
+  pricing_template?: string;
+
+  /** Required cost breakout categories */
+  cost_breakout_categories?: string[];
+
+  /** Whether cost realism or price reasonableness analysis applies */
+  cost_realism_or_reasonableness?: string;
+
+  /** Travel estimate instructions */
+  travel_instructions?: string;
+
+  /** CLIN pricing structure */
+  clin_pricing?: string;
+}
+
+/**
+ * Typed structure for Past Performance extraction field values.
+ * Captures how past performance references must be submitted and evaluated.
+ */
+export interface PastPerformanceFields {
+  /** Number of references required */
+  references_required?: number | string;
+
+  /** Recency requirement (e.g., "within 3 years") */
+  recency_requirement?: string;
+
+  /** Relevance criteria (scope, magnitude, complexity) */
+  relevance_criteria?: string[];
+
+  /** Whether subcontractor past performance is evaluated */
+  subcontractor_pp_evaluated?: boolean | string;
+
+  /** Government-furnished PPQ form reference */
+  ppq_form?: string;
+
+  /** Page limits for past performance volume */
+  page_limit?: number | string | null;
+}
+
+/**
+ * Typed structure for Key Personnel extraction field values.
+ * Captures required positions, qualifications, and submission requirements.
+ */
+export interface KeyPersonnelFields {
+  /** Positions designated as key personnel */
+  positions?: Array<{
+    title: string;
+    qualifications?: string | null;
+    clearance?: string | null;
+    education?: string | null;
+    experience?: string | null;
+  }>;
+
+  /** Resume format requirements */
+  resume_format?: string;
+
+  /** Letter of Commitment (LOC) requirements */
+  loc_requirements?: string;
+
+  /** Whether resumes/LOCs count against page limits */
+  counts_against_page_limit?: boolean | string;
+}
+
+/**
+ * Typed structure for Security Requirements extraction field values.
+ * Captures clearance levels, CMMC/NIST, CUI, and related requirements.
+ */
+export interface SecurityReqsFields {
+  /** Whether a DD254 is required */
+  dd254_required?: boolean | string;
+
+  /** Clearance levels required (e.g., "Secret", "Top Secret", "TS/SCI") */
+  clearance_levels?: string[];
+
+  /** CMMC level required */
+  cmmc_level?: string;
+
+  /** NIST 800-171 compliance required */
+  nist_800_171_required?: boolean | string;
+
+  /** CUI handling requirements */
+  cui_requirements?: string;
+
+  /** System Security Plan (SSP) submission required */
+  ssp_required?: boolean | string;
+
+  /** SPRS assessment score requirement */
+  sprs_score?: string;
 }

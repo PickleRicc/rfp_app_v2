@@ -4,7 +4,8 @@
  *
  * AI-powered extraction library for government solicitation compliance data.
  * Extracts submission instructions, evaluation criteria, administrative data,
- * and rating scales from solicitation document text.
+ * rating scales, SOW/PWS, cost/price, past performance, key personnel,
+ * and security requirements from solicitation document text.
  *
  * IMPORTANT: Extraction is function-based, NOT label-based.
  * Federal solicitations use different naming conventions depending on
@@ -58,8 +59,10 @@ function extractJSON(text: string): string {
 /**
  * Concatenate and truncate document texts to a safe context window size.
  * Prioritizes base RFP text — later documents are appended up to the limit.
+ * 100K chars (~15K words / ~30-40 pages) ensures Section L/M content is included
+ * even when it appears in the second half of longer RFPs.
  */
-function truncateTexts(documentTexts: string[], maxChars = 30000): string {
+function truncateTexts(documentTexts: string[], maxChars = 100_000): string {
   const combined = documentTexts.join('\n\n---\n\n');
   return combined.substring(0, maxChars);
 }
@@ -575,6 +578,642 @@ Rules:
     return results;
   } catch (err) {
     console.error('extractRatingScales failed:', err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
+ * Extract SOW / PWS / SOO requirements from solicitation documents.
+ *
+ * This content may be labeled differently depending on procurement vehicle:
+ * - UCF/FAR 15: "Section C — Description/Specifications/Statement of Work"
+ * - SeaPort/IDIQ TORs: Statement of Objectives (SOO) — contractor generates PWS from SOO
+ * - GSA Schedule: Performance Work Statement (PWS) — usually an attachment
+ * - General: SOW, PWS, SOO, Technical Exhibit, Technical Requirements Document
+ *
+ * Critical: SOW = government tells contractor what to do; PWS = performance outcomes;
+ * SOO = government defines objectives, contractor proposes both PWS and approach.
+ *
+ * Extracts: document type (SOW/PWS/SOO), task areas, deliverables, PoP, place of performance.
+ */
+export async function extractSowPws(documentTexts: string[]): Promise<ExtractionResult[]> {
+  const textSample = truncateTexts(documentTexts);
+
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      temperature: 0,
+      system:
+        'You are an expert government proposal compliance analyst with 15+ years of experience ' +
+        'reading federal solicitations across all procurement vehicles (UCF/FAR 15, SeaPort NxG, ' +
+        'GSA Schedule/FAR 8.4, FAR Part 12 commercial, FAR Part 13 simplified). ' +
+        'You extract requirements definitions by FUNCTION, not by label. ' +
+        'This content may appear as "Section C", "Statement of Work", "Performance Work Statement", ' +
+        '"Statement of Objectives", "Technical Exhibit", or as a numbered attachment. ' +
+        'Critically distinguish between SOW (government prescribes tasks), PWS (government defines ' +
+        'performance outcomes), and SOO (government defines objectives, contractor generates PWS). ' +
+        'Extract only information explicitly stated — do not infer or fabricate.',
+      messages: [
+        {
+          role: 'user',
+          content: `Extract STATEMENT OF WORK / PERFORMANCE WORK STATEMENT / STATEMENT OF OBJECTIVES content from this government solicitation.
+
+Find the content that describes WHAT the contractor must do — task areas, deliverables, period and place of performance.
+
+Signal keywords: "statement of work", "SOW", "performance work statement", "PWS", "statement of objectives", "SOO", "technical exhibit", "scope of work", "requirements", "the contractor shall", "task area", "CLIN", "contract line item", "period of performance", "place of performance", "deliverables"
+
+Solicitation text:
+${textSample}
+
+Extract the following fields and return ONLY valid JSON:
+
+{
+  "document_type": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "SOW" | "PWS" | "SOO"
+  },
+  "task_areas": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "name": "Task Area 1 - Systems Engineering",
+        "description": "Provide systems engineering support..."
+      }
+    ]
+  },
+  "deliverables": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "name": "Monthly Status Report",
+        "frequency": "Monthly",
+        "format": "MS Word"
+      }
+    ]
+  },
+  "period_of_performance": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "12-month base period with two 12-month option periods"
+  },
+  "place_of_performance": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Fort Belvoir, VA with up to 25% telework"
+  }
+}
+
+Rules:
+- "found": true only if the data is explicitly stated in the document
+- "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
+- document_type: identify whether SOW, PWS, or SOO — if SOO, note that the contractor generates the PWS
+- task_areas: capture all numbered task areas, functional areas, or CLIN-aligned work areas
+- deliverables: include CDRLs, reports, and any items the contractor must deliver
+- Return empty arrays [] if no items found for list fields
+- Return null for the "value" if "found" is false`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') return [];
+
+    const jsonText = extractJSON(content.text);
+    const parsed = JSON.parse(jsonText) as Record<
+      string,
+      { found: boolean; confidence: 'high' | 'medium' | 'low'; value: unknown }
+    >;
+
+    const results: ExtractionResult[] = [];
+
+    const fieldLabels: Record<string, string> = {
+      document_type:        'Document Type (SOW/PWS/SOO)',
+      task_areas:           'Task Areas',
+      deliverables:         'Deliverables',
+      period_of_performance: 'Period of Performance',
+      place_of_performance: 'Place of Performance',
+    };
+
+    for (const [fieldName, label] of Object.entries(fieldLabels)) {
+      const extracted = parsed[fieldName];
+      if (!extracted) continue;
+
+      results.push({
+        field_name:  fieldName,
+        field_label: label,
+        field_value: extracted.found ? extracted.value : null,
+        confidence:  extracted.confidence || 'low',
+      });
+    }
+
+    return results;
+  } catch (err) {
+    console.error('extractSowPws failed:', err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
+ * Extract cost/price proposal requirements from solicitation documents.
+ *
+ * This content may appear as:
+ * - UCF/FAR 15: Part of Section L, or a separate "Cost/Price Volume" instruction
+ * - SeaPort TORs: Volume IV instructions within "Task Order Proposal Content"
+ * - GSA Schedule: "Price Quotation" volume or pricing attachment
+ * - Always references a government-furnished pricing template as an attachment
+ *
+ * Extracts: contract type, pricing template, cost breakout, realism/reasonableness,
+ * travel instructions, CLIN pricing structure.
+ */
+export async function extractCostPrice(documentTexts: string[]): Promise<ExtractionResult[]> {
+  const textSample = truncateTexts(documentTexts);
+
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      temperature: 0,
+      system:
+        'You are an expert government cost/price analyst with 15+ years of experience ' +
+        'reading federal solicitations across all procurement vehicles (UCF/FAR 15, SeaPort NxG, ' +
+        'GSA Schedule/FAR 8.4, FAR Part 12 commercial, FAR Part 13 simplified). ' +
+        'You extract cost/price proposal requirements by FUNCTION, not by label. ' +
+        'This content may appear within Section L, as a separate Cost/Price Volume instruction, ' +
+        'as a pricing attachment reference, or within FAR 15.408 Table 15-2 requirements. ' +
+        'Extract only information explicitly stated — do not infer or fabricate.',
+      messages: [
+        {
+          role: 'user',
+          content: `Extract COST/PRICE PROPOSAL REQUIREMENTS from this government solicitation.
+
+Find the content that tells offerors HOW to structure their cost or price proposal — contract type, pricing templates, cost breakout categories, and cost realism/reasonableness analysis.
+
+Signal keywords: "cost proposal", "price proposal", "cost/price", "cost narrative", "pricing template", "shall break out", "labor categories", "labor rates", "travel", "ODC", "other direct costs", "materials", "subcontractor costs", "indirect rates", "fee", "profit", "cost realism", "price reasonableness", "FAR 15.408", "Table 15-2", "Excel format", "formulas visible"
+
+Solicitation text:
+${textSample}
+
+Extract the following fields and return ONLY valid JSON:
+
+{
+  "contract_type": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Firm-Fixed-Price (FFP)"
+  },
+  "pricing_template": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Attachment 3 — Pricing Template (Excel)"
+  },
+  "cost_breakout_categories": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": ["Direct Labor", "Fringe Benefits", "Overhead", "G&A", "Fee", "Travel", "ODCs", "Subcontractor Costs"]
+  },
+  "cost_realism_or_reasonableness": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Cost realism analysis will be performed per FAR 15.404-1(d)"
+  },
+  "travel_instructions": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Use government-furnished travel estimate; 10 trips to Washington DC per year"
+  },
+  "clin_pricing": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Price each CLIN separately with fully burdened labor rates"
+  }
+}
+
+Rules:
+- "found": true only if the data is explicitly stated in the document
+- "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
+- contract_type: include abbreviation (FFP, T&M, CPFF, etc.)
+- pricing_template: note attachment name/number if referenced
+- Return empty arrays [] if no items found for list fields
+- Return null for the "value" if "found" is false`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') return [];
+
+    const jsonText = extractJSON(content.text);
+    const parsed = JSON.parse(jsonText) as Record<
+      string,
+      { found: boolean; confidence: 'high' | 'medium' | 'low'; value: unknown }
+    >;
+
+    const results: ExtractionResult[] = [];
+
+    const fieldLabels: Record<string, string> = {
+      contract_type:                 'Contract Type',
+      pricing_template:              'Pricing Template',
+      cost_breakout_categories:      'Cost Breakout Categories',
+      cost_realism_or_reasonableness: 'Cost Realism / Price Reasonableness',
+      travel_instructions:           'Travel Instructions',
+      clin_pricing:                  'CLIN Pricing Structure',
+    };
+
+    for (const [fieldName, label] of Object.entries(fieldLabels)) {
+      const extracted = parsed[fieldName];
+      if (!extracted) continue;
+
+      results.push({
+        field_name:  fieldName,
+        field_label: label,
+        field_value: extracted.found ? extracted.value : null,
+        confidence:  extracted.confidence || 'low',
+      });
+    }
+
+    return results;
+  } catch (err) {
+    console.error('extractCostPrice failed:', err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
+ * Extract past performance requirements from solicitation documents.
+ *
+ * This content may appear as:
+ * - UCF/FAR 15: Part of Section L (instructions) + Section M (how it's evaluated)
+ * - SeaPort TORs: "Volume III, Past Performance"
+ * - GSA Schedule: "Volume II: Past Performance"
+ * - May include a government-furnished PPQ form as an attachment
+ *
+ * Extracts: # refs required, recency, relevance criteria, subcontractor PP,
+ * PPQ form, page limits.
+ */
+export async function extractPastPerformance(documentTexts: string[]): Promise<ExtractionResult[]> {
+  const textSample = truncateTexts(documentTexts);
+
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      temperature: 0,
+      system:
+        'You are an expert government proposal compliance analyst with 15+ years of experience ' +
+        'reading federal solicitations across all procurement vehicles (UCF/FAR 15, SeaPort NxG, ' +
+        'GSA Schedule/FAR 8.4, FAR Part 12 commercial, FAR Part 13 simplified). ' +
+        'You extract past performance requirements by FUNCTION, not by label. ' +
+        'Past performance instructions may appear in Section L, within evaluation criteria, ' +
+        'as a separate volume instruction, or referenced via a PPQ attachment. ' +
+        'Extract only information explicitly stated — do not infer or fabricate.',
+      messages: [
+        {
+          role: 'user',
+          content: `Extract PAST PERFORMANCE REQUIREMENTS from this government solicitation.
+
+Find the content that tells offerors how many references to submit, recency/relevance requirements, and how past performance will be evaluated.
+
+Signal keywords: "past performance", "relevant experience", "similar in scope", "similar in magnitude", "similar in complexity", "within three years", "within five years", "recent and relevant", "contract references", "CPARS", "PPQ", "past performance questionnaire", "major subcontractor", "confidence rating", "unknown confidence"
+
+Solicitation text:
+${textSample}
+
+Extract the following fields and return ONLY valid JSON:
+
+{
+  "references_required": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "3 prime contract references and 2 subcontractor references"
+  },
+  "recency_requirement": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Within 3 years of the TOR issue date"
+  },
+  "relevance_criteria": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": ["Similar in scope to the SOO task areas", "Similar in magnitude ($5M+ annually)", "Similar in complexity (multi-site operations)"]
+  },
+  "subcontractor_pp_evaluated": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Yes — major subcontractors performing 20%+ of work must submit separate references"
+  },
+  "ppq_form": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Attachment 5 — Past Performance Questionnaire"
+  },
+  "page_limit": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "10 pages for Past Performance volume"
+  }
+}
+
+Rules:
+- "found": true only if the data is explicitly stated in the document
+- "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
+- references_required: capture total number and breakdown (prime vs sub)
+- relevance_criteria: capture each criterion as a separate list item
+- Return empty arrays [] if no items found for list fields
+- Return null for the "value" if "found" is false`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') return [];
+
+    const jsonText = extractJSON(content.text);
+    const parsed = JSON.parse(jsonText) as Record<
+      string,
+      { found: boolean; confidence: 'high' | 'medium' | 'low'; value: unknown }
+    >;
+
+    const results: ExtractionResult[] = [];
+
+    const fieldLabels: Record<string, string> = {
+      references_required:        'References Required',
+      recency_requirement:        'Recency Requirement',
+      relevance_criteria:         'Relevance Criteria',
+      subcontractor_pp_evaluated: 'Subcontractor PP Evaluated',
+      ppq_form:                   'PPQ Form',
+      page_limit:                 'Page Limit',
+    };
+
+    for (const [fieldName, label] of Object.entries(fieldLabels)) {
+      const extracted = parsed[fieldName];
+      if (!extracted) continue;
+
+      results.push({
+        field_name:  fieldName,
+        field_label: label,
+        field_value: extracted.found ? extracted.value : null,
+        confidence:  extracted.confidence || 'low',
+      });
+    }
+
+    return results;
+  } catch (err) {
+    console.error('extractPastPerformance failed:', err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
+ * Extract key personnel requirements from solicitation documents.
+ *
+ * Key personnel requirements may appear:
+ * - Embedded within technical volume instructions across all formats
+ * - In SOW/PWS, Section L, or as a standalone attachment
+ * - In SeaPort TORs, typically within the Technical Factor instructions
+ *
+ * Extracts: positions, qualifications, clearance, resume format, LOC requirements,
+ * whether resumes/LOCs count against page limits.
+ */
+export async function extractKeyPersonnel(documentTexts: string[]): Promise<ExtractionResult[]> {
+  const textSample = truncateTexts(documentTexts);
+
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      temperature: 0,
+      system:
+        'You are an expert government proposal compliance analyst with 15+ years of experience ' +
+        'reading federal solicitations across all procurement vehicles (UCF/FAR 15, SeaPort NxG, ' +
+        'GSA Schedule/FAR 8.4, FAR Part 12 commercial, FAR Part 13 simplified). ' +
+        'You extract key personnel requirements by FUNCTION, not by label. ' +
+        'Key personnel information may appear in technical volume instructions, SOW/PWS, ' +
+        'evaluation criteria, or as a separate attachment listing required positions. ' +
+        'Extract only information explicitly stated — do not infer or fabricate.',
+      messages: [
+        {
+          role: 'user',
+          content: `Extract KEY PERSONNEL REQUIREMENTS from this government solicitation.
+
+Find the content that defines which positions are key personnel, their required qualifications, clearance levels, resume format, and Letter of Commitment (LOC) requirements.
+
+Signal keywords: "key personnel", "resume", "resumes", "letter of commitment", "LOC", "qualifications", "certifications", "DoD 8570", "DoD 8140", "clearance", "secret", "top secret", "TS/SCI", "years of experience", "education requirement", "degree", "program manager", "project manager", "shall not count against page limit"
+
+Solicitation text:
+${textSample}
+
+Extract the following fields and return ONLY valid JSON:
+
+{
+  "positions": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "title": "Program Manager",
+        "qualifications": "PMP certified, 10+ years IT program management",
+        "clearance": "Top Secret/SCI",
+        "education": "Bachelor's degree in relevant field",
+        "experience": "10 years minimum"
+      }
+    ]
+  },
+  "resume_format": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "2-page maximum per resume, include education, certifications, relevant experience"
+  },
+  "loc_requirements": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Signed letter from each key person confirming availability and commitment to the contract"
+  },
+  "counts_against_page_limit": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Resumes and LOCs do NOT count against the Technical volume page limit"
+  }
+}
+
+Rules:
+- "found": true only if the data is explicitly stated in the document
+- "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
+- positions: capture ALL positions designated as key personnel with their requirements
+- clearance: capture the specific level required (e.g., "Secret", "Top Secret", "TS/SCI")
+- Return empty arrays [] if no items found for list fields
+- Return null for the "value" if "found" is false`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') return [];
+
+    const jsonText = extractJSON(content.text);
+    const parsed = JSON.parse(jsonText) as Record<
+      string,
+      { found: boolean; confidence: 'high' | 'medium' | 'low'; value: unknown }
+    >;
+
+    const results: ExtractionResult[] = [];
+
+    const fieldLabels: Record<string, string> = {
+      positions:                'Key Personnel Positions',
+      resume_format:            'Resume Format Requirements',
+      loc_requirements:         'LOC Requirements',
+      counts_against_page_limit: 'Counts Against Page Limit',
+    };
+
+    for (const [fieldName, label] of Object.entries(fieldLabels)) {
+      const extracted = parsed[fieldName];
+      if (!extracted) continue;
+
+      results.push({
+        field_name:  fieldName,
+        field_label: label,
+        field_value: extracted.found ? extracted.value : null,
+        confidence:  extracted.confidence || 'low',
+      });
+    }
+
+    return results;
+  } catch (err) {
+    console.error('extractKeyPersonnel failed:', err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
+ * Extract security requirements from solicitation documents.
+ *
+ * Security requirements may appear:
+ * - DD Form 254 (always an attachment when classified work is involved)
+ * - NIST SP 800-171 / CMMC requirements in clauses or technical instructions
+ * - System Security Plan (SSP) and Plan of Action as separate submission volumes
+ * - Facility Clearance Level (FCL) requirements
+ *
+ * Extracts: DD254, clearance levels, CMMC/NIST, CUI handling, SSP requirements,
+ * SPRS assessment score.
+ */
+export async function extractSecurityRequirements(documentTexts: string[]): Promise<ExtractionResult[]> {
+  const textSample = truncateTexts(documentTexts);
+
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      temperature: 0,
+      system:
+        'You are an expert government security compliance analyst with 15+ years of experience ' +
+        'reading federal solicitations across all procurement vehicles (UCF/FAR 15, SeaPort NxG, ' +
+        'GSA Schedule/FAR 8.4, FAR Part 12 commercial, FAR Part 13 simplified). ' +
+        'You extract security requirements by FUNCTION, not by label. ' +
+        'Security requirements may appear in DD Form 254 attachments, contract clauses (DFARS 252.204), ' +
+        'technical instructions, or as separate SSP/POA&M submission requirements. ' +
+        'Extract only information explicitly stated — do not infer or fabricate.',
+      messages: [
+        {
+          role: 'user',
+          content: `Extract SECURITY REQUIREMENTS from this government solicitation.
+
+Find the content that defines clearance levels, CMMC/NIST 800-171 compliance, CUI handling, DD254, SSP submission, and SPRS requirements.
+
+Signal keywords: "DD 254", "DD254", "security classification", "facility clearance", "FCL", "personnel clearance", "NIST 800-171", "CMMC", "CUI", "controlled unclassified", "system security plan", "SSP", "plan of action", "POA&M", "SPRS", "PIEE", "assessment score", "110"
+
+Solicitation text:
+${textSample}
+
+Extract the following fields and return ONLY valid JSON:
+
+{
+  "dd254_required": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Yes — DD254 included as Attachment 3"
+  },
+  "clearance_levels": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": ["Secret (facility)", "Top Secret/SCI (key personnel)"]
+  },
+  "cmmc_level": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "CMMC Level 2 — Advanced"
+  },
+  "nist_800_171_required": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Yes — full compliance with NIST SP 800-171 Rev 2 required"
+  },
+  "cui_requirements": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "All CUI must be handled per NIST SP 800-171; marking per DoDI 5200.48"
+  },
+  "ssp_required": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Yes — System Security Plan must be submitted as a separate volume"
+  },
+  "sprs_score": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Minimum SPRS score of 110 required at time of proposal submission"
+  }
+}
+
+Rules:
+- "found": true only if the data is explicitly stated in the document
+- "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
+- clearance_levels: list ALL clearance levels mentioned (facility, personnel, specific positions)
+- dd254_required: note attachment reference if applicable
+- Return empty arrays [] if no items found for list fields
+- Return null for the "value" if "found" is false`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') return [];
+
+    const jsonText = extractJSON(content.text);
+    const parsed = JSON.parse(jsonText) as Record<
+      string,
+      { found: boolean; confidence: 'high' | 'medium' | 'low'; value: unknown }
+    >;
+
+    const results: ExtractionResult[] = [];
+
+    const fieldLabels: Record<string, string> = {
+      dd254_required:        'DD254 Required',
+      clearance_levels:      'Clearance Levels',
+      cmmc_level:            'CMMC Level',
+      nist_800_171_required: 'NIST 800-171 Required',
+      cui_requirements:      'CUI Requirements',
+      ssp_required:          'SSP Required',
+      sprs_score:            'SPRS Score Requirement',
+    };
+
+    for (const [fieldName, label] of Object.entries(fieldLabels)) {
+      const extracted = parsed[fieldName];
+      if (!extracted) continue;
+
+      results.push({
+        field_name:  fieldName,
+        field_label: label,
+        field_value: extracted.found ? extracted.value : null,
+        confidence:  extracted.confidence || 'low',
+      });
+    }
+
+    return results;
+  } catch (err) {
+    console.error('extractSecurityRequirements failed:', err instanceof Error ? err.message : String(err));
     return [];
   }
 }

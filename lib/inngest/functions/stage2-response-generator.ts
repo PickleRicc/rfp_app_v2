@@ -194,10 +194,29 @@ export const rfpResponseGenerator = inngest.createFunction(
     // STEP 3: Generate volumes AND create DOCX files (in ONE step to preserve Paragraph objects)
     const documents = await step.run('generate-volumes-and-documents', async () => {
       const volumes: Record<string, any> = {};
-      // Check if volumes array exists and has items, otherwise use default
-      const volumesToGenerate = (volumeStructure.volumes && Array.isArray(volumeStructure.volumes) && volumeStructure.volumes.length > 0)
+      // Normalize volume type names from AI extraction to canonical names
+      const VOLUME_ALIASES: Record<string, string> = {
+        'pricing': 'price',
+        'cost': 'price',
+        'price': 'price',
+        'technical': 'technical',
+        'tech': 'technical',
+        'management': 'management',
+        'mgmt': 'management',
+        'past_performance': 'past_performance',
+        'past performance': 'past_performance',
+        'pastperformance': 'past_performance',
+        'experience': 'past_performance',
+      };
+
+      const rawVolumes = (volumeStructure.volumes && Array.isArray(volumeStructure.volumes) && volumeStructure.volumes.length > 0)
         ? volumeStructure.volumes
         : ['technical', 'management', 'past_performance', 'price'];
+
+      // Normalize and deduplicate
+      const volumesToGenerate = [...new Set(
+        rawVolumes.map((v: string) => VOLUME_ALIASES[v.toLowerCase().trim()] || v.toLowerCase().trim())
+      )];
 
       // Extract page limits from metadata
       const pageLimits = volumeStructure.page_limits || {};
@@ -261,6 +280,8 @@ export const rfpResponseGenerator = inngest.createFunction(
             console.log(`✅ Price volume generated:`, {
               sectionsCount: volumes.price?.sections?.length || 0,
             });
+          } else {
+            console.warn(`⚠️  Unknown volume type "${volType}" - skipping. Known types: technical, management, past_performance, price`);
           }
         } catch (error) {
           console.error(`❌ Error generating ${volType} volume:`, error);

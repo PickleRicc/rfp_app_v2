@@ -586,16 +586,20 @@ function buildComplianceVerificationSection(
     placeholder:  'e.g., 82/110 — enter your SPRS self-assessment score',
   });
 
-  // Required attachments as file upload slots
+  // Required attachments as file upload slots (deduplicated by generated key)
   const attachmentList: string[] = [
     ...(requiredAttachments && Array.isArray(requiredAttachments) ? requiredAttachments : []),
     ...(requiredForms && Array.isArray(requiredForms) ? requiredForms : []),
   ];
 
   if (attachmentList.length > 0) {
+    const seenKeys = new Set<string>();
     attachmentList.forEach((attachment) => {
       // Generate a safe field key from the attachment name
       const fieldKey = `attachment_${attachment.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_')}`;
+      // Skip duplicates — same extraction value listed more than once
+      if (seenKeys.has(fieldKey)) return;
+      seenKeys.add(fieldKey);
       fields.push({
         key:          fieldKey,
         label:        `Required Attachment: ${attachment}`,

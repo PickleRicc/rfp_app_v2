@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS compliance_extractions (
 
   -- Extraction category
   category            TEXT          NOT NULL
-                      CHECK (category IN ('section_l', 'section_m', 'admin_data', 'rating_scales')),
+                      CHECK (category IN ('section_l', 'section_m', 'admin_data', 'rating_scales',
+                                          'sow_pws', 'cost_price', 'past_performance', 'key_personnel', 'security_reqs')),
 
   -- Field identifier and display label
   field_name          TEXT          NOT NULL,   -- e.g., "volume_structure", "page_limit_technical", "evaluation_methodology"
