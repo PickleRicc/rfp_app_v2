@@ -43,8 +43,8 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 
 ### Draft Generation (DRAFT)
 
-- [ ] **DRAFT-01**: System presents human confirmation gate before draft generation (prime/sub, teaming, strategy validation)
-- [ ] **DRAFT-02**: System generates compliant draft from combined Tier 1 + Tier 2 + extraction data
+- [x] **DRAFT-01**: System presents human confirmation gate before draft generation (prime/sub, teaming, strategy validation)
+- [x] **DRAFT-02**: System generates compliant draft from combined Tier 1 + Tier 2 + extraction data
 - [ ] **DRAFT-03**: Draft follows volume structure specified in Section L of the specific RFP
 - [ ] **DRAFT-04**: Draft addresses every evaluation factor identified in Section M
 - [ ] **DRAFT-05**: Draft respects all formatting constraints from RFP (page limits, font sizes, margin requirements)
@@ -120,8 +120,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TIER2-04 | Phase 8 | Complete |
 | TIER2-05 | Phase 8 | Complete |
 | TIER2-06 | Phase 8 | Complete |
-| DRAFT-01 | Phase 9 | Pending |
-| DRAFT-02 | Phase 9 | Pending |
+| DRAFT-01 | Phase 9 | Complete |
+| DRAFT-02 | Phase 9 | Complete |
 | DRAFT-03 | Phase 9 | Pending |
 | DRAFT-04 | Phase 9 | Pending |
 | DRAFT-05 | Phase 9 | Pending |

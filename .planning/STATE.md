@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 8 of 10 (Tier 2 Dynamic Data Call) — COMPLETE
-Plan: 3 of 3 in current phase — COMPLETE
-Status: Phase 8 COMPLETE — All 6 TIER2 requirements satisfied. Full 5-section Data Call form human-verified (all 12 steps). Ready for Phase 9 (Draft Generation).
-Last activity: 2026-02-26 — Phase 8 P03 COMPLETE: human verification APPROVED, all 3 plans done.
+Phase: 9 of 10 (Draft Generation) — IN PROGRESS
+Plan: 1 of 3 in current phase — COMPLETE
+Status: Phase 9 P01 COMPLETE — SQL schema + TypeScript types + REST API endpoints for draft generation data layer.
+Last activity: 2026-02-26 — Phase 9 P01 COMPLETE: proposal_drafts/draft_volumes tables, StrategyConfirmation types, GET/POST draft endpoints, DOCX download endpoint.
 
-Progress: [█████████░] ~75%
+Progress: [█████████░] ~80%
 
 ## Performance Metrics
 
@@ -105,6 +105,10 @@ Recent decisions affecting current work:
 - [Phase 08-03]: PersonnelCard manages its own upload state — prevents prop-drilling and keeps card self-contained
 - [Phase 08-03]: validateDataCall runs only on Complete Data Call click — per CONTEXT.md save/submit separation
 - [Phase 08-03]: Sections with validation errors auto-expand on Complete Data Call — surfaces issues without manual navigation
+- [Phase 09-01]: Regeneration overwrites existing draft (no versioning) — upsert proposal_drafts + delete/recreate draft_volumes on each POST trigger
+- [Phase 09-01]: Default 4-volume fallback (Technical Approach, Management, Past Performance, Cost/Price) when Section L extraction has no volume_structure
+- [Phase 09-01]: Volume download verifies company ownership via JOIN (draft_volumes → proposal_drafts.company_id) — prevents cross-company data access
+- [Phase 09-01]: Strategy confirmation assembled live at GET time (not cached) — always reflects latest Tier 1/Tier 2/extraction state
 
 ### Pending Todos
 
@@ -119,8 +123,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-draft-generation/09-CONTEXT.md
+Stopped at: Completed Phase 9 Plan 01 (09-01-PLAN.md)
+Resume file: .planning/phases/09-draft-generation/09-02-PLAN.md
 
 ---
-*State updated: 2026-02-26 (Phase 9 context gathered — strategy gate, generation UX, content style, page limit decisions captured)*
+*State updated: 2026-02-26 (Phase 9 P01 COMPLETE — SQL schema, TypeScript types, strategy confirmation GET, draft trigger POST, DOCX download endpoint)*

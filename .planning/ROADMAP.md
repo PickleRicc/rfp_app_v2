@@ -101,7 +101,7 @@ Plans:
   6. Required fill-in templates (staffing plans, cost summaries, past performance forms) are populated with customer data mapped to the correct template fields
 **Plans**: 3 plans
 Plans:
-- [ ] 09-01-PLAN.md — Database schema, TypeScript types, strategy confirmation API, draft trigger + download endpoints
+- [x] 09-01-PLAN.md — Database schema, TypeScript types, strategy confirmation API, draft trigger + download endpoints
 - [ ] 09-02-PLAN.md — Inngest draft generation pipeline with AI prompt assembly, per-volume DOCX generation, page limit targeting, compliance matrix
 - [ ] 09-03-PLAN.md — Draft tab UI: strategy confirmation gate, generation progress, volume preview + download, page limit bars, human verification
 
@@ -127,7 +127,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 | 6. Multi-Document Ingestion | 5/5 | Complete   | 2026-02-24 |
 | 7. Compliance Extraction | 2/2 | Complete   | 2026-02-25 |
 | 8. Tier 2 Dynamic Data Call | 3/3 | Complete   | 2026-02-26 |
-| 9. Draft Generation | 0/TBD | Not started | - |
+| 9. Draft Generation | 1/3 | In progress | - |
 | 10. End-to-End Validation | 0/TBD | Not started | - |
 
 ---
