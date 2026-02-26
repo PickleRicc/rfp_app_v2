@@ -283,7 +283,7 @@ export const proposalDraftGenerator = inngest.createFunction(
         // Phase 7 extractions: fetch all categories and group by category
         const { data: extractionRows, error: extractionError } = await supabase
           .from('compliance_extractions')
-          .select('category, field_name, field_value, confidence, is_user_override')
+          .select('category, field_name, field_label, field_value, confidence, is_user_override')
           .eq('solicitation_id', solicitationId)
           .eq('extraction_status', 'completed');
 
@@ -308,7 +308,7 @@ export const proposalDraftGenerator = inngest.createFunction(
               solicitation_id: solicitationId,
               category: cat,
               field_name: row.field_name,
-              field_label: row.field_name,
+              field_label: row.field_label || row.field_name,
               field_value: row.field_value,
               confidence: row.confidence,
               is_user_override: row.is_user_override,
