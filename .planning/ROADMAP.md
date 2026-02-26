@@ -116,7 +116,10 @@ Plans:
   2. Draft generator fetches field_label in its compliance_extractions SELECT (not just field_name)
   3. SolicitationUploader maps TIER1_INCOMPLETE 403 to a clickable link to /company/profile
   4. DRAFT-06 status resolved — owner confirms cost template [PLACEHOLDER] behavior is acceptable, or cost data injection is added
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 9.1-01-PLAN.md — Phase 7 VERIFICATION.md, draft generator field_label fix, SolicitationUploader TIER1_INCOMPLETE UX
+- [ ] 9.1-02-PLAN.md — DRAFT-06 resolution decision (checkpoint) + REQUIREMENTS.md update
 
 ### Phase 10: End-to-End Validation
 **Goal**: Both ARL and METC test packages pass through the complete pipeline and produced drafts meet the acceptance criteria defined in the Blueprint
