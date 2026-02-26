@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 9.1 (Audit Gap Closure) — IN PROGRESS
-Plan: 1 of 3 in current phase — COMPLETE
-Status: Phase 9.1 Plan 01 complete. Phase 7 VERIFICATION.md created (EXTRACT-01 through EXTRACT-04 verified). Two code quality gaps closed: field_label in draft generator SELECT, TIER1_INCOMPLETE UX in SolicitationUploader.
-Last activity: 2026-02-26 — Phase 9.1 P01 complete: 07-VERIFICATION.md written with real line-number evidence; proposal-draft-generator.ts and SolicitationUploader.tsx fixed.
+Phase: 9.1 (Audit Gap Closure) — COMPLETE
+Plan: 3 of 3 in current phase — COMPLETE
+Status: Phase 9.1 complete. All 3 plans executed. DRAFT-06 resolved (accept-placeholders owner decision). 28/32 v2.0 requirements satisfied. Phase 10 End-to-End Validation is next.
+Last activity: 2026-02-26 — Phase 9.1 P02 complete: DRAFT-06 resolved, REQUIREMENTS.md updated (28/32 complete), v2.0-MILESTONE-AUDIT.md updated.
 
-Progress: [█████████░] ~91%
+Progress: [█████████░] ~93%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [█████████░] ~91%
 | Phase 08 P03 | 8 | 2 tasks + human-verify | 3 files |
 | Phase 09 P02 | 6 | 2 tasks | 3 files |
 | Phase 09 P03 | 4 | 3 tasks + human-verify | 5 files |
+| Phase 9.1 P02 | 5 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,7 @@ Recent decisions affecting current work:
 - [Phase 9.1-01]: field_label fallback to field_name — row.field_label || row.field_name handles null field_label rows defensively without breaking existing draft generation
 - [Phase 9.1-01]: ReactNode error state for SolicitationUploader — typed as ReactNode (not string) to support JSX clickable link in TIER1_INCOMPLETE handler; generic string errors still work via fallback path
 - [Phase 9.1-01]: Plain <a> tag for /company/profile link — no next/link import needed for simple href navigation; compatible with existing component imports
+- [Phase 9.1-02]: DRAFT-06 accept-placeholders: Cost/price [PLACEHOLDER] behavior accepted. Narrative framework and CLIN structure populated from Tier 2; financial amounts require approved rate tables (manual by design). ADV-06 pricing engine deferred to future scope.
 
 ### Pending Todos
 
@@ -137,8 +139,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 9.1-01-PLAN.md — Phase 7 VERIFICATION.md created, two code quality gaps closed. Continue with Phase 9.1 Plan 02.
-Resume file: .planning/phases/9.1-audit-gap-closure/ (Phase 9.1, Plan 02)
+Stopped at: Completed 9.1-02-PLAN.md — DRAFT-06 resolved (accept-placeholders). Phase 9.1 COMPLETE. All 28 pre-VALID requirements satisfied. Continue with Phase 10 End-to-End Validation.
+Resume file: .planning/phases/10-end-to-end-validation/ (Phase 10, Plan 01)
 
 ---
-*State updated: 2026-02-26 (Phase 9.1 P01 COMPLETE — 07-VERIFICATION.md created, field_label fix and TIER1_INCOMPLETE UX fix committed)*
+*State updated: 2026-02-26 (Phase 9.1 P02 COMPLETE — DRAFT-06 resolved, REQUIREMENTS.md 28/32 complete, v2.0-MILESTONE-AUDIT.md updated)*

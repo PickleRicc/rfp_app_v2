@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Compliance Extraction** - AI extracts Section L/M requirements and admin data from reconciled package (completed 2026-02-25)
 - [x] **Phase 8: Tier 2 Dynamic Data Call** - System generates RFP-specific intake form driven by extraction results (completed 2026-02-26)
 - [x] **Phase 9: Draft Generation** - System produces compliant first draft from Tier 1 + Tier 2 + extraction data (completed 2026-02-26)
-- [ ] **Phase 9.1: Audit Gap Closure** - INSERTED — Close verification gaps, fix draft quality issues, resolve partial requirements from v2.0 audit
+- [x] **Phase 9.1: Audit Gap Closure** - COMPLETE — Phase 7 verified, code quality fixed, DRAFT-06 resolved. 28/32 v2.0 requirements satisfied (completed 2026-02-26)
 - [ ] **Phase 10: End-to-End Validation** - System successfully processes both ARL and METC test packages end-to-end
 
 ## Phase Details
@@ -119,7 +119,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 9.1-01-PLAN.md — Phase 7 VERIFICATION.md, draft generator field_label fix, SolicitationUploader TIER1_INCOMPLETE UX
-- [ ] 9.1-02-PLAN.md — DRAFT-06 resolution decision (checkpoint) + REQUIREMENTS.md update
+- [x] 9.1-02-PLAN.md — DRAFT-06 resolved (accept-placeholders owner decision) + REQUIREMENTS.md updated to 28/32 complete
 
 ### Phase 10: End-to-End Validation
 **Goal**: Both ARL and METC test packages pass through the complete pipeline and produced drafts meet the acceptance criteria defined in the Blueprint
@@ -144,7 +144,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 9.1 → 10
 | 7. Compliance Extraction | 2/2 | Complete   | 2026-02-25 |
 | 8. Tier 2 Dynamic Data Call | 3/3 | Complete   | 2026-02-26 |
 | 9. Draft Generation | 3/3 | Complete    | 2026-02-26 |
-| 9.1. Audit Gap Closure | 0/TBD | Not started | - |
+| 9.1. Audit Gap Closure | 2/2 | Complete    | 2026-02-26 |
 | 10. End-to-End Validation | 0/TBD | Not started | - |
 
 ---
