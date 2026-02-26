@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
-import { requireStaffOrResponse } from '@/lib/auth';
+import { requireStaffOrResponse, getCompanyIdOrResponse } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const auth = await requireStaffOrResponse();
   if (auth instanceof NextResponse) return auth;
   try {
@@ -14,7 +15,7 @@ export async function GET(
     const { data: boilerplate, error } = await supabase
       .from('boilerplate_library')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error || !boilerplate) {
@@ -36,8 +37,9 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const resolved = await getCompanyIdOrResponse(request);
   if (resolved instanceof NextResponse) return resolved;
   const { companyId } = resolved;
@@ -54,7 +56,7 @@ export async function PUT(
         content: body.content,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('company_id', companyId)
       .select()
       .single();
@@ -82,8 +84,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const resolved = await getCompanyIdOrResponse(request);
   if (resolved instanceof NextResponse) return resolved;
   const { companyId } = resolved;
@@ -94,7 +97,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('boilerplate_library')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('company_id', companyId);
 
     if (error) {

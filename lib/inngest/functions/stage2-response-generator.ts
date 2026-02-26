@@ -214,7 +214,7 @@ export const rfpResponseGenerator = inngest.createFunction(
         : ['technical', 'management', 'past_performance', 'price'];
 
       // Normalize and deduplicate
-      const volumesToGenerate = [...new Set(
+      const volumesToGenerate: string[] = [...new Set<string>(
         rawVolumes.map((v: string) => VOLUME_ALIASES[v.toLowerCase().trim()] || v.toLowerCase().trim())
       )];
 

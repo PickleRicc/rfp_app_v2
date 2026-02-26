@@ -219,7 +219,7 @@ export function applyGhostingLanguage(
 
     // Check if the section content is relevant to this advantage area
     const areaKeywords = advantage.area.toLowerCase().split(/\s+/);
-    const hasRelevance = areaKeywords.some((keyword) =>
+    const hasRelevance = areaKeywords.some((keyword: string) =>
       enhanced.toLowerCase().includes(keyword)
     );
 

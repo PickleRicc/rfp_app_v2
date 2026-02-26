@@ -4,8 +4,9 @@ import { getCompanyIdOrResponse } from '@/lib/auth';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const resolved = await getCompanyIdOrResponse(request);
   if (resolved instanceof NextResponse) return resolved;
   const { companyId } = resolved;
@@ -29,7 +30,7 @@ export async function PUT(
           documentation_url: body.documentation_url || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId)
         .select()
         .single();
@@ -44,7 +45,7 @@ export async function PUT(
           size_standard: body.size_standard || null,
           is_primary: body.is_primary || false,
         })
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId)
         .select()
         .single();
@@ -64,7 +65,7 @@ export async function PUT(
           approved_rates_url: body.approved_rates_url || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId)
         .select()
         .single();
@@ -82,7 +83,7 @@ export async function PUT(
           safeguarding_capability: body.safeguarding_capability || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId)
         .select()
         .single();
@@ -118,8 +119,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const resolved = await getCompanyIdOrResponse(request);
   if (resolved instanceof NextResponse) return resolved;
   const { companyId } = resolved;
@@ -134,28 +136,28 @@ export async function DELETE(
       const { error: err } = await supabase
         .from('certifications')
         .delete()
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId);
       error = err;
     } else if (type === 'naics') {
       const { error: err } = await supabase
         .from('naics_codes')
         .delete()
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId);
       error = err;
     } else if (type === 'vehicle') {
       const { error: err } = await supabase
         .from('contract_vehicles')
         .delete()
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId);
       error = err;
     } else if (type === 'facility_clearance') {
       const { error: err } = await supabase
         .from('facility_clearances')
         .delete()
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId);
       error = err;
     } else {

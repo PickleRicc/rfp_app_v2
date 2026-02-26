@@ -3,7 +3,7 @@
  * Implements quality checks for generated proposals
  */
 
-import { validateExhibitReferences } from '../exhibits/exhibit-manager';
+import { validateExhibitReferences as validateExhibitReferencesAsync } from '../exhibits/exhibit-manager';
 
 /**
  * Generate validation report for proposal
@@ -16,13 +16,13 @@ export async function generateValidationReport(
   overall: { valid: boolean; issueCount: number };
 }> {
   // Validate exhibits
-  const exhibitValidation = await validateExhibitReferences(responseId);
+  const exhibitValidation = await validateExhibitReferencesAsync(responseId);
   
   // Placeholder for requirement validation (would need document content)
   const requirementValidation = {
     valid: true,
-    covered: [],
-    uncovered: [],
+    covered: [] as any[],
+    uncovered: [] as any[],
     coveragePercent: 100,
   };
   

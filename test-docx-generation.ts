@@ -31,7 +31,7 @@ async function testDocxGeneration() {
           // Test 1: Simple heading
           new Paragraph({
             text: 'Test Document - Heading Works',
-            heading: 1,
+            heading: 'Heading1',
           }),
           
           // Test 2: Paragraph with TextRun (OUR FIX)

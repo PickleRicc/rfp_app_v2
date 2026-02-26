@@ -43,10 +43,6 @@ export async function GET(
       return NextResponse.json({ error: volumesError.message }, { status: 500 });
     }
 
-    if (responseError) {
-      return NextResponse.json({ error: responseError.message }, { status: 500 });
-    }
-
     // Create ZIP archive
     const archive = archiver('zip', { zlib: { level: 9 } });
     

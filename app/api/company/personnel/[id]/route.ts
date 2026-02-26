@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
-import { requireStaffOrResponse } from '@/lib/auth';
+import { requireStaffOrResponse, getCompanyIdOrResponse } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const auth = await requireStaffOrResponse();
   if (auth instanceof NextResponse) return auth;
   try {
@@ -14,7 +15,7 @@ export async function GET(
     const { data: person, error } = await supabase
       .from('personnel')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error || !person) {
@@ -36,8 +37,9 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const auth = await requireStaffOrResponse();
   if (auth instanceof NextResponse) return auth;
   try {
@@ -50,7 +52,7 @@ export async function PUT(
         ...body,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -77,8 +79,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const resolved = await getCompanyIdOrResponse(request);
   if (resolved instanceof NextResponse) return resolved;
   try {
@@ -87,7 +90,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('personnel')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (error) {
       console.error('Error deleting personnel:', error);

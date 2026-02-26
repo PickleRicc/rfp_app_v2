@@ -68,7 +68,7 @@ function generateMermaidGantt(phases: TimelinePhase[], title: string): string {
     // Add activities for this phase
     if (phase.activities && Array.isArray(phase.activities)) {
       phase.activities.forEach((activity: string, idx: number) => {
-        const activityDuration = Math.floor(duration / phase.activities.length);
+        const activityDuration = Math.floor(duration / (phase.activities?.length || 1));
         const actStart = new Date(phaseStart);
         actStart.setDate(actStart.getDate() + (idx * activityDuration));
 

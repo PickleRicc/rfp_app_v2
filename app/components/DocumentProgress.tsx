@@ -12,6 +12,7 @@ interface ProgressData {
     filename: string;
     status: DocumentStatus;
     updated_at: string;
+    document_type?: string;
   };
   progress: {
     requirementsExtracted: number;

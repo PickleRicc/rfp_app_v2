@@ -4,8 +4,9 @@ import { getCompanyIdOrResponse } from '@/lib/auth';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const resolved = await getCompanyIdOrResponse(request);
   if (resolved instanceof NextResponse) return resolved;
   const { companyId } = resolved;
@@ -27,7 +28,7 @@ export async function PUT(
           applicable_to: body.applicable_to || [],
           updated_at: new Date().toISOString(),
         })
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId)
         .select()
         .single();
@@ -43,7 +44,7 @@ export async function PUT(
           proprietary: body.proprietary || false,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId)
         .select()
         .single();
@@ -58,7 +59,7 @@ export async function PUT(
           competitor_weakness: body.competitor_weakness,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId)
         .select()
         .single();
@@ -94,8 +95,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const resolved = await getCompanyIdOrResponse(request);
   if (resolved instanceof NextResponse) return resolved;
   const { companyId } = resolved;
@@ -110,21 +112,21 @@ export async function DELETE(
       const { error: err } = await supabase
         .from('value_propositions')
         .delete()
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId);
       error = err;
     } else if (type === 'innovation') {
       const { error: err } = await supabase
         .from('innovations')
         .delete()
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId);
       error = err;
     } else if (type === 'competitive_advantage') {
       const { error: err } = await supabase
         .from('competitive_advantages')
         .delete()
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('company_id', companyId);
       error = err;
     } else {

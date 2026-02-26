@@ -15,7 +15,7 @@ export default function NewPersonnel() {
     full_name: '',
     email: '',
     phone: '',
-    employment_type: 'W2 Employee' as const,
+    employment_type: 'W2 Employee' as string,
     employer_company: '',
     availability: 'Immediately Available',
     current_assignment: '',

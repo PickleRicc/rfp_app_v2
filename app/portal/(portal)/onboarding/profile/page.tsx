@@ -13,7 +13,7 @@ const defaultForm = {
   legal_name: "",
   cage_code: "",
   uei_number: "",
-  sam_status: "Active" as const,
+  sam_status: "Active" as string,
   sam_expiration: "",
   year_founded: new Date().getFullYear(),
   website: "",

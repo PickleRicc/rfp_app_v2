@@ -47,10 +47,6 @@ export async function GET(
       }
     }
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
     // Get requirements for the document
     const { data: requirements } = await supabase
       .from('rfp_requirements')

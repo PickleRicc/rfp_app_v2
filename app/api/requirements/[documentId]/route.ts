@@ -8,8 +8,9 @@ import { requireStaffOrResponse } from '@/lib/auth';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { documentId: string } }
+  { params }: { params: Promise<{ documentId: string }> }
 ) {
+  const { documentId } = await params;
   const auth = await requireStaffOrResponse();
   if (auth instanceof NextResponse) return auth;
   try {
@@ -18,7 +19,7 @@ export async function GET(
     const { data: requirements, error } = await supabase
       .from('rfp_requirements')
       .select('*')
-      .eq('document_id', params.documentId)
+      .eq('document_id', documentId)
       .order('requirement_number');
 
     if (error) {
