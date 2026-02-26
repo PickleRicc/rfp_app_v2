@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Tier 1 Enterprise Intake** - One-time onboarding captures stable corporate data that persists across all proposals (completed 2026-02-23)
 - [x] **Phase 6: Multi-Document Ingestion** - System accepts full solicitation packages, classifies documents, and reconciles amendments (completed 2026-02-24)
 - [x] **Phase 7: Compliance Extraction** - AI extracts Section L/M requirements and admin data from reconciled package (completed 2026-02-25)
-- [ ] **Phase 8: Tier 2 Dynamic Data Call** - System generates RFP-specific intake form driven by extraction results
+- [x] **Phase 8: Tier 2 Dynamic Data Call** - System generates RFP-specific intake form driven by extraction results (completed 2026-02-26)
 - [ ] **Phase 9: Draft Generation** - System produces compliant first draft from Tier 1 + Tier 2 + extraction data
 - [ ] **Phase 10: End-to-End Validation** - System successfully processes both ARL and METC test packages end-to-end
 
@@ -122,7 +122,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 | 5. Tier 1 Enterprise Intake | 3/3 | Complete    | 2026-02-23 |
 | 6. Multi-Document Ingestion | 5/5 | Complete   | 2026-02-24 |
 | 7. Compliance Extraction | 2/2 | Complete   | 2026-02-25 |
-| 8. Tier 2 Dynamic Data Call | 2/3 | In Progress|  |
+| 8. Tier 2 Dynamic Data Call | 3/3 | Complete   | 2026-02-26 |
 | 9. Draft Generation | 0/TBD | Not started | - |
 | 10. End-to-End Validation | 0/TBD | Not started | - |
 

@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 8 of 10 (Tier 2 Dynamic Data Call)
-Plan: 2 of 3 in current phase
-Status: Phase 8 Plan 02 COMPLETE — Data Call accordion UI (DataCallView container, OpportunityDetailsSection, PastPerformanceSection, TechnicalApproachSection). Plan 03 (Key Personnel + Compliance Verification) next.
-Last activity: 2026-02-25 — Phase 8 P02: Data Call accordion UI complete.
+Plan: 3 of 3 in current phase (checkpoint — awaiting human verification)
+Status: Phase 8 Plan 03 CHECKPOINT — KeyPersonnelSection + ComplianceVerificationSection + Complete Data Call validation gate built. Awaiting human verification of full Data Call flow (Task 3).
+Last activity: 2026-02-26 — Phase 8 P03: Key Personnel + Compliance Verification sections + validation gate complete; at checkpoint.
 
-Progress: [████████░░] ~62%
+Progress: [█████████░] ~68%
 
 ## Performance Metrics
 
@@ -30,7 +30,7 @@ Progress: [████████░░] ~62%
 | 5. Tier 1 Enterprise Intake | 3 done | ~38 min | ~13 min |
 | 6. Multi-Document Ingestion | 5 done | ~25 min | ~5 min |
 | 7. Compliance Extraction | 2 of 2 done | ~12 min | ~6 min |
-| 8. Tier 2 Dynamic Data Call | 1 done | ~6 min | ~6 min |
+| 8. Tier 2 Dynamic Data Call | 3 in progress (checkpoint) | ~14 min | ~7 min |
 | 9. Draft Generation | TBD | - | - |
 | 10. End-to-End Validation | TBD | - | - |
 
@@ -99,6 +99,11 @@ Recent decisions affecting current work:
 - [Phase 08-02]: DataCallView uses JSON.stringify dirty detection — simple and reliable for nested form state
 - [Phase 08-02]: PastPerformanceSection initializes from section.dynamic_count when data array is empty — respects extraction count on first render
 - [Phase 08-02]: renderSection is a standalone function outside component — avoids hook-in-conditional pattern
+- [Phase 08-03]: FileUploadButton uses hidden input ref.click() pattern — click-to-browse only, no drag-drop per CONTEXT.md
+- [Phase 08-03]: Upload state tracked per field_key in Record<string, boolean> — enables independent spinners per file slot
+- [Phase 08-03]: PersonnelCard manages its own upload state — prevents prop-drilling and keeps card self-contained
+- [Phase 08-03]: validateDataCall runs only on Complete Data Call click — per CONTEXT.md save/submit separation
+- [Phase 08-03]: Sections with validation errors auto-expand on Complete Data Call — surfaces issues without manual navigation
 
 ### Pending Todos
 
@@ -112,9 +117,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-25
-Stopped at: Completed 08-02-PLAN.md — Data Call accordion UI complete
-Resume file: Phase 8 Plan 03 — Key Personnel + Compliance Verification sections
+Last session: 2026-02-26
+Stopped at: 08-03-PLAN.md Task 3 — checkpoint:human-verify for full Data Call flow
+Resume file: Phase 8 Plan 03 Task 3 — after human verifies full Data Call flow
 
 ---
-*State updated: 2026-02-25 (Phase 8 P02 complete — Data Call accordion UI: DataCallView, OpportunityDetailsSection, PastPerformanceSection, TechnicalApproachSection, Data Call tab on solicitation page)*
+*State updated: 2026-02-26 (Phase 8 P03 checkpoint — KeyPersonnelSection, ComplianceVerificationSection, validation gate, summary panel built; awaiting human verification)*

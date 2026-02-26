@@ -37,9 +37,9 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 - [x] **TIER2-01**: System auto-generates RFP-specific data call form based on extraction results (fields vary per RFP)
 - [x] **TIER2-02**: User can confirm opportunity details (prime/sub role, teaming partners, contract type, NAICS size confirmation)
 - [x] **TIER2-03**: User can provide past performance references (count driven by RFP-extracted requirements)
-- [ ] **TIER2-04**: User can upload key personnel resumes, certifications, and Letters of Commitment
+- [x] **TIER2-04**: User can upload key personnel resumes, certifications, and Letters of Commitment
 - [x] **TIER2-05**: User can provide technical approach inputs (summary of approach, tools/platforms, staffing model, assumptions, risks)
-- [ ] **TIER2-06**: System collects compliance verification data (org certs, individual certs, facility clearance, NIST 800-171 score, required attachments)
+- [x] **TIER2-06**: System collects compliance verification data (org certs, individual certs, facility clearance, NIST 800-171 score, required attachments)
 
 ### Draft Generation (DRAFT)
 
@@ -117,9 +117,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TIER2-01 | Phase 8 | Complete |
 | TIER2-02 | Phase 8 | Complete |
 | TIER2-03 | Phase 8 | Complete |
-| TIER2-04 | Phase 8 | Pending |
+| TIER2-04 | Phase 8 | Complete |
 | TIER2-05 | Phase 8 | Complete |
-| TIER2-06 | Phase 8 | Pending |
+| TIER2-06 | Phase 8 | Complete |
 | DRAFT-01 | Phase 9 | Pending |
 | DRAFT-02 | Phase 9 | Pending |
 | DRAFT-03 | Phase 9 | Pending |
