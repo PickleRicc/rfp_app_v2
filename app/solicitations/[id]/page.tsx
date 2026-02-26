@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Loader2,
   ClipboardCheck,
+  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCompany } from "@/lib/context/CompanyContext";
@@ -22,6 +23,7 @@ import { ReconciliationView } from "@/app/components/solicitation/Reconciliation
 import { TemplateFieldsPanel } from "@/app/components/solicitation/TemplateFieldsPanel";
 import { ComplianceExtractionView } from "@/app/components/solicitation/ComplianceExtractionView";
 import { DataCallView } from "@/app/components/datacall/DataCallView";
+import { DraftGenerationView } from "@/app/components/draft/DraftGenerationView";
 import type {
   SolicitationWithDocuments,
   SolicitationDocument,
@@ -88,6 +90,11 @@ const TABS: Tab[] = [
     id: "data-call",
     label: "Data Call",
     icon: <ClipboardCheck className="h-4 w-4" />,
+  },
+  {
+    id: "draft",
+    label: "Draft",
+    icon: <Send className="h-4 w-4" />,
   },
 ];
 
@@ -459,6 +466,15 @@ export default function SolicitationDetailPage() {
           <DataCallView
             solicitationId={solicitation.id}
             companyId={selectedCompanyId}
+          />
+        )}
+
+        {/* ======= DRAFT TAB ======= */}
+        {activeTab === "draft" && selectedCompanyId && (
+          <DraftGenerationView
+            solicitationId={solicitationId}
+            companyId={selectedCompanyId}
+            onTabChange={setActiveTab}
           />
         )}
       </Tier1TabLayout>
