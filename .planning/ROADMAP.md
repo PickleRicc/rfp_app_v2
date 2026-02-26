@@ -99,7 +99,11 @@ Plans:
   4. Each evaluation factor identified in Section M has corresponding content in the draft with explicit responsive coverage
   5. Draft content fits within page limits extracted from the RFP; system flags sections approaching or exceeding limits
   6. Required fill-in templates (staffing plans, cost summaries, past performance forms) are populated with customer data mapped to the correct template fields
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 09-01-PLAN.md — Database schema, TypeScript types, strategy confirmation API, draft trigger + download endpoints
+- [ ] 09-02-PLAN.md — Inngest draft generation pipeline with AI prompt assembly, per-volume DOCX generation, page limit targeting, compliance matrix
+- [ ] 09-03-PLAN.md — Draft tab UI: strategy confirmation gate, generation progress, volume preview + download, page limit bars, human verification
 
 ### Phase 10: End-to-End Validation
 **Goal**: Both ARL and METC test packages pass through the complete pipeline and produced drafts meet the acceptance criteria defined in the Blueprint
