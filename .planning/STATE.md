@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 9 of 10 (Draft Generation) — COMPLETE
-Plan: 3 of 3 in current phase — COMPLETE
-Status: Phase 9 fully complete. All 3 plans done. Checkpoint:human-verify approved. Array.isArray bug fix applied and committed. Ready for Phase 10.
-Last activity: 2026-02-26 — Phase 9 P03 complete: Draft tab UI verified end-to-end by user; Array.isArray guard fix applied post-checkpoint.
+Phase: 9.1 (Audit Gap Closure) — IN PROGRESS
+Plan: 1 of 3 in current phase — COMPLETE
+Status: Phase 9.1 Plan 01 complete. Phase 7 VERIFICATION.md created (EXTRACT-01 through EXTRACT-04 verified). Two code quality gaps closed: field_label in draft generator SELECT, TIER1_INCOMPLETE UX in SolicitationUploader.
+Last activity: 2026-02-26 — Phase 9.1 P01 complete: 07-VERIFICATION.md written with real line-number evidence; proposal-draft-generator.ts and SolicitationUploader.tsx fixed.
 
-Progress: [█████████░] ~90%
+Progress: [█████████░] ~91%
 
 ## Performance Metrics
 
@@ -33,6 +33,8 @@ Progress: [█████████░] ~90%
 | 8. Tier 2 Dynamic Data Call | 3 of 3 done | ~14 min | ~7 min |
 | 9. Draft Generation | 3 done | ~8 min | ~3 min |
 | 10. End-to-End Validation | TBD | - | - |
+
+| Phase 9.1 P01 | 3 | 3 tasks | 3 files |
 
 *Updated after each plan completion*
 | Phase 05 P01 | 15 | 3 tasks | 4 files |
@@ -118,6 +120,9 @@ Recent decisions affecting current work:
 - [Phase 09-03]: DraftGenerationView holds view state machine — StrategyConfirmation is a pure display component that calls onGenerationStarted callback
 - [Phase 09-03]: Polling uses useRef for interval ID (not useState) — avoids stale closure issues and enables reliable cleanup
 - [Phase 09-03]: Array.isArray guard required before .length on JSONB-sourced fields — teaming_partners and enterprise_win_themes can arrive as null from Supabase JSONB columns
+- [Phase 9.1-01]: field_label fallback to field_name — row.field_label || row.field_name handles null field_label rows defensively without breaking existing draft generation
+- [Phase 9.1-01]: ReactNode error state for SolicitationUploader — typed as ReactNode (not string) to support JSX clickable link in TIER1_INCOMPLETE handler; generic string errors still work via fallback path
+- [Phase 9.1-01]: Plain <a> tag for /company/profile link — no next/link import needed for simple href navigation; compatible with existing component imports
 
 ### Pending Todos
 
@@ -132,8 +137,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 09-03-PLAN.md — Phase 9 fully complete. Ready for Phase 10 end-to-end validation.
-Resume file: .planning/phases/10-end-to-end-validation/ (Phase 10, Plan 01)
+Stopped at: Completed 9.1-01-PLAN.md — Phase 7 VERIFICATION.md created, two code quality gaps closed. Continue with Phase 9.1 Plan 02.
+Resume file: .planning/phases/9.1-audit-gap-closure/ (Phase 9.1, Plan 02)
 
 ---
-*State updated: 2026-02-26 (Phase 9 P03 COMPLETE — checkpoint:human-verify approved, Array.isArray bug fix committed, Phase 9 all 3 plans done)*
+*State updated: 2026-02-26 (Phase 9.1 P01 COMPLETE — 07-VERIFICATION.md created, field_label fix and TIER1_INCOMPLETE UX fix committed)*

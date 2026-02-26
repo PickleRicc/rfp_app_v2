@@ -118,7 +118,7 @@ Plans:
   4. DRAFT-06 status resolved — owner confirms cost template [PLACEHOLDER] behavior is acceptable, or cost data injection is added
 **Plans**: 2 plans
 Plans:
-- [ ] 9.1-01-PLAN.md — Phase 7 VERIFICATION.md, draft generator field_label fix, SolicitationUploader TIER1_INCOMPLETE UX
+- [x] 9.1-01-PLAN.md — Phase 7 VERIFICATION.md, draft generator field_label fix, SolicitationUploader TIER1_INCOMPLETE UX
 - [ ] 9.1-02-PLAN.md — DRAFT-06 resolution decision (checkpoint) + REQUIREMENTS.md update
 
 ### Phase 10: End-to-End Validation
