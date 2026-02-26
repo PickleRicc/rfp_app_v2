@@ -119,8 +119,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: 08-03-PLAN.md — COMPLETE (human verification APPROVED, Phase 8 done)
-Resume file: Phase 9 — Draft Generation (next phase)
+Stopped at: Phase 9 context gathered
+Resume file: .planning/phases/09-draft-generation/09-CONTEXT.md
 
 ---
-*State updated: 2026-02-26 (Phase 8 COMPLETE — all 3 plans done; human verification approved; Phase 9 Draft Generation ready to begin)*
+*State updated: 2026-02-26 (Phase 9 context gathered — strategy gate, generation UX, content style, page limit decisions captured)*
