@@ -275,7 +275,7 @@ export function StrategyConfirmation({
           <FieldRow
             label="Teaming Partners"
             value={
-              strategy.teaming_partners.length > 0
+              Array.isArray(strategy.teaming_partners) && strategy.teaming_partners.length > 0
                 ? strategy.teaming_partners.join(", ")
                 : <span className="italic text-muted-foreground">None</span>
             }
@@ -288,7 +288,7 @@ export function StrategyConfirmation({
         icon={<Trophy className="h-4 w-4" />}
         title="Win Themes & Differentiators"
       >
-        {strategy.enterprise_win_themes.length > 0 ? (
+        {Array.isArray(strategy.enterprise_win_themes) && strategy.enterprise_win_themes.length > 0 ? (
           <ul className="space-y-1.5">
             {strategy.enterprise_win_themes.map((theme, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-foreground">

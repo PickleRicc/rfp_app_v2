@@ -135,12 +135,12 @@ async function assembleStrategyConfirmation(
     legal_name:                 company?.legal_name ?? '',
     uei_number:                 company?.uei_number ?? '',
     cage_code:                  company?.cage_code ?? '',
-    enterprise_win_themes:      (company?.enterprise_win_themes as string[] | null) ?? [],
+    enterprise_win_themes:      Array.isArray(company?.enterprise_win_themes) ? company.enterprise_win_themes as string[] : [],
     key_differentiators_summary: (company?.key_differentiators_summary as string | null) ?? null,
 
     // Tier 2 opportunity details
     prime_or_sub:               oppDetails.prime_or_sub ?? null,
-    teaming_partners:           oppDetails.teaming_partners ?? [],
+    teaming_partners:           Array.isArray(oppDetails.teaming_partners) ? oppDetails.teaming_partners : [],
     contract_type:              oppDetails.contract_type ?? null,
     naics_code:                 oppDetails.naics_code ?? null,
     set_aside:                  oppDetails.set_aside ?? null,
