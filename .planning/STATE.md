@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Generated proposals indistinguishable from expert government proposal writers — the kind that win contracts.
-**Current focus:** Phase 8 — Tier 2 Dynamic Data Call
+**Current focus:** Phase 10 — End-to-End Validation
 
 ## Current Position
 
-Phase: 9 of 10 (Draft Generation) — IN PROGRESS
-Plan: 3 of 3 in current phase — AWAITING CHECKPOINT
-Status: Phase 9 P03 Tasks 1-2 COMPLETE — Draft tab UI components built and integrated; awaiting human-verify checkpoint (Task 3).
-Last activity: 2026-02-26 — Phase 9 P03: StrategyConfirmation, DraftGenerationView components, Draft tab wired into solicitation detail page.
+Phase: 9 of 10 (Draft Generation) — COMPLETE
+Plan: 3 of 3 in current phase — COMPLETE
+Status: Phase 9 fully complete. All 3 plans done. Checkpoint:human-verify approved. Array.isArray bug fix applied and committed. Ready for Phase 10.
+Last activity: 2026-02-26 — Phase 9 P03 complete: Draft tab UI verified end-to-end by user; Array.isArray guard fix applied post-checkpoint.
 
-Progress: [█████████░] ~80%
+Progress: [█████████░] ~90%
 
 ## Performance Metrics
 
@@ -31,7 +31,7 @@ Progress: [█████████░] ~80%
 | 6. Multi-Document Ingestion | 5 done | ~25 min | ~5 min |
 | 7. Compliance Extraction | 2 of 2 done | ~12 min | ~6 min |
 | 8. Tier 2 Dynamic Data Call | 3 of 3 done | ~14 min | ~7 min |
-| 9. Draft Generation | TBD | - | - |
+| 9. Draft Generation | 3 done | ~8 min | ~3 min |
 | 10. End-to-End Validation | TBD | - | - |
 
 *Updated after each plan completion*
@@ -49,7 +49,7 @@ Progress: [█████████░] ~80%
 | Phase 08 P02 | 4 | 2 tasks | 5 files |
 | Phase 08 P03 | 8 | 2 tasks + human-verify | 3 files |
 | Phase 09 P02 | 6 | 2 tasks | 3 files |
-| Phase 09 P03 | 4 | 2 tasks | 3 files |
+| Phase 09 P03 | 4 | 3 tasks + human-verify | 5 files |
 
 ## Accumulated Context
 
@@ -117,6 +117,7 @@ Recent decisions affecting current work:
 - [Phase 09-02]: DOCX upload failure is non-fatal — volume marked 'completed' with content_markdown for in-app preview; error_message documents storage failure
 - [Phase 09-03]: DraftGenerationView holds view state machine — StrategyConfirmation is a pure display component that calls onGenerationStarted callback
 - [Phase 09-03]: Polling uses useRef for interval ID (not useState) — avoids stale closure issues and enables reliable cleanup
+- [Phase 09-03]: Array.isArray guard required before .length on JSONB-sourced fields — teaming_partners and enterprise_win_themes can arrive as null from Supabase JSONB columns
 
 ### Pending Todos
 
@@ -131,8 +132,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 09-03-PLAN.md Tasks 1-2, awaiting checkpoint:human-verify for Task 3
-Resume file: .planning/phases/09-draft-generation/09-03-PLAN.md (Task 3 checkpoint)
+Stopped at: Completed 09-03-PLAN.md — Phase 9 fully complete. Ready for Phase 10 end-to-end validation.
+Resume file: .planning/phases/10-end-to-end-validation/ (Phase 10, Plan 01)
 
 ---
-*State updated: 2026-02-26 (Phase 9 P03 Tasks 1-2 COMPLETE — StrategyConfirmation component, DraftGenerationView component, Draft tab added to solicitation detail page; awaiting human-verify checkpoint)*
+*State updated: 2026-02-26 (Phase 9 P03 COMPLETE — checkpoint:human-verify approved, Array.isArray bug fix committed, Phase 9 all 3 plans done)*

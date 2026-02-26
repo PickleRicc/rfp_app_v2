@@ -57,8 +57,8 @@ completed: 2026-02-26
 - **Duration:** ~4 min
 - **Started:** 2026-02-26T02:16:59Z
 - **Completed:** 2026-02-26T02:21:00Z
-- **Tasks:** 2 of 3 complete (Task 3 = checkpoint:human-verify, awaiting user)
-- **Files modified:** 3
+- **Tasks:** 3 of 3 complete (Task 3 = checkpoint:human-verify — approved by user)
+- **Files modified:** 5
 
 ## Accomplishments
 
@@ -72,14 +72,16 @@ Each task was committed atomically:
 
 1. **Task 1: StrategyConfirmation and DraftGenerationView components** - `509170a` (feat)
 2. **Task 2: Add Draft tab to solicitation detail page** - `926b147` (feat)
+3. **Task 3: Verify strategy confirmation gate and draft generation flow** - checkpoint:human-verify — APPROVED by user
 
-**Task 3:** Checkpoint:human-verify — awaiting user verification
+**Post-checkpoint fix:** `5b70ba0` (fix — Array.isArray guard on teaming_partners and enterprise_win_themes)
 
 ## Files Created/Modified
 
-- `app/components/draft/StrategyConfirmation.tsx` — read-only strategy confirmation screen with Confirm & Generate
+- `app/components/draft/StrategyConfirmation.tsx` — read-only strategy confirmation screen with Confirm & Generate (+ Array.isArray guard post-checkpoint)
 - `app/components/draft/DraftGenerationView.tsx` — full draft generation state machine with polling, progress, preview, download
 - `app/solicitations/[id]/page.tsx` — Draft tab added with DraftGenerationView integration
+- `app/api/solicitations/[id]/draft/route.ts` — Array.isArray guard on teaming_partners and enterprise_win_themes in assembler
 
 ## Decisions Made
 
@@ -90,19 +92,41 @@ Each task was committed atomically:
 
 ## Deviations from Plan
 
-None — plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] Array.isArray guard on teaming_partners and enterprise_win_themes**
+- **Found during:** Task 3 verification (post-checkpoint, during user testing)
+- **Issue:** Runtime TypeError when `teaming_partners` from a JSONB column arrived as `null` or a non-array value — `.length` call threw immediately, crashing StrategyConfirmation render
+- **Fix:** Added `Array.isArray()` guard before `.length` check in both `StrategyConfirmation.tsx` and the strategy assembler in `route.ts`
+- **Files modified:** `app/components/draft/StrategyConfirmation.tsx`, `app/api/solicitations/[id]/draft/route.ts`
+- **Verification:** Runtime error eliminated; component renders correctly when fields are null/non-array
+- **Committed in:** `5b70ba0` (post-checkpoint fix commit)
+
+---
+
+**Total deviations:** 1 auto-fixed (Rule 1 — bug)
+**Impact on plan:** Defensive null guard necessary for correctness with nullable JSONB fields. No scope creep.
 
 ## Issues Encountered
 
 None. Pre-existing TypeScript errors in route handlers (params need await in Next.js 16) are documented in STATE.md and were not caused by this plan.
 
-## Self-Check: PASSED
+## Next Phase Readiness
 
-- `app/components/draft/StrategyConfirmation.tsx` — FOUND (280+ lines, includes Confirm & Generate and Regenerate Draft)
+- Complete draft generation UI flow verified end-to-end by user — strategy gate, progress polling, volume preview, DOCX download, compliance matrix all functional
+- Array.isArray guard applied and confirmed no runtime crashes on nullable JSONB fields
+- Phase 9 all 3 plans complete — ready for Phase 10 end-to-end validation
+
+## Self-Check: PASSED (UPDATED AFTER CHECKPOINT APPROVAL)
+
+- `app/components/draft/StrategyConfirmation.tsx` — FOUND (280+ lines, includes Confirm & Generate, Regenerate Draft, Array.isArray guards)
 - `app/components/draft/DraftGenerationView.tsx` — FOUND (430+ lines, includes state machine, polling, volume cards, compliance matrix)
 - `app/solicitations/[id]/page.tsx` — FOUND (contains DraftGenerationView, Send icon, Draft tab)
+- `app/api/solicitations/[id]/draft/route.ts` — FOUND (contains Array.isArray guard on teaming_partners)
 - Commit `509170a` — FOUND (Task 1)
 - Commit `926b147` — FOUND (Task 2)
+- Commit `5b70ba0` — FOUND (post-checkpoint bug fix)
+- Checkpoint human-verify — APPROVED by user
 - No TypeScript errors in new files (confirmed via tsc --noEmit --skipLibCheck filtered output)
 
 ---

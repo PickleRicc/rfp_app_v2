@@ -102,8 +102,8 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 09-01-PLAN.md — Database schema, TypeScript types, strategy confirmation API, draft trigger + download endpoints
-- [ ] 09-02-PLAN.md — Inngest draft generation pipeline with AI prompt assembly, per-volume DOCX generation, page limit targeting, compliance matrix
-- [ ] 09-03-PLAN.md — Draft tab UI: strategy confirmation gate, generation progress, volume preview + download, page limit bars, human verification
+- [x] 09-02-PLAN.md — Inngest draft generation pipeline with AI prompt assembly, per-volume DOCX generation, page limit targeting, compliance matrix
+- [x] 09-03-PLAN.md — Draft tab UI: strategy confirmation gate, generation progress, volume preview + download, page limit bars, human verification
 
 ### Phase 10: End-to-End Validation
 **Goal**: Both ARL and METC test packages pass through the complete pipeline and produced drafts meet the acceptance criteria defined in the Blueprint
