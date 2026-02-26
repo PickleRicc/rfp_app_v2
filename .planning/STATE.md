@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 9 of 10 (Draft Generation) — IN PROGRESS
-Plan: 1 of 3 in current phase — COMPLETE
-Status: Phase 9 P01 COMPLETE — SQL schema + TypeScript types + REST API endpoints for draft generation data layer.
-Last activity: 2026-02-26 — Phase 9 P01 COMPLETE: proposal_drafts/draft_volumes tables, StrategyConfirmation types, GET/POST draft endpoints, DOCX download endpoint.
+Plan: 3 of 3 in current phase — AWAITING CHECKPOINT
+Status: Phase 9 P03 Tasks 1-2 COMPLETE — Draft tab UI components built and integrated; awaiting human-verify checkpoint (Task 3).
+Last activity: 2026-02-26 — Phase 9 P03: StrategyConfirmation, DraftGenerationView components, Draft tab wired into solicitation detail page.
 
 Progress: [█████████░] ~80%
 
@@ -48,6 +48,7 @@ Progress: [█████████░] ~80%
 | Phase 08 P01 | 6 | 2 tasks | 5 files |
 | Phase 08 P02 | 4 | 2 tasks | 5 files |
 | Phase 08 P03 | 8 | 2 tasks + human-verify | 3 files |
+| Phase 09 P03 | 4 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,8 @@ Recent decisions affecting current work:
 - [Phase 09-01]: Default 4-volume fallback (Technical Approach, Management, Past Performance, Cost/Price) when Section L extraction has no volume_structure
 - [Phase 09-01]: Volume download verifies company ownership via JOIN (draft_volumes → proposal_drafts.company_id) — prevents cross-company data access
 - [Phase 09-01]: Strategy confirmation assembled live at GET time (not cached) — always reflects latest Tier 1/Tier 2/extraction state
+- [Phase 09-03]: DraftGenerationView holds view state machine — StrategyConfirmation is a pure display component that calls onGenerationStarted callback
+- [Phase 09-03]: Polling uses useRef for interval ID (not useState) — avoids stale closure issues and enables reliable cleanup
 
 ### Pending Todos
 
@@ -123,8 +126,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed Phase 9 Plan 01 (09-01-PLAN.md)
-Resume file: .planning/phases/09-draft-generation/09-02-PLAN.md
+Stopped at: Completed 09-03-PLAN.md Tasks 1-2, awaiting checkpoint:human-verify for Task 3
+Resume file: .planning/phases/09-draft-generation/09-03-PLAN.md (Task 3 checkpoint)
 
 ---
-*State updated: 2026-02-26 (Phase 9 P01 COMPLETE — SQL schema, TypeScript types, strategy confirmation GET, draft trigger POST, DOCX download endpoint)*
+*State updated: 2026-02-26 (Phase 9 P03 Tasks 1-2 COMPLETE — StrategyConfirmation component, DraftGenerationView component, Draft tab added to solicitation detail page; awaiting human-verify checkpoint)*

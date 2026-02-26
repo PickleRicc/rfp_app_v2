@@ -127,7 +127,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8 → 9 → 10
 | 6. Multi-Document Ingestion | 5/5 | Complete   | 2026-02-24 |
 | 7. Compliance Extraction | 2/2 | Complete   | 2026-02-25 |
 | 8. Tier 2 Dynamic Data Call | 3/3 | Complete   | 2026-02-26 |
-| 9. Draft Generation | 1/3 | In progress | - |
+| 9. Draft Generation | 2/3 | In Progress|  |
 | 10. End-to-End Validation | 0/TBD | Not started | - |
 
 ---
