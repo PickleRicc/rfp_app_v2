@@ -6,6 +6,7 @@ import { rfpResponseGenerator } from '@/lib/inngest/functions/stage2-response-ge
 import { solicitationDocumentClassifier } from '@/lib/inngest/functions/solicitation-classifier';
 import { solicitationReconciler } from '@/lib/inngest/functions/solicitation-reconciler';
 import { solicitationComplianceExtractor } from '@/lib/inngest/functions/solicitation-compliance-extractor';
+import { proposalDraftGenerator } from '@/lib/inngest/functions/proposal-draft-generator';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -16,5 +17,6 @@ export const { GET, POST, PUT } = serve({
     solicitationDocumentClassifier,
     solicitationReconciler,
     solicitationComplianceExtractor,
+    proposalDraftGenerator,
   ],
 });
