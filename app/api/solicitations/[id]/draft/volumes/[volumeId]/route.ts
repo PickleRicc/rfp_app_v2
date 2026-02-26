@@ -116,7 +116,7 @@ export async function GET(
 
     // Download DOCX from Supabase storage
     const { data: fileData, error: storageError } = await supabase.storage
-      .from('draft-volumes')
+      .from('proposal-drafts')
       .download(volume.file_path);
 
     if (storageError || !fileData) {
