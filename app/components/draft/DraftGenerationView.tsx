@@ -204,11 +204,42 @@ function VolumeStatusIcon({ status }: { status: VolumeStatus }) {
 function VolumeCard({
   volume,
   solicitationId,
+  companyId,
 }: {
   volume: DraftVolume;
   solicitationId: string;
+  companyId: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(
+        `/api/solicitations/${solicitationId}/draft/volumes/${volume.id}`,
+        { headers: { "X-Company-Id": companyId } }
+      );
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeName = (volume.volume_name as string)
+        .replace(/[^a-zA-Z0-9 _\-]/g, "")
+        .trim()
+        .replace(/\s+/g, "_");
+      a.href = url;
+      a.download = `${safeName}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("DOCX download error:", err);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (volume.status === "failed") {
     return (
@@ -235,15 +266,14 @@ function VolumeCard({
       <div className="px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <h4 className="font-semibold text-foreground">{volume.volume_name}</h4>
-          <a
-            href={`/api/solicitations/${solicitationId}/draft/volumes/${volume.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" />
-            Download DOCX
-          </a>
+            {downloading ? "Downloading..." : "Download DOCX"}
+          </button>
         </div>
 
         {/* Page limit bar */}
@@ -365,11 +395,13 @@ function GeneratingView({ volumes }: { volumes: DraftVolume[] }) {
 function CompleteView({
   volumes,
   solicitationId,
+  companyId,
   onRegenerate,
   regenerating,
 }: {
   volumes: DraftVolume[];
   solicitationId: string;
+  companyId: string;
   onRegenerate: () => void;
   regenerating: boolean;
 }) {
@@ -430,6 +462,7 @@ function CompleteView({
             key={vol.id}
             volume={vol}
             solicitationId={solicitationId}
+            companyId={companyId}
           />
         ))}
       </div>
@@ -650,6 +683,7 @@ export function DraftGenerationView({
     <CompleteView
       volumes={volumes}
       solicitationId={solicitationId}
+      companyId={companyId}
       onRegenerate={handleRegenerate}
       regenerating={regenerating}
     />
