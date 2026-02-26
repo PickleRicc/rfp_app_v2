@@ -48,7 +48,8 @@ Requirements for production readiness per ClicklessAI Blueprint and consultant (
 - [x] **DRAFT-03**: Draft follows volume structure specified in Section L of the specific RFP
 - [x] **DRAFT-04**: Draft addresses every evaluation factor identified in Section M
 - [x] **DRAFT-05**: Draft respects all formatting constraints from RFP (page limits, font sizes, margin requirements)
-- [ ] **DRAFT-06**: System identifies required fill-in templates and maps customer data to correct fields
+- [x] **DRAFT-06**: System identifies required fill-in templates and maps customer data to correct fields
+  - *Note: Cost/price [PLACEHOLDER] behavior accepted — narrative framework populated, financial numbers require human input from approved rate tables. Staffing and past performance forms ARE fully populated from Tier 2 data. Actual dollar amounts require approved rate tables/GSA schedules (manual by design). ADV-06 "Pricing calculation engine" is explicitly deferred to future scope.*
 
 ### End-to-End Validation (VALID)
 
@@ -125,7 +126,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DRAFT-03 | Phase 9 | Complete |
 | DRAFT-04 | Phase 9 | Complete |
 | DRAFT-05 | Phase 9 | Complete |
-| DRAFT-06 | Phase 9 + 9.1 (resolution) | Pending |
+| DRAFT-06 | Phase 9 + 9.1 (resolution) | Complete |
 | VALID-01 | Phase 10 | Pending |
 | VALID-02 | Phase 10 | Pending |
 | VALID-03 | Phase 10 | Pending |
@@ -135,9 +136,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v2.0 requirements: 32 total (28 original + 4 VALID)
 - Mapped to phases: 32
 - Unmapped: 0
-- Complete: 23
-- Pending: 9 (EXTRACT-01–04 verification, DRAFT-06 resolution, VALID-01–04)
+- Complete: 28 (all TIER1, INGEST, EXTRACT, TIER2, DRAFT resolved)
+- Pending: 4 (VALID-01–04, Phase 10 not started)
 
 ---
 *Requirements defined: 2026-02-23*
-*Last updated: 2026-02-26 — traceability updated after v2.0 audit gap closure*
+*Last updated: 2026-02-26 — DRAFT-06 resolved (accept-placeholders decision); EXTRACT-01–04 verified (Phase 9.1-01); all pre-VALID requirements complete*
