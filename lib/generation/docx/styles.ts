@@ -1,10 +1,15 @@
 import { IStylesOptions, AlignmentType, BorderStyle } from 'docx';
+import { type ProposalColorPalette, DEFAULT_PALETTE } from './colors';
 
 /**
- * Professional proposal document styles following the Proposal Response Generation Framework
- * Part 3: Writing Style System
+ * Build professional proposal document styles following the Proposal Response Generation Framework
+ * Part 3: Writing Style System.
+ *
+ * Accepts an optional color palette to brand all styles with company colors.
+ * Falls back to DEFAULT_PALETTE (blue) when no palette is provided.
  */
-export const PROPOSAL_STYLES: IStylesOptions = {
+export function buildProposalStyles(palette: ProposalColorPalette = DEFAULT_PALETTE): IStylesOptions {
+  return {
   paragraphStyles: [
     // Heading hierarchy (Part 3.1)
     {
@@ -15,7 +20,7 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       run: {
         size: 32, // 16pt
         bold: true,
-        color: '2563eb', // Blue
+        color: palette.primary, // Brand primary
       },
       paragraph: {
         spacing: { before: 480, after: 120 },
@@ -31,7 +36,7 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       run: {
         size: 28, // 14pt
         bold: true,
-        color: '1e40af', // Darker blue
+        color: palette.primaryDark, // Brand dark
       },
       paragraph: {
         spacing: { before: 360, after: 120 },
@@ -122,32 +127,32 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       paragraph: {
         border: {
           top: {
-            color: '2563eb',
+            color: palette.primary,
             space: 1,
             style: BorderStyle.SINGLE,
             size: 6,
           },
           bottom: {
-            color: '2563eb',
+            color: palette.primary,
             space: 1,
             style: BorderStyle.SINGLE,
             size: 6,
           },
           left: {
-            color: '2563eb',
+            color: palette.primary,
             space: 1,
             style: BorderStyle.SINGLE,
             size: 6,
           },
           right: {
-            color: '2563eb',
+            color: palette.primary,
             space: 1,
             style: BorderStyle.SINGLE,
             size: 6,
           },
         },
         shading: {
-          fill: 'EFF6FF', // Light blue background
+          fill: palette.primaryLight, // Brand light background
         },
         spacing: { before: 120, after: 120 },
       },
@@ -160,7 +165,7 @@ export const PROPOSAL_STYLES: IStylesOptions = {
         size: 20,
         bold: true,
         font: 'Arial',
-        color: '2563eb',
+        color: palette.primary,
       },
       paragraph: {
         spacing: { before: 120, after: 60 },
@@ -178,14 +183,14 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       paragraph: {
         border: {
           left: {
-            color: '2563eb',
+            color: palette.primary,
             space: 1,
             style: BorderStyle.SINGLE,
             size: 12,
           },
         },
         shading: {
-          fill: 'F0F9FF',
+          fill: palette.primaryLight,
         },
         spacing: { before: 240, after: 240 },
         indent: { left: 240 },
@@ -199,7 +204,7 @@ export const PROPOSAL_STYLES: IStylesOptions = {
         size: 22,
         bold: true,
         font: 'Arial',
-        color: '2563eb',
+        color: palette.primary,
       },
       paragraph: {
         spacing: { before: 60, after: 60 },
@@ -294,7 +299,7 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       run: {
         size: 32, // 16pt
         bold: true,
-        color: '2563eb', // Blue
+        color: palette.primary, // Brand primary
         font: 'Arial',
       },
       paragraph: {
@@ -310,7 +315,7 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       run: {
         size: 32, // 16pt
         bold: true,
-        color: '2563eb', // Blue
+        color: palette.primary, // Brand primary
         font: 'Arial',
       },
       paragraph: {
@@ -327,7 +332,7 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       run: {
         size: 28, // 14pt
         bold: true,
-        color: '1e40af', // Darker blue
+        color: palette.primaryDark, // Brand dark
         font: 'Arial',
       },
       paragraph: {
@@ -350,14 +355,14 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       paragraph: {
         border: {
           left: {
-            color: '2563eb',
+            color: palette.primary,
             space: 1,
             style: BorderStyle.SINGLE,
             size: 6,
           },
         },
         shading: {
-          fill: 'F0F9FF', // Light blue background
+          fill: palette.primaryLight, // Light blue background
         },
         spacing: { before: 120, after: 120 },
         indent: { left: 360 },
@@ -507,7 +512,7 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       run: {
         bold: true,
         italics: true,
-        color: '2563eb',
+        color: palette.primary,
       },
     },
     {
@@ -542,9 +547,13 @@ export const PROPOSAL_STYLES: IStylesOptions = {
       basedOn: 'Normal',
       run: {
         italics: true,
-        color: '2563eb',
+        color: palette.primary,
         font: 'Arial',
       },
     },
   ],
-};
+  };
+}
+
+/** Backward-compatible default styles using the blue palette */
+export const PROPOSAL_STYLES: IStylesOptions = buildProposalStyles();

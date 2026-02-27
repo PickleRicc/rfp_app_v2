@@ -288,6 +288,17 @@ export async function POST(
       );
     }
 
+    // Parse optional body for graphicsProfile
+    let graphicsProfile: 'minimal' | 'standard' = 'minimal';
+    try {
+      const body = await request.json().catch(() => ({}));
+      if (body.graphicsProfile === 'standard') {
+        graphicsProfile = 'standard';
+      }
+    } catch {
+      // No body or invalid JSON — use default
+    }
+
     const supabase = getServerClient();
 
     // Verify the solicitation belongs to the requesting company
@@ -423,6 +434,7 @@ export async function POST(
         solicitationId,
         companyId,
         draftId: draft.id,
+        graphicsProfile,
       },
     });
 

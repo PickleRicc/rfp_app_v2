@@ -12,7 +12,8 @@ import {
   ImageRun,
   Table,
 } from 'docx';
-import { PROPOSAL_STYLES } from './styles';
+import { PROPOSAL_STYLES, buildProposalStyles } from './styles';
+import { type ProposalColorPalette } from './colors';
 import { generateCoverLetter } from '../templates/cover-letter';
 import { HEADING_NUMBERING, NUMBERED_LIST_NUMBERING, TABLE_BULLET_NUMBERING, getHeadingNumbering, shouldOmitNumbering } from './numbering';
 import { fetchLogoAsBuffer, COVER_LOGO_SIZE } from './images';
@@ -37,7 +38,8 @@ export async function generateProposalVolume(
   companyData?: any,
   document?: any,
   requirements?: any[],
-  sectionMappings?: any[]
+  sectionMappings?: any[],
+  colorPalette?: ProposalColorPalette
 ): Promise<Document> {
   const volumeTitle = formatVolumeTitle(volumeType);
 
@@ -49,11 +51,13 @@ export async function generateProposalVolume(
   // User can update this placeholder in the generated Word document
   const solicitationNumber = document?.solicitation_number || 'TBD';
 
+  const styles = colorPalette ? buildProposalStyles(colorPalette) : PROPOSAL_STYLES;
+
   const doc = new Document({
     features: {
       updateFields: true, // Enable TOC auto-update on document open
     },
-    styles: PROPOSAL_STYLES,
+    styles,
     numbering: {
       config: [HEADING_NUMBERING, NUMBERED_LIST_NUMBERING, TABLE_BULLET_NUMBERING],
     },
@@ -87,7 +91,7 @@ export async function generateProposalVolume(
         },
         children: [
           // Cover page (Part 1.1)
-          ...generateCoverPage(volumeTitle, companyProfile, logoBuffer),
+          ...generateCoverPage(volumeTitle, companyProfile, logoBuffer, colorPalette),
           new Paragraph({ children: [new PageBreak()] }),
 
           // Cover Letter (Part 1.1)
@@ -120,7 +124,8 @@ export async function generateProposalVolume(
 function generateCoverPage(
   volumeTitle: string,
   companyProfile: any,
-  logoBuffer: Buffer | null
+  logoBuffer: Buffer | null,
+  palette?: ProposalColorPalette
 ): Paragraph[] {
   const paragraphs: Paragraph[] = [];
 
@@ -155,7 +160,7 @@ function generateCoverPage(
           text: 'PROPOSAL RESPONSE',
           size: 48,
           bold: true,
-          color: '2563eb',
+          color: palette?.primary || '2563eb',
           font: 'Arial',
         }),
       ],
@@ -268,32 +273,32 @@ async function generateCoverLetterSection(
 }
 
 /**
- * Generate content sections from structured content
+ * Generate content sections from structured content.
+ *
+ * Accepts three content formats:
+ *   1. Array of Paragraph objects (v1 templates — already styled)
+ *   2. Array of Paragraph | Table objects (v2 markdown parser — styled with tables)
+ *   3. String (legacy fallback — split on double-newlines into BodyText11pt)
  */
-function generateSections(content: any): Paragraph[] {
-  const paragraphs: Paragraph[] = [];
+function generateSections(content: any): (Paragraph | Table)[] {
+  const elements: (Paragraph | Table)[] = [];
 
-  console.log('📝 generateSections called with:', {
+  console.log('generateSections called with:', {
     hasContent: !!content,
     hasSections: !!content?.sections,
     sectionsCount: content?.sections?.length || 0,
   });
 
   if (!content || !content.sections) {
-    console.warn('⚠️  No sections found in content');
-    return paragraphs;
+    console.warn('No sections found in content');
+    return elements;
   }
 
   for (const section of content.sections) {
-    console.log(`\n📄 Processing section: ${section.title}`);
-    console.log(`   Content type: ${Array.isArray(section.content) ? 'Array' : typeof section.content}`);
-    console.log(`   Content length: ${Array.isArray(section.content) ? section.content.length : 'N/A'}`);
-
-    // Section heading (page break is manual before this)
-    // Add hierarchical numbering per Framework Part 3.1
+    // Section heading — add hierarchical numbering per Framework Part 3.1
     const useNumbering = !shouldOmitNumbering(section.title);
-    
-    paragraphs.push(
+
+    elements.push(
       new Paragraph({
         text: section.title,
         heading: HeadingLevel.HEADING_1,
@@ -301,30 +306,35 @@ function generateSections(content: any): Paragraph[] {
       })
     );
 
-    // Section content (will be paragraphs from templates)
+    // Section content
     if (Array.isArray(section.content)) {
-      console.log(`   ✅ Adding ${section.content.length} paragraph objects`);
-      paragraphs.push(...section.content);
+      // v1 (Paragraph[]) and v2 markdown parser ((Paragraph | Table)[]) both land here
+      elements.push(...section.content);
     } else if (typeof section.content === 'string') {
-      console.log(`   ⚠️  Content is string, converting to paragraphs`);
-      // Convert string content to paragraphs
+      // Legacy fallback — plain string content
       const textParagraphs = section.content.split('\n\n').filter((p: string) => p.trim());
       for (const text of textParagraphs) {
-        paragraphs.push(
+        elements.push(
           new Paragraph({
-            text: text.trim(),
+            children: [
+              new TextRun({
+                text: text.trim(),
+                size: 22,
+                font: 'Arial',
+              }),
+            ],
             style: 'BodyText11pt',
             spacing: { after: 240 },
           })
         );
       }
     } else {
-      console.warn(`   ❌ Unknown content type or empty content`);
+      console.warn(`Unknown content type for section "${section.title}"`);
     }
   }
 
-  console.log(`\n📦 Total paragraphs generated: ${paragraphs.length}`);
-  return paragraphs;
+  console.log(`Total elements generated: ${elements.length}`);
+  return elements;
 }
 
 /**

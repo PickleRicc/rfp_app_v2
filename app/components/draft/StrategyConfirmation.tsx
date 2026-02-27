@@ -25,10 +25,12 @@ import type {
 // Types
 // ============================================================
 
+export type GraphicsProfile = "minimal" | "standard";
+
 export interface StrategyConfirmationProps {
   solicitationId: string;
   companyId: string;
-  onGenerationStarted: () => void;
+  onGenerationStarted: (graphicsProfile: GraphicsProfile) => void;
   onTabChange?: (tabId: string) => void;
 }
 
@@ -113,6 +115,7 @@ export function StrategyConfirmation({
   const [error, setError] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  const [graphicsProfile, setGraphicsProfile] = useState<GraphicsProfile>("minimal");
 
   // ============================================================
   // Load strategy confirmation data
@@ -154,13 +157,17 @@ export function StrategyConfirmation({
     try {
       const res = await fetch(`/api/solicitations/${solicitationId}/draft`, {
         method: "POST",
-        headers: { "X-Company-Id": companyId },
+        headers: {
+          "X-Company-Id": companyId,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ graphicsProfile }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `Request failed: ${res.status}`);
       }
-      onGenerationStarted();
+      onGenerationStarted(graphicsProfile);
     } catch (err) {
       setPostError(err instanceof Error ? err.message : "Failed to start generation.");
       setPosting(false);
@@ -438,6 +445,50 @@ export function StrategyConfirmation({
           {strategy.past_performance_count}{" "}
           reference{strategy.past_performance_count !== 1 ? "s" : ""} provided
         </span>
+      </div>
+
+      {/* ---- Graphics Profile ---- */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex items-center gap-2.5 border-b border-border bg-muted/30 px-5 py-3.5">
+          <span className="text-sm font-semibold text-foreground">Graphics Profile</span>
+        </div>
+        <div className="px-5 py-4">
+          <p className="mb-3 text-xs text-muted-foreground">
+            Controls whether diagrams (org charts, timelines, process flows) are embedded in the generated DOCX.
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setGraphicsProfile("minimal")}
+              className={cn(
+                "flex-1 rounded-lg border px-4 py-3 text-left transition-colors",
+                graphicsProfile === "minimal"
+                  ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
+                  : "border-border bg-card hover:bg-muted/50"
+              )}
+            >
+              <p className="text-sm font-semibold text-foreground">Minimal</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Text only — no embedded diagrams
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGraphicsProfile("standard")}
+              className={cn(
+                "flex-1 rounded-lg border px-4 py-3 text-left transition-colors",
+                graphicsProfile === "standard"
+                  ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
+                  : "border-border bg-card hover:bg-muted/50"
+              )}
+            >
+              <p className="text-sm font-semibold text-foreground">Standard</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Includes org charts, timelines, and process flows
+              </p>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ---- Post error ---- */}

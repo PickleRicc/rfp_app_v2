@@ -41,11 +41,21 @@ import {
   generateProposalVolume,
   saveDocxToBuffer,
 } from '@/lib/generation/docx/generator';
+import { parseMarkdownToDocx } from '@/lib/generation/docx/markdown-parser';
+import {
+  validateComplianceLanguage,
+} from '@/lib/generation/content/compliance-language';
+import { buildColorPalette } from '@/lib/generation/docx/colors';
+import {
+  generateVolumeDiagrams,
+  findDiagramInsertionPoint,
+} from '@/lib/generation/docx/diagram-embedder';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
 import type { DataCallResponse } from '@/lib/supabase/tier2-types';
 import type {
   ComplianceExtractionsByCategory,
   ExtractionCategory,
+  SectionMFields,
 } from '@/lib/supabase/compliance-types';
 import type { DraftVolume } from '@/lib/supabase/draft-types';
 
@@ -119,56 +129,8 @@ function deriveVolumeTypeForGenerator(volumeName: string): string {
   return 'technical'; // safe default — the generator handles unknown types gracefully
 }
 
-/**
- * Convert markdown content string to the section structure expected by generateProposalVolume().
- * The existing generator expects: { sections: Array<{ title: string; content: string }> }
- *
- * Strategy: parse H1/H2 headings as section boundaries.
- * Content between headings becomes a single string for each section.
- */
-function markdownToContentStructure(markdownContent: string): { sections: Array<{ title: string; content: string }> } {
-  const lines = markdownContent.split('\n');
-  const sections: Array<{ title: string; content: string }> = [];
-
-  let currentTitle = 'Introduction';
-  let currentLines: string[] = [];
-
-  for (const line of lines) {
-    const h1Match = line.match(/^# (.+)$/);
-    const h2Match = line.match(/^## (.+)$/);
-    const heading = h1Match || h2Match;
-
-    if (heading) {
-      // Save the previous section if it has content
-      if (currentLines.length > 0) {
-        const content = currentLines.join('\n').trim();
-        if (content) {
-          sections.push({ title: currentTitle, content });
-        }
-      }
-
-      currentTitle = heading[1].trim();
-      currentLines = [];
-    } else {
-      currentLines.push(line);
-    }
-  }
-
-  // Save the final section
-  if (currentLines.length > 0) {
-    const content = currentLines.join('\n').trim();
-    if (content) {
-      sections.push({ title: currentTitle, content });
-    }
-  }
-
-  // If no sections were found (flat content with no headings), treat entire content as one section
-  if (sections.length === 0) {
-    sections.push({ title: 'Main Content', content: markdownContent.trim() });
-  }
-
-  return { sections };
-}
+// markdownToContentStructure removed — replaced by parseMarkdownToDocx() from markdown-parser.ts
+// which produces styled Paragraph/Table objects instead of plain strings.
 
 /**
  * Calculate page_limit_status based on page estimate vs. page limit.
@@ -235,14 +197,18 @@ export const proposalDraftGenerator = inngest.createFunction(
   { id: 'proposal-draft-generator' },
   { event: 'proposal.draft.generate' },
   async ({ event, step }) => {
-    const { solicitationId, companyId, draftId } = event.data as {
+    const { solicitationId, companyId, draftId, graphicsProfile } = event.data as {
       solicitationId: string;
       companyId: string;
       draftId: string;
+      graphicsProfile?: 'minimal' | 'standard';
     };
 
     // ─── Step 1: Fetch all data sources ──────────────────────────────────────
-    const { companyProfile, dataCallResponse, extractions, draftVolumes } = await step.run(
+    const {
+      companyProfile, dataCallResponse, extractions, draftVolumes,
+      solicitation, certifications, personnel, pastPerformance, naicsCodes, contractVehicles,
+    } = await step.run(
       'fetch-all-data',
       async () => {
         const supabase = getServerClient();
@@ -319,6 +285,28 @@ export const proposalDraftGenerator = inngest.createFunction(
           }
         }
 
+        // Fetch actual solicitation number for DOCX headers
+        const { data: solicitation } = await supabase
+          .from('solicitations')
+          .select('solicitation_number, title, agency')
+          .eq('id', solicitationId)
+          .maybeSingle();
+
+        // Fetch Tier 1 related collections for appendices
+        const [
+          { data: certifications },
+          { data: personnel },
+          { data: pastPerformance },
+          { data: naicsCodes },
+          { data: contractVehicles },
+        ] = await Promise.all([
+          supabase.from('certifications').select('*').eq('company_id', companyId),
+          supabase.from('personnel').select('*').eq('company_id', companyId),
+          supabase.from('past_performance').select('*').eq('company_id', companyId),
+          supabase.from('naics_codes').select('*').eq('company_id', companyId),
+          supabase.from('contract_vehicles').select('*').eq('company_id', companyId),
+        ]);
+
         // Fetch draft_volumes ordered by volume_order
         const { data: volumes, error: volumesError } = await supabase
           .from('draft_volumes')
@@ -343,8 +331,20 @@ export const proposalDraftGenerator = inngest.createFunction(
           dataCallResponse: dataCall as DataCallResponse,
           extractions: extractionsByCategory,
           draftVolumes: (volumes || []) as DraftVolume[],
+          solicitation: solicitation as { solicitation_number: string; title: string; agency: string } | null,
+          certifications: certifications || [],
+          personnel: personnel || [],
+          pastPerformance: pastPerformance || [],
+          naicsCodes: naicsCodes || [],
+          contractVehicles: contractVehicles || [],
         };
       }
+    );
+
+    // ─── Build color palette once for all volumes ──────────────────────────────
+    const colorPalette = buildColorPalette(
+      companyProfile.primary_color,
+      companyProfile.secondary_color
     );
 
     // ─── Steps 2..N: Generate each volume ────────────────────────────────────
@@ -371,13 +371,18 @@ export const proposalDraftGenerator = inngest.createFunction(
             })
             .eq('id', volume.id);
 
-          // Build the prompt data bundle
+          // Build the prompt data bundle with Tier 1 collections for richer prompts
           const promptData: VolumePromptData = {
             companyProfile,
             dataCallResponse,
             extractions,
             pageLimit: volume.page_limit,
             pageLimitSpacing: 'single', // Government RFP default
+            personnel: personnel || [],
+            pastPerformance: pastPerformance || [],
+            certifications: certifications || [],
+            contractVehicles: contractVehicles || [],
+            naicsCodes: naicsCodes || [],
           };
 
           // Assemble volume-specific AI prompts
@@ -412,22 +417,117 @@ export const proposalDraftGenerator = inngest.createFunction(
           const pageEstimate = Math.round((wordCount / WORDS_PER_PAGE) * 10) / 10;
           const pageLimitStatus = calculatePageLimitStatus(pageEstimate, volume.page_limit);
 
-          // Convert markdown to content structure expected by the DOCX generator
-          const contentStructure = markdownToContentStructure(contentMarkdown);
+          // Page limit post-check (Gap 9)
+          if (volume.page_limit && pageEstimate > volume.page_limit) {
+            console.warn(
+              `[draft-generator] Volume "${volume.volume_name}" exceeds page limit: ` +
+              `${pageEstimate} pages vs ${volume.page_limit} limit`
+            );
+          }
+
+          // Compliance language validation (Gap 8)
+          const complianceCheck = validateComplianceLanguage(
+            contentMarkdown,
+            companyProfile.company_name,
+            []
+          );
+          if (!complianceCheck.valid) {
+            console.warn(`[draft-generator] Compliance issues in "${volume.volume_name}":`, complianceCheck.issues);
+          }
+
+          // Parse markdown into styled DOCX elements (headings, bullets, tables, callouts)
+          const contentStructure = parseMarkdownToDocx(contentMarkdown, colorPalette);
 
           // Derive volume type for the DOCX generator
           const volumeType = deriveVolumeTypeForGenerator(volume.volume_name);
 
-          // Generate DOCX using the existing v1.0 generator
+          // Generate and embed diagrams for 'standard' graphics profile
+          if (graphicsProfile === 'standard' && contentStructure.sections) {
+            try {
+              const diagrams = await generateVolumeDiagrams(
+                volumeType,
+                personnel || [],
+                companyProfile.company_name
+              );
+              for (const diagram of diagrams) {
+                const insertIdx = findDiagramInsertionPoint(
+                  diagram.id,
+                  contentStructure.sections
+                );
+                if (insertIdx < contentStructure.sections.length) {
+                  // Append diagram elements at the end of the matching section's content
+                  contentStructure.sections[insertIdx].content.push(...diagram.elements);
+                }
+              }
+            } catch (diagramErr) {
+              console.warn(`[draft-generator] Diagram embedding failed for "${volume.volume_name}":`, diagramErr);
+              // Non-fatal — volume generates without diagrams
+            }
+          }
+
+          // Build companyData from Tier 1 collections for appendices
+          const companyData = {
+            profile: companyProfile,
+            valuePropositions: (companyProfile.enterprise_win_themes || []).map((t: string) => ({ statement: t })),
+            personnel: personnel || [],
+            certifications: certifications || [],
+            pastPerformance: pastPerformance || [],
+            naicsCodes: naicsCodes || [],
+            contractVehicles: contractVehicles || [],
+          };
+
+          // Build document context with real solicitation number (Gap 1)
+          const documentContext = {
+            solicitation_number: solicitation?.solicitation_number || 'TBD',
+            metadata: {
+              contracting_officer: 'Contracting Officer',
+              agency: solicitation?.agency || 'Agency',
+              solicitation_number: solicitation?.solicitation_number || 'TBD',
+            },
+          };
+
+          // Build requirements from Section M for in-document compliance matrix (Gap 6)
+          const sectionMExtraction = extractions.section_m || [];
+          const sectionMFields = sectionMExtraction.length > 0
+            ? (sectionMExtraction[0].field_value as SectionMFields) || {}
+            : {};
+
+          const requirements = (sectionMFields.evaluation_factors || []).flatMap((factor, fi) => {
+            const items: Array<{ id: string; requirement_number: string; requirement_text: string; source_section: string }> = [];
+            items.push({
+              id: `factor-${fi}`,
+              requirement_number: `M.${fi + 1}`,
+              requirement_text: factor.name + (factor.weight_description ? ` (${factor.weight_description})` : ''),
+              source_section: 'Section M',
+            });
+            (factor.subfactors || []).forEach((sf, si) => {
+              items.push({
+                id: `factor-${fi}-sub-${si}`,
+                requirement_number: `M.${fi + 1}.${si + 1}`,
+                requirement_text: sf.name + (sf.description ? `: ${sf.description}` : ''),
+                source_section: 'Section M',
+              });
+            });
+            return items;
+          });
+
+          // Build section mappings from generated content sections
+          const sectionMappings = (contentStructure.sections || []).map((section: { title: string }) => ({
+            sectionName: section.title,
+            requirements: requirements.map(r => r.id),
+          }));
+
+          // Generate DOCX with all v2 data wired through
           const docxDocument = await generateProposalVolume(
             volumeType,
             contentStructure,
             companyProfile,
-            [], // No exhibits in v2.0 draft — user adds exhibits in Word
-            null, // No legacy companyData (v2.0 uses companyProfile directly)
-            { solicitation_number: solicitationId }, // Minimal document context for header
-            [], // No requirements mapping (compliance matrix is a separate volume)
-            []  // No section mappings
+            [],              // No exhibits in v2.0 draft — user adds exhibits in Word
+            companyData,     // Populated from Tier 1 collections
+            documentContext, // Real solicitation number + agency
+            requirements,    // Section M evaluation factors for compliance matrix
+            sectionMappings, // Content sections mapped to requirements
+            colorPalette     // Company-branded color palette
           );
 
           // Save to buffer

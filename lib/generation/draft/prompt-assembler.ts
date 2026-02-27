@@ -10,7 +10,14 @@
  *   assembleComplianceMatrixData — Maps Section M eval factors to generated volume locations
  */
 
-import type { CompanyProfile } from '@/lib/supabase/company-types';
+import type {
+  CompanyProfile,
+  Personnel,
+  PastPerformance,
+  Certification,
+  ContractVehicle,
+  NaicsCode,
+} from '@/lib/supabase/company-types';
 import type { DataCallResponse } from '@/lib/supabase/tier2-types';
 import type {
   ComplianceExtractionsByCategory,
@@ -18,6 +25,7 @@ import type {
   SowPwsFields,
   AdminDataFields,
 } from '@/lib/supabase/compliance-types';
+import { getComplianceInstructions } from '@/lib/generation/content/compliance-language';
 
 // ===== INTERFACES =====
 
@@ -47,6 +55,23 @@ export interface VolumePromptData {
    * Defaults to 'single' when not specified.
    */
   pageLimitSpacing?: 'single' | 'double';
+
+  // ===== TIER 1 COLLECTIONS (piped from company intake for richer prompts) =====
+
+  /** Tier 1 personnel records — filtered to key personnel for token efficiency */
+  personnel?: Personnel[];
+
+  /** Tier 1 past performance records with CPARS, achievements, descriptions */
+  pastPerformance?: PastPerformance[];
+
+  /** Tier 1 company certifications */
+  certifications?: Certification[];
+
+  /** Tier 1 contract vehicles (GWACs, BPAs, IDIQs, GSA Schedules) */
+  contractVehicles?: ContractVehicle[];
+
+  /** Tier 1 NAICS codes */
+  naicsCodes?: NaicsCode[];
 }
 
 /**
@@ -149,6 +174,28 @@ function calculateTargetWordCount(
 }
 
 /**
+ * Build a page limit instruction block for volume prompts.
+ * When a hard page limit exists, uses strong enforcement language to prevent overshoot.
+ * When no limit, falls back to softer "Approximately X words" guidance.
+ */
+function buildPageLimitInstruction(
+  targetWordCount: number,
+  pageLimit: number | null,
+  spacing: string
+): string {
+  if (pageLimit) {
+    const wordsPerPage = spacing === 'double' ? WORDS_PER_PAGE_DOUBLE : WORDS_PER_PAGE_SINGLE;
+    const maxWordCount = pageLimit * wordsPerPage;
+    return `HARD PAGE LIMIT: This volume has a STRICT ${pageLimit}-page limit. Government page limits are absolute — proposals exceeding the limit may be rejected without evaluation.
+- MAXIMUM: ${maxWordCount} words (${pageLimit} pages)
+- TARGET: ${targetWordCount} words (87.5% utilization)
+- Do NOT exceed ${maxWordCount} words. Prioritize highest-weighted evaluation factors if space is tight.`;
+  }
+
+  return `TARGET LENGTH: Approximately ${targetWordCount} words (no page limit specified — use professional judgment).`;
+}
+
+/**
  * Build win theme instructions from the company's enterprise win themes.
  * Each win theme becomes a callout box instruction inserted at major section starts.
  */
@@ -188,6 +235,23 @@ Where specific data is unavailable or not provided, insert a placeholder in this
 
 This allows the reviewer to identify exactly what information must be supplied before the proposal is finalized.
 Do NOT fabricate specific numbers, dates, contract values, personnel names, or other facts — use placeholders instead.
+`;
+}
+
+/**
+ * Build the RFP requirement blockquote instruction appended to volume prompts.
+ * Instructs the AI to quote RFP requirements before responding, creating visual
+ * traceability for evaluators. The markdown parser converts > blocks to CalloutBox style.
+ */
+function buildBlockquoteInstruction(): string {
+  return `
+RFP REQUIREMENT QUOTING:
+When addressing a specific RFP requirement or evaluation factor, QUOTE the requirement first using a blockquote (> prefix), then provide your response. This creates visual traceability for evaluators.
+
+Example:
+> The contractor shall provide a detailed technical approach for managing IT infrastructure.
+
+[Company Name] will implement a comprehensive IT infrastructure management approach...
 `;
 }
 
@@ -240,15 +304,39 @@ function buildTechnicalPrompt(
       }).join('\n')
     : '  [PLACEHOLDER: Technical evaluation factors not extracted from Section M]';
 
+  // Build Tier 1 enrichment sections (conditionally included when data exists)
+  const certifications = data.certifications || [];
+  const certSection = certifications.length > 0
+    ? `\nCOMPANY CERTIFICATIONS:\n${certifications.map(c => `  - ${c.certification_type}${c.certifying_agency ? ` (${c.certifying_agency})` : ''}${c.expiration_date ? ` — expires ${c.expiration_date}` : ''}`).join('\n')}\n`
+    : '';
+
+  const vehicles = data.contractVehicles || [];
+  const vehicleSection = vehicles.length > 0
+    ? `\nCONTRACT VEHICLES:\n${vehicles.map(v => `  - ${v.vehicle_name} (${v.vehicle_type})${v.contract_number ? ` — #${v.contract_number}` : ''}${v.ceiling_value ? ` — $${(v.ceiling_value / 1_000_000).toFixed(1)}M ceiling` : ''}`).join('\n')}\n`
+    : '';
+
+  const keyPersonnel = (data.personnel || []).filter(p =>
+    p.proposed_roles?.some(r => r.is_key_personnel)
+  );
+  const keyPersonnelSection = keyPersonnel.length > 0
+    ? `\nKEY PERSONNEL QUALIFICATIONS:\n${keyPersonnel.map(p => {
+        const edu = p.education?.[0];
+        const certs = p.certifications?.map(c => c.name).join(', ');
+        return `  - ${p.full_name}: ${p.total_experience_years} years total${p.federal_experience_years ? `, ${p.federal_experience_years} years federal` : ''}${edu ? ` | ${edu.degree_level} in ${edu.field_of_study} (${edu.institution})` : ''}${certs ? ` | Certs: ${certs}` : ''}${p.clearance_level && p.clearance_level !== 'None' ? ` | Clearance: ${p.clearance_level} (${p.clearance_status || 'Unknown'})` : ''}`;
+      }).join('\n')}\n`
+    : '';
+
+  const spacing = data.pageLimitSpacing || 'single';
+
   return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response.
 
-TARGET LENGTH: Approximately ${targetWordCount} words (${data.pageLimit ? `${data.pageLimit} page limit, targeting 87.5% utilization` : 'no page limit specified — use professional judgment'}).
+${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}
 
 COMPANY TECHNICAL CAPABILITIES:
 - Core Services: ${companyProfile.core_services_summary || '[PLACEHOLDER: Core services summary not provided]'}
 - Corporate Overview: ${companyProfile.corporate_overview || '[PLACEHOLDER: Corporate overview not provided]'}
 - Key Differentiators: ${companyProfile.key_differentiators_summary || '[PLACEHOLDER: Key differentiators not provided]'}
-
+${certSection}${vehicleSection}${keyPersonnelSection}
 OUR TECHNICAL APPROACH FOR THIS BID:
 - Approach Summary: ${technical_approach?.approach_summary || '[PLACEHOLDER: Technical approach summary not provided in data call]'}
 - Tools and Platforms: ${technical_approach?.tools_and_platforms || '[PLACEHOLDER: Tools and platforms not specified]'}
@@ -292,8 +380,29 @@ function buildManagementPrompt(
     companyProfile.enterprise_win_themes || []
   );
 
+  // Cross-reference Tier 2 key_personnel with Tier 1 personnel for enriched bios
+  const tier1Personnel = data.personnel || [];
   const personnelText = key_personnel && key_personnel.length > 0
-    ? key_personnel.map((kp, i) => `  ${i + 1}. ${kp.role}: ${kp.name}\n     Qualifications: ${kp.qualifications_summary || '[PLACEHOLDER: Qualifications summary not provided]'}`).join('\n\n')
+    ? key_personnel.map((kp, i) => {
+        // Try to find Tier 1 match by name
+        const tier1Match = tier1Personnel.find(p =>
+          p.full_name.toLowerCase() === (kp.name || '').toLowerCase()
+        );
+        let enrichment = '';
+        if (tier1Match) {
+          const edu = tier1Match.education?.[0];
+          const certs = tier1Match.certifications?.slice(0, 5).map(c => c.name).join(', ');
+          const recentWork = tier1Match.work_history?.slice(0, 2).map(w =>
+            `${w.job_title} at ${w.employer} (${w.start_date}–${w.end_date})${w.description ? ': ' + w.description.slice(0, 100) : ''}`
+          ).join('; ');
+          enrichment = `\n     Experience: ${tier1Match.total_experience_years} years total${tier1Match.federal_experience_years ? `, ${tier1Match.federal_experience_years} years federal` : ''}` +
+            (edu ? `\n     Education: ${edu.degree_level} in ${edu.field_of_study} (${edu.institution})` : '') +
+            (certs ? `\n     Certifications: ${certs}` : '') +
+            (tier1Match.clearance_level && tier1Match.clearance_level !== 'None' ? `\n     Clearance: ${tier1Match.clearance_level} (${tier1Match.clearance_status || 'Unknown'})` : '') +
+            (recentWork ? `\n     Recent Work: ${recentWork}` : '');
+        }
+        return `  ${i + 1}. ${kp.role}: ${kp.name}\n     Qualifications: ${kp.qualifications_summary || '[PLACEHOLDER: Qualifications summary not provided]'}${enrichment}`;
+      }).join('\n\n')
     : '  [PLACEHOLDER: Key personnel not entered in data call — add proposed individuals with qualifications]';
 
   const teaming = opportunity_details?.prime_or_sub === 'teaming' && opportunity_details.teaming_partners?.length > 0
@@ -302,9 +411,11 @@ function buildManagementPrompt(
     ? `Performing as: Subcontractor`
     : `Performing as: Prime Contractor`;
 
+  const spacing = data.pageLimitSpacing || 'single';
+
   return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response.
 
-TARGET LENGTH: Approximately ${targetWordCount} words (${data.pageLimit ? `${data.pageLimit} page limit, targeting 87.5% utilization` : 'no page limit specified — use professional judgment'}).
+${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}
 
 COMPANY MANAGEMENT APPROACH:
 - Standard Management Approach: ${companyProfile.standard_management_approach || '[PLACEHOLDER: Standard management approach narrative not provided in Tier 1 profile]'}
@@ -349,20 +460,44 @@ function buildPastPerformancePrompt(
     companyProfile.enterprise_win_themes || []
   );
 
+  // Cross-reference Tier 2 past_performance refs with Tier 1 PastPerformance records
+  const tier1PP = data.pastPerformance || [];
   const refsText = past_performance && past_performance.length > 0
-    ? past_performance.map((ref, i) => `  Reference ${i + 1}:
+    ? past_performance.map((ref, i) => {
+        // Try matching by contract number or project name
+        const tier1Match = tier1PP.find(pp =>
+          (ref.contract_number && pp.contract_number && pp.contract_number.toLowerCase() === ref.contract_number.toLowerCase()) ||
+          (ref.project_name && pp.contract_name && pp.contract_name.toLowerCase() === ref.project_name.toLowerCase())
+        );
+        let enrichment = '';
+        if (tier1Match) {
+          const cpars = tier1Match.cpars_rating;
+          const cparsText = cpars ? `Overall: ${cpars.overall}${cpars.quality ? `, Quality: ${cpars.quality}` : ''}${cpars.schedule ? `, Schedule: ${cpars.schedule}` : ''}` : '';
+          const achievements = tier1Match.achievements?.slice(0, 3).map(a => `${a.statement} (${a.metric_value})`).join('; ');
+          enrichment =
+            (cparsText ? `\n    - CPARS Ratings: ${cparsText}` : '') +
+            (tier1Match.description_of_effort ? `\n    - Description of Effort: ${tier1Match.description_of_effort.slice(0, 500)}` : '') +
+            (tier1Match.task_areas?.length ? `\n    - Task Areas: ${tier1Match.task_areas.join(', ')}` : '') +
+            (tier1Match.tools_used?.length ? `\n    - Tools Used: ${tier1Match.tools_used.join(', ')}` : '') +
+            (achievements ? `\n    - Key Achievements: ${achievements}` : '') +
+            `\n    - Team Size: ${tier1Match.team_size || 'N/A'}, Role: ${tier1Match.role || 'N/A'}`;
+        }
+        return `  Reference ${i + 1}:
     - Project Name: ${ref.project_name}
     - Client Agency: ${ref.client_agency}
     - Contract Number: ${ref.contract_number}
     - Contract Value: ${ref.contract_value}
     - Period of Performance: ${ref.period_of_performance}
     - Relevance Summary: ${ref.relevance_summary}
-    - POC: ${ref.contact_name} (${ref.contact_email}, ${ref.contact_phone})`).join('\n\n')
+    - POC: ${ref.contact_name} (${ref.contact_email}, ${ref.contact_phone})${enrichment}`;
+      }).join('\n\n')
     : '  [PLACEHOLDER: Past performance references not entered in data call — add at least the required number of references]';
+
+  const spacing = data.pageLimitSpacing || 'single';
 
   return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response.
 
-TARGET LENGTH: Approximately ${targetWordCount} words (${data.pageLimit ? `${data.pageLimit} page limit, targeting 87.5% utilization` : 'no page limit specified — use professional judgment'}).
+${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}.
 
 RFP PAST PERFORMANCE REQUIREMENTS:
 - References Required: ${ppFields.recency_requirement ? `Recency: ${ppFields.recency_requirement}` : '[PLACEHOLDER: Recency requirement not extracted]'}
@@ -411,9 +546,22 @@ function buildCostPricePrompt(
     ? adminFields.clin_structure.map(clin => `  - CLIN ${clin.clin_number}: ${clin.description}${clin.type ? ` (${clin.type})` : ''}`).join('\n')
     : '  [PLACEHOLDER: CLIN structure not extracted from Section J or admin documents]';
 
+  // Tier 1 enrichments for cost/price
+  const vehicles = data.contractVehicles || [];
+  const vehicleSection = vehicles.length > 0
+    ? `\nACTIVE CONTRACT VEHICLES:\n${vehicles.map(v => `  - ${v.vehicle_name} (${v.vehicle_type})${v.ceiling_value ? ` — $${(v.ceiling_value / 1_000_000).toFixed(1)}M ceiling` : ''}${v.labor_categories?.length ? ` — Labor cats: ${v.labor_categories.slice(0, 5).join(', ')}` : ''}`).join('\n')}\n`
+    : '';
+
+  const certifications = data.certifications || [];
+  const certSection = certifications.length > 0
+    ? `\nRELEVANT CERTIFICATIONS:\n${certifications.map(c => `  - ${c.certification_type}${c.certifying_agency ? ` (${c.certifying_agency})` : ''}`).join('\n')}\n`
+    : '';
+
+  const spacing = data.pageLimitSpacing || 'single';
+
   return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response.
 
-TARGET LENGTH: Approximately ${targetWordCount} words (${data.pageLimit ? `${data.pageLimit} page limit, targeting 87.5% utilization` : 'no page limit specified — use professional judgment'}).
+${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}
 
 CONTRACT AND PRICING CONTEXT:
 - Contract Type: ${opportunity_details?.contract_type || adminFields.contract_type || '[PLACEHOLDER: Contract type not specified]'}
@@ -422,7 +570,7 @@ CONTRACT AND PRICING CONTEXT:
 
 CLIN STRUCTURE:
 ${clinText}
-
+${vehicleSection}${certSection}
 WRITING INSTRUCTIONS:
 1. Write a Price Narrative / Basis of Estimate (BOE) — narrative text explaining the pricing methodology, NOT actual prices.
 2. Structure: Pricing Approach Overview → Basis of Estimate Methodology → Labor Categories and Rates → Other Direct Costs → Fee/Profit Rationale.
@@ -452,9 +600,27 @@ function buildDefaultPrompt(
     companyProfile.enterprise_win_themes || []
   );
 
+  // Tier 1 capability summary
+  const naicsCodes = data.naicsCodes || [];
+  const naicsSection = naicsCodes.length > 0
+    ? `\nNAICS CODES:\n${naicsCodes.map(n => `  - ${n.code}: ${n.title}${n.is_primary ? ' (Primary)' : ''}`).join('\n')}\n`
+    : '';
+
+  const capabilityCounts = [
+    data.certifications?.length ? `${data.certifications.length} certifications` : null,
+    data.contractVehicles?.length ? `${data.contractVehicles.length} contract vehicles` : null,
+    data.personnel?.length ? `${data.personnel.length} personnel records` : null,
+    data.pastPerformance?.length ? `${data.pastPerformance.length} past performance references` : null,
+  ].filter(Boolean);
+  const capabilitySummary = capabilityCounts.length > 0
+    ? `\nCAPABILITY SUMMARY: ${capabilityCounts.join(', ')}\n`
+    : '';
+
+  const spacing = data.pageLimitSpacing || 'single';
+
   return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response.
 
-TARGET LENGTH: Approximately ${targetWordCount} words (${data.pageLimit ? `${data.pageLimit} page limit, targeting 87.5% utilization` : 'no page limit specified — use professional judgment'}).
+${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}
 
 AVAILABLE COMPANY DATA:
 - Company Name: ${companyProfile.company_name}
@@ -462,7 +628,7 @@ AVAILABLE COMPANY DATA:
 - Corporate Overview: ${companyProfile.corporate_overview || '[PLACEHOLDER: Corporate overview not provided]'}
 - Key Differentiators: ${companyProfile.key_differentiators_summary || '[PLACEHOLDER: Key differentiators not provided]'}
 - Standard Management Approach: ${companyProfile.standard_management_approach || '[PLACEHOLDER: Management approach not provided]'}
-
+${naicsSection}${capabilitySummary}
 BID CONTEXT:
 - Contract Type: ${opportunity_details?.contract_type || '[PLACEHOLDER: Contract type not specified]'}
 - Set-Aside: ${opportunity_details?.set_aside || '[PLACEHOLDER: Set-aside not specified]'}
@@ -503,6 +669,8 @@ export function assembleVolumePrompt(
   const volumeType = detectVolumeType(volumeName);
 
   // ─── System Prompt (shared across all volume types) ──────────────────────
+  const complianceInstructions = getComplianceInstructions(companyProfile.company_name);
+
   const systemPrompt = `You are an expert government proposal writer with 20+ years of experience winning federal contracts. You write in a formal, compliance-focused style using action verbs and "shall/will" phrasing. Every claim is backed by specific evidence. You mirror the evaluation criteria language from the RFP. You are writing for ${companyProfile.company_name} (${companyProfile.legal_name || companyProfile.company_name}).
 
 Your proposals are indistinguishable from those written by top-tier government proposal shops. You understand the Federal Acquisition Regulation (FAR), color team reviews, and the SHIPLEY proposal development methodology. Your writing is persuasive, compliance-focused, and evaluator-friendly — structured so that a government Source Selection Board can easily score your proposal against the evaluation criteria.
@@ -512,7 +680,10 @@ Key rules:
 2. Mirror Section M evaluation factor language throughout the volume
 3. Use active voice and action verbs at the start of sentences
 4. Quantify claims whenever possible (percentages, years, dollar values, counts)
-5. Structure content so evaluators can quickly find evidence for each criterion`;
+5. Structure content so evaluators can quickly find evidence for each criterion
+6. NEVER exceed page limits — government evaluators strictly enforce page limits. Content beyond the limit may be discarded without evaluation.
+${complianceInstructions}
+${buildBlockquoteInstruction()}`;
 
   // ─── Volume-Specific User Prompt ─────────────────────────────────────────
   let userPrompt: string;

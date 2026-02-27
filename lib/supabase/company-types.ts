@@ -67,6 +67,8 @@ export interface CompanyProfile {
 
   // Branding
   logo_url?: string;
+  primary_color?: string;
+  secondary_color?: string;
 
   // Company details
   year_founded: number;

@@ -48,6 +48,8 @@ export function CorporateIdentityTab({
   const [dbaNames, setDbaNames] = useState<string[]>([]);
   const [dbaInput, setDbaInput] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('');
+  const [secondaryColor, setSecondaryColor] = useState('');
 
   const [ueiNumber, setUeiNumber] = useState('');
   const [cageCode, setCageCode] = useState('');
@@ -105,6 +107,8 @@ export function CorporateIdentityTab({
     setCompanyName(initialData.company_name || '');
     setDbaNames(initialData.dba_names || []);
     setLogoUrl(initialData.logo_url || '');
+    setPrimaryColor(initialData.primary_color || '');
+    setSecondaryColor(initialData.secondary_color || '');
     setUeiNumber(initialData.uei_number || '');
     setCageCode(initialData.cage_code || '');
     setSamStatus(initialData.sam_status || 'Active');
@@ -239,6 +243,8 @@ export function CorporateIdentityTab({
         company_name: companyName,
         dba_names: dbaNames,
         logo_url: logoUrl,
+        primary_color: primaryColor || null,
+        secondary_color: secondaryColor || null,
 
         // Government Registration
         uei_number: ueiNumber,
@@ -377,6 +383,66 @@ export function CorporateIdentityTab({
                 />
               </div>
             )}
+          </div>
+
+          {/* Brand Colors */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Brand Colors</label>
+            <p className="text-xs text-gray-500 mb-3">
+              Used for proposal headings, table headers, callout boxes, and cover pages. Leave blank for default blue.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Primary Color</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={primaryColor ? (primaryColor.startsWith('#') ? primaryColor : `#${primaryColor}`) : '#2563eb'}
+                    onChange={(e) => setPrimaryColor(e.target.value.replace('#', ''))}
+                    className="w-10 h-10 rounded cursor-pointer border border-gray-300 p-0.5"
+                  />
+                  <input
+                    type="text"
+                    value={primaryColor}
+                    onChange={(e) => setPrimaryColor(e.target.value.replace('#', ''))}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                    placeholder="2563eb"
+                    maxLength={6}
+                  />
+                  {primaryColor && (
+                    <div
+                      className="w-10 h-10 rounded border border-gray-200"
+                      style={{ backgroundColor: `#${primaryColor}` }}
+                    />
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Secondary Color</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={secondaryColor ? (secondaryColor.startsWith('#') ? secondaryColor : `#${secondaryColor}`) : '#1e40af'}
+                    onChange={(e) => setSecondaryColor(e.target.value.replace('#', ''))}
+                    className="w-10 h-10 rounded cursor-pointer border border-gray-300 p-0.5"
+                  />
+                  <input
+                    type="text"
+                    value={secondaryColor}
+                    onChange={(e) => setSecondaryColor(e.target.value.replace('#', ''))}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                    placeholder="1e40af"
+                    maxLength={6}
+                  />
+                  {secondaryColor && (
+                    <div
+                      className="w-10 h-10 rounded border border-gray-200"
+                      style={{ backgroundColor: `#${secondaryColor}` }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* DBA Names */}

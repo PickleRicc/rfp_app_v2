@@ -25,13 +25,7 @@ export const DEFAULT_DIAGRAM_COLORS = {
   nodeFill: '#dbeafe',      // Blue-100 (light blue fill for visibility)
 };
 
-/**
- * Company profile with optional branding colors
- */
-export interface CompanyProfile {
-  primary_color?: string;
-  secondary_color?: string;
-}
+import type { CompanyProfile } from '@/lib/supabase/company-types';
 
 /**
  * Generates Mermaid theme configuration directive

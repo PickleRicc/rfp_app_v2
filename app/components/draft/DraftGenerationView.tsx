@@ -14,7 +14,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { StrategyConfirmation } from "./StrategyConfirmation";
+import { StrategyConfirmation, type GraphicsProfile } from "./StrategyConfirmation";
 import type {
   DraftGetResponse,
   DraftVolume,
@@ -514,6 +514,7 @@ export function DraftGenerationView({
   const [view, setView] = useState<ViewState>("strategy");
   const [volumes, setVolumes] = useState<DraftVolume[]>([]);
   const [regenerating, setRegenerating] = useState(false);
+  const [lastGraphicsProfile, setLastGraphicsProfile] = useState<GraphicsProfile>("minimal");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ============================================================
@@ -595,7 +596,8 @@ export function DraftGenerationView({
   // Transition handlers
   // ============================================================
 
-  const handleGenerationStarted = useCallback(() => {
+  const handleGenerationStarted = useCallback((graphicsProfile: GraphicsProfile) => {
+    setLastGraphicsProfile(graphicsProfile);
     // After POST succeeds, reset volumes and start polling
     setVolumes([]);
     setView("generating");
@@ -617,7 +619,11 @@ export function DraftGenerationView({
     try {
       const res = await fetch(`/api/solicitations/${solicitationId}/draft`, {
         method: "POST",
-        headers: { "X-Company-Id": companyId },
+        headers: {
+          "X-Company-Id": companyId,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ graphicsProfile: lastGraphicsProfile }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -640,7 +646,7 @@ export function DraftGenerationView({
     } finally {
       setRegenerating(false);
     }
-  }, [solicitationId, companyId, regenerating, startPolling]);
+  }, [solicitationId, companyId, regenerating, startPolling, lastGraphicsProfile]);
 
   // ============================================================
   // Render
