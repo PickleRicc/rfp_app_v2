@@ -28,34 +28,6 @@ SUPABASE_SERVICE_ROLE_KEY       — Supabase service role key (server-only, secr
 
 All migration SQL files live in `/supabase_tables/` and must be run in order.
 
-### Core Document Tables (v1 Legacy)
-
-**`documents`** — Uploaded RFP files
-```
-id (UUID PK), company_id (FK), filename, file_path, file_size,
-document_type (rfp/proposal/contract/other), status (pending→processing→completed→failed),
-solicitation_number, metadata (JSONB), created_at, updated_at
-```
-
-**`section_results`** — Parsed RFP sections from Stage 1 analysis
-```
-id, document_id (FK), section_name (executive_summary/project_scope/technical_requirements/...),
-content (TEXT), metadata (JSONB), created_at
-```
-
-**`processing_logs`** — Pipeline audit trail
-```
-id, document_id (FK), stage (upload/classification/section_analysis/...),
-status (started/completed/failed), message, metadata (JSONB), error, created_at
-```
-
-**`rfp_responses`** — Generated responses (v1 legacy)
-```
-id, document_id (FK), content (JSONB), html_template, rendered_html,
-branding (JSONB), template_options (JSONB), page_allocation (JSONB),
-outline (JSONB), status, created_at, updated_at
-```
-
 ### Tier 1 — Company Knowledge Base Tables
 
 **`company_profiles`** — Master company record (~40+ fields)
@@ -75,7 +47,8 @@ enterprise_win_themes (TEXT[]), key_differentiators_summary (TEXT),
 standard_management_approach (TEXT),
 iso_cmmi_status (JSONB), dcaa_approved_systems (JSONB),
 primary_naics, has_facility_clearance (BOOL), clearance_level,
-logo_url, tier1_complete (BOOL), completeness_score (INT),
+logo_url, primary_color (TEXT), secondary_color (TEXT),
+tier1_complete (BOOL), completeness_score (INT),
 created_at, updated_at
 ```
 
@@ -448,8 +421,7 @@ All TypeScript interfaces live in `lib/supabase/`:
 
 | File | Types Defined |
 |---|---|
-| `types.ts` | Document, SectionResult, RfpResponse |
-| `company-types.ts` | CompanyProfile, PastPerformance, Personnel, Certification, ContractVehicle, ServiceArea, ValueProposition, Innovation, CompetitiveAdvantage, BoilerplateEntry, Address, ContactPerson, Degree, WorkPosition, ProposedRole, Achievement, CparsRating, ISOCMMIStatus, DCAAApprovedSystems |
+| `company-types.ts` | CompanyProfile (includes primary_color, secondary_color), PastPerformance, Personnel, Certification, ContractVehicle, NaicsCode, ServiceArea, ValueProposition, Innovation, CompetitiveAdvantage, BoilerplateEntry, Address, ContactPerson, Degree, WorkPosition, ProposedRole, Achievement, CparsRating, ISOCMMIStatus, DCAAApprovedSystems |
 | `compliance-types.ts` | ComplianceExtraction, ExtractionCategory (9 values), typed field structures per category |
 | `solicitation-types.ts` | Solicitation, SolicitationDocument, DocumentReconciliation, TemplateFieldMapping, 11 document type constants |
 | `tier2-types.ts` | DataCallResponse, DataCallFile, OpportunityDetails, PastPerformanceRef, KeyPersonnelEntry, TechnicalApproach, ComplianceVerification, DataCallFormSchema |

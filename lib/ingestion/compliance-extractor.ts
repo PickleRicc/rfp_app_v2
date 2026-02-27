@@ -57,14 +57,61 @@ function extractJSON(text: string): string {
 }
 
 /**
- * Concatenate and truncate document texts to a safe context window size.
- * Prioritizes base RFP text — later documents are appended up to the limit.
- * 100K chars (~15K words / ~30-40 pages) ensures Section L/M content is included
- * even when it appears in the second half of longer RFPs.
+ * Concatenate document texts with proportional budgeting to avoid silent truncation.
+ *
+ * Old behavior: naively concatenated and hard-cut at 100K chars — later documents
+ * (amendments, Q&A, clauses) were silently lost when the first document was large.
+ *
+ * New behavior: each document gets a proportional share of the total budget, with
+ * a minimum guaranteed allocation so no document is completely skipped. Documents
+ * shorter than their allocation donate remaining budget to longer documents.
+ *
+ * 180K chars (~45K tokens) comfortably fits within Claude's 200K context window
+ * while leaving room for the system prompt and extraction instructions.
  */
-function truncateTexts(documentTexts: string[], maxChars = 100_000): string {
-  const combined = documentTexts.join('\n\n---\n\n');
-  return combined.substring(0, maxChars);
+function truncateTexts(documentTexts: string[], maxChars = 180_000): string {
+  if (documentTexts.length === 0) return '';
+  if (documentTexts.length === 1) return documentTexts[0].substring(0, maxChars);
+
+  const separator = '\n\n--- DOCUMENT BOUNDARY ---\n\n';
+  const separatorOverhead = separator.length * (documentTexts.length - 1);
+  const usableBudget = maxChars - separatorOverhead;
+
+  // Minimum 15K chars per document — ensures Q&A, amendments, and clauses are represented
+  const minPerDoc = Math.min(15_000, Math.floor(usableBudget / documentTexts.length));
+
+  // First pass: allocate proportionally, respecting minimums
+  const totalOriginal = documentTexts.reduce((sum, t) => sum + t.length, 0);
+  const allocations = documentTexts.map((text) => {
+    const proportional = Math.floor((text.length / totalOriginal) * usableBudget);
+    return Math.max(minPerDoc, proportional);
+  });
+
+  // Second pass: documents shorter than their allocation donate surplus
+  let surplus = 0;
+  let overBudgetCount = 0;
+  for (let i = 0; i < documentTexts.length; i++) {
+    if (documentTexts[i].length < allocations[i]) {
+      surplus += allocations[i] - documentTexts[i].length;
+      allocations[i] = documentTexts[i].length; // no need to allocate more than actual length
+    } else if (documentTexts[i].length > allocations[i]) {
+      overBudgetCount++;
+    }
+  }
+
+  // Distribute surplus evenly to documents that need more space
+  if (surplus > 0 && overBudgetCount > 0) {
+    const bonus = Math.floor(surplus / overBudgetCount);
+    for (let i = 0; i < documentTexts.length; i++) {
+      if (documentTexts[i].length > allocations[i]) {
+        allocations[i] = Math.min(documentTexts[i].length, allocations[i] + bonus);
+      }
+    }
+  }
+
+  // Build final text with truncated segments
+  const segments = documentTexts.map((text, i) => text.substring(0, allocations[i]));
+  return segments.join(separator);
 }
 
 // ===== EXTRACTION FUNCTIONS =====
@@ -583,7 +630,7 @@ Rules:
 }
 
 /**
- * Extract SOW / PWS / SOO requirements from solicitation documents.
+ * Extract SOW / PWS / SOO overview from solicitation documents (Pass 1 of 2).
  *
  * This content may be labeled differently depending on procurement vehicle:
  * - UCF/FAR 15: "Section C — Description/Specifications/Statement of Work"
@@ -594,9 +641,12 @@ Rules:
  * Critical: SOW = government tells contractor what to do; PWS = performance outcomes;
  * SOO = government defines objectives, contractor proposes both PWS and approach.
  *
- * Extracts: document type (SOW/PWS/SOO), task areas, deliverables, PoP, place of performance.
+ * Extracts: document type, scope summary, service area index, task areas, deliverables,
+ * PoP, place of performance, modernization goals, operational context.
+ *
+ * The service_area_index output drives Pass 2 (extractServiceAreaDetails) for deep extraction.
  */
-export async function extractSowPws(documentTexts: string[]): Promise<ExtractionResult[]> {
+export async function extractSowPwsOverview(documentTexts: string[]): Promise<ExtractionResult[]> {
   const textSample = truncateTexts(documentTexts);
 
   try {
@@ -617,11 +667,11 @@ export async function extractSowPws(documentTexts: string[]): Promise<Extraction
       messages: [
         {
           role: 'user',
-          content: `Extract STATEMENT OF WORK / PERFORMANCE WORK STATEMENT / STATEMENT OF OBJECTIVES content from this government solicitation.
+          content: `Extract STATEMENT OF WORK / PERFORMANCE WORK STATEMENT / STATEMENT OF OBJECTIVES overview from this government solicitation.
 
-Find the content that describes WHAT the contractor must do — task areas, deliverables, period and place of performance.
+Find the content that describes WHAT the contractor must do — identify the document type, all discrete service/task areas, deliverables, period and place of performance, and any modernization or transformation goals.
 
-Signal keywords: "statement of work", "SOW", "performance work statement", "PWS", "statement of objectives", "SOO", "technical exhibit", "scope of work", "requirements", "the contractor shall", "task area", "CLIN", "contract line item", "period of performance", "place of performance", "deliverables"
+Signal keywords: "statement of work", "SOW", "performance work statement", "PWS", "statement of objectives", "SOO", "technical exhibit", "scope of work", "requirements", "the contractor shall", "task area", "service area", "CLIN", "contract line item", "period of performance", "place of performance", "deliverables", "modernization", "transformation", "transition"
 
 Solicitation text:
 ${textSample}
@@ -633,6 +683,32 @@ Extract the following fields and return ONLY valid JSON:
     "found": true | false,
     "confidence": "high" | "medium" | "low",
     "value": "SOW" | "PWS" | "SOO"
+  },
+  "requires_contractor_pws": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": true | false
+  },
+  "scope_summary": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "1-2 sentence plain-English summary of the full contract scope"
+  },
+  "total_service_areas": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": 13
+  },
+  "service_area_index": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "code": "3.2.1",
+        "name": "Planning Support",
+        "summary": "IT strategic planning, budgeting, and roadmap development"
+      }
+    ]
   },
   "task_areas": {
     "found": true | false,
@@ -664,15 +740,27 @@ Extract the following fields and return ONLY valid JSON:
     "found": true | false,
     "confidence": "high" | "medium" | "low",
     "value": "Fort Belvoir, VA with up to 25% telework"
+  },
+  "modernization_goals": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": ["Cloud migration", "Zero Trust implementation"]
+  },
+  "operational_context": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Maintain continuous operations while modernizing infrastructure"
   }
 }
 
 Rules:
 - "found": true only if the data is explicitly stated in the document
 - "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
-- document_type: identify whether SOW, PWS, or SOO — if SOO, note that the contractor generates the PWS
-- task_areas: capture all numbered task areas, functional areas, or CLIN-aligned work areas
-- deliverables: include CDRLs, reports, and any items the contractor must deliver
+- document_type: identify whether SOW, PWS, or SOO
+- requires_contractor_pws: true if this is an SOO where the contractor must generate a PWS
+- service_area_index: capture EVERY discrete service area, functional area, or numbered task section. Use the exact section numbering from the document (e.g., "3.2.1", "3.2.2"). This is critical — do not skip any service areas.
+- task_areas: capture all numbered task areas (backward compatible with existing format)
+- total_service_areas: count of items in service_area_index
 - Return empty arrays [] if no items found for list fields
 - Return null for the "value" if "found" is false`,
         },
@@ -691,11 +779,17 @@ Rules:
     const results: ExtractionResult[] = [];
 
     const fieldLabels: Record<string, string> = {
-      document_type:        'Document Type (SOW/PWS/SOO)',
-      task_areas:           'Task Areas',
-      deliverables:         'Deliverables',
-      period_of_performance: 'Period of Performance',
-      place_of_performance: 'Place of Performance',
+      document_type:           'Document Type (SOW/PWS/SOO)',
+      requires_contractor_pws: 'Requires Contractor PWS',
+      scope_summary:           'Scope Summary',
+      total_service_areas:     'Total Service Areas',
+      service_area_index:      'Service Area Index',
+      task_areas:              'Task Areas',
+      deliverables:            'Deliverables',
+      period_of_performance:   'Period of Performance',
+      place_of_performance:    'Place of Performance',
+      modernization_goals:     'Modernization Goals',
+      operational_context:     'Operational Context',
     };
 
     for (const [fieldName, label] of Object.entries(fieldLabels)) {
@@ -712,7 +806,468 @@ Rules:
 
     return results;
   } catch (err) {
-    console.error('extractSowPws failed:', err instanceof Error ? err.message : String(err));
+    console.error('extractSowPwsOverview failed:', err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
+ * Extract deep detail for a single service area (Pass 2 of 2).
+ *
+ * Called once per service area from extractSowPwsOverview's service_area_index.
+ * Focuses Claude on ONE service area at a time for thorough extraction of
+ * sub-requirements, technologies, frameworks, staffing, SLAs, and site needs.
+ *
+ * Results are stored as separate compliance_extraction rows with
+ * field_name: `service_area_detail_{code}` (e.g., `service_area_detail_3.2.1`).
+ */
+export async function extractServiceAreaDetails(
+  documentTexts: string[],
+  areaCode: string,
+  areaName: string
+): Promise<ExtractionResult[]> {
+  const textSample = truncateTexts(documentTexts);
+
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      temperature: 0,
+      system:
+        'You are an expert government proposal compliance analyst with 15+ years of experience ' +
+        'reading federal solicitations. You are performing a DEEP EXTRACTION of a single service area ' +
+        'from a SOW/PWS/SOO document. Extract every requirement, technology, framework, staffing indicator, ' +
+        'performance metric, and site requirement for this specific service area. ' +
+        'Extract only information explicitly stated — do not infer or fabricate.',
+      messages: [
+        {
+          role: 'user',
+          content: `Extract DETAILED REQUIREMENTS for service area "${areaCode} — ${areaName}" from this solicitation document.
+
+Focus ONLY on section ${areaCode} (${areaName}). Extract every detail about this specific service area.
+
+Solicitation text:
+${textSample}
+
+Return ONLY valid JSON with this structure:
+
+{
+  "area_code": "${areaCode}",
+  "area_name": "${areaName}",
+  "description": "Full description of this service area",
+  "sub_requirements": [
+    {
+      "id": "3.2.1.a",
+      "text": "The contractor shall provide 24/7 help desk support",
+      "type": "shall"
+    }
+  ],
+  "required_technologies": [
+    {
+      "name": "ServiceNow",
+      "context": "ITSM platform for ticket management",
+      "requirement_level": "required"
+    }
+  ],
+  "required_frameworks": ["ITIL", "Zero Trust"],
+  "staffing_indicators": [
+    {
+      "metric": "75:1 users to technicians",
+      "context": "Service desk staffing ratio"
+    }
+  ],
+  "performance_metrics": [
+    {
+      "metric": "Response Time",
+      "target": "15 minutes for Priority 1 incidents"
+    }
+  ],
+  "site_requirements": ["Adelphi Lab Center", "Aberdeen Proving Ground"],
+  "clin_mapping": "CLIN 0001 — IT Operations",
+  "security_environment": ["NIPR", "SIPR", "JWICS"]
+}
+
+Rules:
+- sub_requirements: capture EVERY "shall", "must", "will" statement in this section. type = "shall" | "must" | "will" | "objective"
+- required_technologies: any named tool, platform, software, or system mentioned. requirement_level = "required" (explicitly mandated), "preferred" (recommended), or "current" (currently in use)
+- required_frameworks: standards like ITIL, CMMI, ISO, Zero Trust, NIST, etc.
+- staffing_indicators: any staffing ratios, FTE counts, or workforce requirements mentioned
+- performance_metrics: SLAs, KPIs, response times, resolution times, uptime targets
+- site_requirements: which sites/locations this service area applies to
+- clin_mapping: which CLIN or contract line item this area falls under
+- security_environment: which networks (NIPR, SIPR, JWICS, DREN, etc.) apply
+- Return empty arrays [] for any fields where no data is found
+- Return empty string "" for string fields where no data is found`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') return [];
+
+    const jsonText = extractJSON(content.text);
+    const parsed = JSON.parse(jsonText);
+
+    // Store the entire parsed object as a single extraction result
+    return [{
+      field_name:  `service_area_detail_${areaCode}`,
+      field_label: `Service Area Detail: ${areaCode} — ${areaName}`,
+      field_value: parsed,
+      confidence:  'high',
+    }];
+  } catch (err) {
+    console.error(`extractServiceAreaDetails(${areaCode}) failed:`, err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
+ * Extract operational context from solicitation documents.
+ *
+ * Captures agency identity, contract scale, sites, networks, and incumbent info
+ * that is critical for calibrating the proposal response but often falls through
+ * the cracks of standard Section L/M/C extraction.
+ *
+ * New category: 'operational_context'
+ */
+export async function extractOperationalContext(documentTexts: string[]): Promise<ExtractionResult[]> {
+  const textSample = truncateTexts(documentTexts);
+
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      temperature: 0,
+      system:
+        'You are an expert government proposal analyst with 15+ years of experience ' +
+        'reading federal solicitations. You extract operational context — the agency identity, ' +
+        'contract scale, sites, networks, user population, and incumbent contractor information ' +
+        'that shapes how a proposal should be written. This data may appear anywhere in the ' +
+        'solicitation package — RFP body, SOW/PWS/SOO, amendments, or attachments. ' +
+        'Extract only information explicitly stated — do not infer or fabricate.',
+      messages: [
+        {
+          role: 'user',
+          content: `Extract OPERATIONAL CONTEXT from this government solicitation.
+
+Find agency-level and contract-scale information that describes WHO the customer is, HOW BIG the contract is, WHERE the work happens, and WHAT the current environment looks like.
+
+Signal keywords: "agency", "laboratory", "command", "center", "directorate", "research", "users", "staff", "employees", "personnel", "incumbent", "current contractor", "workforce", "sites", "locations", "facilities", "annual", "total value", "ceiling", "estimated value", "modernization", "enterprise", "network", "NIPR", "SIPR", "JWICS", "DREN", "CLIN"
+
+Solicitation text:
+${textSample}
+
+Extract the following fields and return ONLY valid JSON:
+
+{
+  "agency_name": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Army Research Laboratory"
+  },
+  "agency_abbreviation": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "ARL"
+  },
+  "agency_mission": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "1-sentence mission description"
+  },
+  "user_count": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "approximately 3,500"
+  },
+  "staff_composition": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "researchers and support staff"
+  },
+  "incumbent_contractor": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Agile Defense"
+  },
+  "estimated_contract_value": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "$88M over 5.5 years"
+  },
+  "contract_scope_summary": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Enterprise IT operations and modernization across 4 research facilities"
+  },
+  "sites": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "name": "Adelphi Lab Center",
+        "abbreviation": "ALC",
+        "location": "Adelphi, Maryland",
+        "description": "Primary research facility",
+        "is_primary": true
+      }
+    ]
+  },
+  "networks": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "name": "DREN",
+        "classification": "unclassified research",
+        "description": "Defense Research and Engineering Network"
+      }
+    ]
+  },
+  "security_environment_summary": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Operations across Secret, TS/SCI, and JWICS environments"
+  },
+  "clin_categories": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "category": "IT Operations",
+        "description": "Steady-state operations and maintenance",
+        "scope": "All sites"
+      }
+    ]
+  }
+}
+
+Rules:
+- "found": true only if the data is explicitly stated in the document
+- "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
+- agency_name: full official name of the customer agency/organization
+- sites: capture ALL sites/facilities mentioned, including satellite locations
+- networks: capture all network types (NIPR, SIPR, JWICS, DREN, etc.)
+- clin_categories: high-level CLIN groupings (not individual CLINs)
+- Return empty arrays [] if no items found for list fields
+- Return null for the "value" if "found" is false`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') return [];
+
+    const jsonText = extractJSON(content.text);
+    const parsed = JSON.parse(jsonText) as Record<
+      string,
+      { found: boolean; confidence: 'high' | 'medium' | 'low'; value: unknown }
+    >;
+
+    const results: ExtractionResult[] = [];
+
+    const fieldLabels: Record<string, string> = {
+      agency_name:                  'Agency Name',
+      agency_abbreviation:          'Agency Abbreviation',
+      agency_mission:               'Agency Mission',
+      user_count:                   'User Count',
+      staff_composition:            'Staff Composition',
+      incumbent_contractor:         'Incumbent Contractor',
+      estimated_contract_value:     'Estimated Contract Value',
+      contract_scope_summary:       'Contract Scope Summary',
+      sites:                        'Sites & Facilities',
+      networks:                     'Networks',
+      security_environment_summary: 'Security Environment Summary',
+      clin_categories:              'CLIN Categories',
+    };
+
+    for (const [fieldName, label] of Object.entries(fieldLabels)) {
+      const extracted = parsed[fieldName];
+      if (!extracted) continue;
+
+      results.push({
+        field_name:  fieldName,
+        field_label: label,
+        field_value: extracted.found ? extracted.value : null,
+        confidence:  extracted.confidence || 'low',
+      });
+    }
+
+    return results;
+  } catch (err) {
+    console.error('extractOperationalContext failed:', err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
+ * Extract technology requirements from solicitation documents.
+ *
+ * Captures every named tool, platform, protocol, standard, and framework
+ * mentioned in the solicitation. This data drives both the Tier 2 data call
+ * (asking the company about their experience with each technology) and
+ * prompt assembly (ensuring proposals reference the right tech stack).
+ *
+ * New category: 'technology_reqs'
+ */
+export async function extractTechnologyRequirements(documentTexts: string[]): Promise<ExtractionResult[]> {
+  const textSample = truncateTexts(documentTexts);
+
+  try {
+    const response = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      temperature: 0,
+      system:
+        'You are an expert government IT proposal analyst with 15+ years of experience ' +
+        'reading federal solicitations for IT services contracts. You extract every named technology, ' +
+        'platform, tool, protocol, standard, and framework from solicitation documents. ' +
+        'You understand the difference between mandatory requirements (the contractor must use), ' +
+        'current environment (what is in place today), and preferred (government recommends). ' +
+        'Extract only information explicitly stated — do not infer or fabricate.',
+      messages: [
+        {
+          role: 'user',
+          content: `Extract ALL TECHNOLOGY REQUIREMENTS from this government solicitation.
+
+Find every named tool, platform, protocol, standard, framework, operating system, and security tool mentioned anywhere in the document.
+
+Signal keywords: "ServiceNow", "Cisco", "Nutanix", "JAMF", "Puppet", "Ansible", "SCCM", "MECM", "SolarWinds", "Active Directory", "VMware", "Red Hat", "Citrix", "VDI", "DaaS", "SaaS", "PaaS", "IaaS", "OSPF", "BGP", "802.1x", "IPv6", "VPN", "IPSEC", "DNS", "DHCP", "ITIL", "CMMI", "ISO", "NIST", "FedRAMP", "Zero Trust", "Windows", "Linux", "Mac", "platform", "tool", "system", "application", "software", "endpoint", "device"
+
+Solicitation text:
+${textSample}
+
+Extract the following fields and return ONLY valid JSON:
+
+{
+  "required_platforms": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "name": "ServiceNow",
+        "category": "ITSM",
+        "context": "Service desk ticketing and CMDB",
+        "requirement_level": "mandatory"
+      }
+    ]
+  },
+  "required_protocols": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "name": "OSPF",
+        "context": "Network routing protocol for campus LAN"
+      }
+    ]
+  },
+  "required_standards": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "name": "ITIL",
+        "context": "IT service management framework"
+      }
+    ]
+  },
+  "operating_systems": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "name": "Windows",
+        "percentage": "90%",
+        "context": "Primary desktop operating system"
+      }
+    ]
+  },
+  "security_tools": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "name": "Trellix",
+        "context": "Endpoint detection and response"
+      }
+    ]
+  },
+  "infrastructure_platforms": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "name": "Nutanix",
+        "category": "Hyperconverged Infrastructure",
+        "context": "On-premises compute and storage"
+      }
+    ]
+  },
+  "application_count": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "1,200 unique applications"
+  },
+  "endpoint_count": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "~4,000 endpoints"
+  }
+}
+
+Rules:
+- "found": true only if the data is explicitly stated in the document
+- "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
+- required_platforms: named software/SaaS platforms. requirement_level: "mandatory" (must use), "current_environment" (in place today), "preferred" (recommended)
+- required_protocols: network protocols, communication standards
+- required_standards: management/compliance frameworks (ITIL, ISO, CMMI, NIST, etc.)
+- operating_systems: include percentage breakdown if stated
+- security_tools: endpoint, network, and identity security tools
+- infrastructure_platforms: compute, storage, virtualization, networking hardware/software
+- Return empty arrays [] if no items found for list fields
+- Return null for the "value" if "found" is false`,
+        },
+      ],
+    });
+
+    const content = response.content[0];
+    if (content.type !== 'text') return [];
+
+    const jsonText = extractJSON(content.text);
+    const parsed = JSON.parse(jsonText) as Record<
+      string,
+      { found: boolean; confidence: 'high' | 'medium' | 'low'; value: unknown }
+    >;
+
+    const results: ExtractionResult[] = [];
+
+    const fieldLabels: Record<string, string> = {
+      required_platforms:       'Required Platforms',
+      required_protocols:       'Required Protocols',
+      required_standards:       'Required Standards',
+      operating_systems:        'Operating Systems',
+      security_tools:           'Security Tools',
+      infrastructure_platforms: 'Infrastructure Platforms',
+      application_count:        'Application Count',
+      endpoint_count:           'Endpoint Count',
+    };
+
+    for (const [fieldName, label] of Object.entries(fieldLabels)) {
+      const extracted = parsed[fieldName];
+      if (!extracted) continue;
+
+      results.push({
+        field_name:  fieldName,
+        field_label: label,
+        field_value: extracted.found ? extracted.value : null,
+        confidence:  extracted.confidence || 'low',
+      });
+    }
+
+    return results;
+  } catch (err) {
+    console.error('extractTechnologyRequirements failed:', err instanceof Error ? err.message : String(err));
     return [];
   }
 }

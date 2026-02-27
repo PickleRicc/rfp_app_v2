@@ -106,17 +106,19 @@ export async function GET(
     }
 
     // Group results by category
-    // All 9 extraction categories
+    // All 11 extraction categories
     const grouped: ComplianceExtractionsByCategory = {
-      section_l:        [],
-      section_m:        [],
-      admin_data:       [],
-      rating_scales:    [],
-      sow_pws:          [],
-      cost_price:       [],
-      past_performance: [],
-      key_personnel:    [],
-      security_reqs:    [],
+      section_l:           [],
+      section_m:           [],
+      admin_data:          [],
+      rating_scales:       [],
+      sow_pws:             [],
+      cost_price:          [],
+      past_performance:    [],
+      key_personnel:       [],
+      security_reqs:       [],
+      operational_context: [],
+      technology_reqs:     [],
     };
 
     for (const row of extractions || []) {

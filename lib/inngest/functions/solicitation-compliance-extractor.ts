@@ -36,15 +36,19 @@ import {
   extractSectionM,
   extractAdminData,
   extractRatingScales,
-  extractSowPws,
+  extractSowPwsOverview,
+  extractServiceAreaDetails,
   extractCostPrice,
   extractPastPerformance,
   extractKeyPersonnel,
   extractSecurityRequirements,
+  extractOperationalContext,
+  extractTechnologyRequirements,
   type ExtractionResult,
 } from '@/lib/ingestion/compliance-extractor';
 import type { ExtractionCategory } from '@/lib/supabase/compliance-types';
 import type { SolicitationDocumentType } from '@/lib/supabase/solicitation-types';
+import { logPipelineEvent } from '@/lib/logging/pipeline-logger';
 
 // ===== HELPERS =====
 
@@ -76,7 +80,9 @@ const EXTRACTION_ROUTING: Record<ExtractionCategory, {
   cost_price:       { primary: ['base_rfp', 'pricing_template'],      always: ['amendment'],                fallback: ['soo_sow_pws'] },
   past_performance: { primary: ['base_rfp'],                          always: ['amendment'],                fallback: ['soo_sow_pws'] },
   key_personnel:    { primary: ['base_rfp', 'soo_sow_pws'],          always: ['amendment'],                fallback: [] },
-  security_reqs:    { primary: ['dd254', 'base_rfp', 'clauses'],     always: [],                           fallback: ['soo_sow_pws', 'provisions'] },
+  security_reqs:        { primary: ['dd254', 'base_rfp', 'clauses'],     always: [],                           fallback: ['soo_sow_pws', 'provisions'] },
+  operational_context:  { primary: ['base_rfp', 'soo_sow_pws'],          always: ['amendment'],                fallback: [] },
+  technology_reqs:      { primary: ['soo_sow_pws', 'base_rfp'],          always: ['amendment'],                fallback: [] },
 };
 
 /**
@@ -515,9 +521,9 @@ export const solicitationComplianceExtractor = inngest.createFunction(
       }
     });
 
-    // ─── Step 6: Extract SOW / PWS / SOO ────────────────────────────────────
-    const sowPwsStats = await step.run('extract-sow-pws', async () => {
-      if (!shouldExtract('sow_pws')) return { fields: 0, upserted: 0, failed: false, skipped: true };
+    // ─── Step 6a: Extract SOW / PWS / SOO Overview (Pass 1) ──────────────────
+    const sowPwsOverviewStats = await step.run('extract-sow-pws-overview', async () => {
+      if (!shouldExtract('sow_pws')) return { fields: 0, upserted: 0, failed: false, skipped: true, serviceAreaCount: 0 };
       const supabase = getServerClient();
 
       await supabase
@@ -529,7 +535,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
 
       try {
         const targetDocs = getDocumentsForCategory('sow_pws', documentsByType);
-        const results = await extractSowPws(targetDocs);
+        const results = await extractSowPwsOverview(targetDocs);
         const upsertedCount = await upsertExtractions(
           solicitationId,
           'sow_pws',
@@ -537,24 +543,96 @@ export const solicitationComplianceExtractor = inngest.createFunction(
           primaryDocumentId
         );
 
+        // Count service areas for Pass 2
+        const serviceAreaIndex = results.find(r => r.field_name === 'service_area_index');
+        const serviceAreaCount = Array.isArray(serviceAreaIndex?.field_value)
+          ? (serviceAreaIndex.field_value as Array<{ code: string; name: string }>).length
+          : 0;
+
         await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
-          step:             'extract-sow-pws',
-          fields_extracted: results.length,
-          fields_upserted:  upsertedCount,
+          step:              'extract-sow-pws-overview',
+          fields_extracted:  results.length,
+          fields_upserted:   upsertedCount,
+          service_areas_found: serviceAreaCount,
         });
 
-        return { fields: results.length, upserted: upsertedCount, failed: false };
+        return { fields: results.length, upserted: upsertedCount, failed: false, serviceAreaCount };
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        console.error('SOW/PWS extraction failed:', errMsg);
+        console.error('SOW/PWS overview extraction failed:', errMsg);
         await markCategoryFailed(solicitationId, 'sow_pws', errMsg);
         await logProcessingEvent(null, 'solicitation-compliance-extractor', 'failed', {
-          step:  'extract-sow-pws',
+          step:  'extract-sow-pws-overview',
           error: errMsg,
         });
-        return { fields: 0, upserted: 0, failed: true, error: errMsg };
+        return { fields: 0, upserted: 0, failed: true, error: errMsg, serviceAreaCount: 0 };
       }
     });
+
+    // ─── Step 6b: Extract SOW/PWS Service Area Details (Pass 2) ────────────
+    const sowPwsDetailStats = await step.run('extract-sow-pws-details', async () => {
+      if (!shouldExtract('sow_pws')) return { fields: 0, upserted: 0, failed: false, skipped: true };
+      if (sowPwsOverviewStats.failed || sowPwsOverviewStats.serviceAreaCount === 0) {
+        return { fields: 0, upserted: 0, failed: false, skipped: true, reason: 'no service areas from overview' };
+      }
+
+      const supabase = getServerClient();
+
+      // Read the service_area_index from the DB (written by Pass 1)
+      const { data: indexRow } = await supabase
+        .from('compliance_extractions')
+        .select('field_value')
+        .eq('solicitation_id', solicitationId)
+        .eq('field_name', 'service_area_index')
+        .maybeSingle();
+
+      const serviceAreas = (indexRow?.field_value as Array<{ code: string; name: string; summary: string }>) || [];
+
+      if (serviceAreas.length === 0) {
+        return { fields: 0, upserted: 0, failed: false, skipped: true, reason: 'empty service_area_index' };
+      }
+
+      const targetDocs = getDocumentsForCategory('sow_pws', documentsByType);
+      let totalFields = 0;
+      let totalUpserted = 0;
+      const areaResults: Array<{ code: string; name: string; success: boolean }> = [];
+
+      for (const area of serviceAreas) {
+        try {
+          const results = await extractServiceAreaDetails(targetDocs, area.code, area.name);
+          const upsertedCount = await upsertExtractions(
+            solicitationId,
+            'sow_pws',
+            results,
+            primaryDocumentId
+          );
+          totalFields += results.length;
+          totalUpserted += upsertedCount;
+          areaResults.push({ code: area.code, name: area.name, success: true });
+        } catch (err) {
+          console.error(`Service area ${area.code} extraction failed:`, err instanceof Error ? err.message : String(err));
+          areaResults.push({ code: area.code, name: area.name, success: false });
+        }
+      }
+
+      await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
+        step:             'extract-sow-pws-details',
+        total_areas:      serviceAreas.length,
+        areas_succeeded:  areaResults.filter(a => a.success).length,
+        areas_failed:     areaResults.filter(a => !a.success).length,
+        fields_extracted: totalFields,
+        fields_upserted:  totalUpserted,
+      });
+
+      return { fields: totalFields, upserted: totalUpserted, failed: false, areaResults };
+    });
+
+    // Combine overview + detail stats for finalize
+    const sowPwsStats = {
+      fields: (sowPwsOverviewStats.fields || 0) + (sowPwsDetailStats.fields || 0),
+      upserted: (sowPwsOverviewStats.upserted || 0) + (sowPwsDetailStats.upserted || 0),
+      failed: sowPwsOverviewStats.failed,
+    };
 
     // ─── Step 7: Extract Cost / Price ─────────────────────────────────────────
     const costPriceStats = await step.run('extract-cost-price', async () => {
@@ -720,7 +798,89 @@ export const solicitationComplianceExtractor = inngest.createFunction(
       }
     });
 
-    // ─── Step 11: Finalize ────────────────────────────────────────────────────
+    // ─── Step 11: Extract Operational Context ─────────────────────────────────
+    const operationalContextStats = await step.run('extract-operational-context', async () => {
+      if (!shouldExtract('operational_context')) return { fields: 0, upserted: 0, failed: false, skipped: true };
+      const supabase = getServerClient();
+
+      await supabase
+        .from('compliance_extractions')
+        .update({ extraction_status: 'extracting', updated_at: new Date().toISOString() })
+        .eq('solicitation_id', solicitationId)
+        .eq('category', 'operational_context')
+        .eq('extraction_status', 'pending');
+
+      try {
+        const targetDocs = getDocumentsForCategory('operational_context', documentsByType);
+        const results = await extractOperationalContext(targetDocs);
+        const upsertedCount = await upsertExtractions(
+          solicitationId,
+          'operational_context',
+          results,
+          primaryDocumentId
+        );
+
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
+          step:             'extract-operational-context',
+          fields_extracted: results.length,
+          fields_upserted:  upsertedCount,
+        });
+
+        return { fields: results.length, upserted: upsertedCount, failed: false };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error('Operational Context extraction failed:', errMsg);
+        await markCategoryFailed(solicitationId, 'operational_context', errMsg);
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'failed', {
+          step:  'extract-operational-context',
+          error: errMsg,
+        });
+        return { fields: 0, upserted: 0, failed: true, error: errMsg };
+      }
+    });
+
+    // ─── Step 12: Extract Technology Requirements ───────────────────────────
+    const technologyReqsStats = await step.run('extract-technology-reqs', async () => {
+      if (!shouldExtract('technology_reqs')) return { fields: 0, upserted: 0, failed: false, skipped: true };
+      const supabase = getServerClient();
+
+      await supabase
+        .from('compliance_extractions')
+        .update({ extraction_status: 'extracting', updated_at: new Date().toISOString() })
+        .eq('solicitation_id', solicitationId)
+        .eq('category', 'technology_reqs')
+        .eq('extraction_status', 'pending');
+
+      try {
+        const targetDocs = getDocumentsForCategory('technology_reqs', documentsByType);
+        const results = await extractTechnologyRequirements(targetDocs);
+        const upsertedCount = await upsertExtractions(
+          solicitationId,
+          'technology_reqs',
+          results,
+          primaryDocumentId
+        );
+
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
+          step:             'extract-technology-reqs',
+          fields_extracted: results.length,
+          fields_upserted:  upsertedCount,
+        });
+
+        return { fields: results.length, upserted: upsertedCount, failed: false };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error('Technology Requirements extraction failed:', errMsg);
+        await markCategoryFailed(solicitationId, 'technology_reqs', errMsg);
+        await logProcessingEvent(null, 'solicitation-compliance-extractor', 'failed', {
+          step:  'extract-technology-reqs',
+          error: errMsg,
+        });
+        return { fields: 0, upserted: 0, failed: true, error: errMsg };
+      }
+    });
+
+    // ─── Step 13: Finalize ────────────────────────────────────────────────────
     const summary = await step.run('finalize', async () => {
       const supabase = getServerClient();
 
@@ -740,7 +900,7 @@ export const solicitationComplianceExtractor = inngest.createFunction(
       const completedCount = completedRows?.length || 0;
       const failedCount = failedRows?.length || 0;
 
-      await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', {
+      const finalizeMeta = {
         step:                    'finalize',
         solicitation_id:         solicitationId,
         total_completed:         completedCount,
@@ -749,30 +909,41 @@ export const solicitationComplianceExtractor = inngest.createFunction(
         docs_per_type:           Object.fromEntries(
           Object.entries(documentsByType).map(([t, arr]) => [t, arr.length])
         ),
-        section_l_fields:        sectionLStats.upserted,
-        section_m_fields:        sectionMStats.upserted,
-        admin_data_fields:       adminDataStats.upserted,
-        rating_scales_fields:    ratingScalesStats.upserted,
-        sow_pws_fields:          sowPwsStats.upserted,
-        cost_price_fields:       costPriceStats.upserted,
-        past_performance_fields: pastPerformanceStats.upserted,
-        key_personnel_fields:    keyPersonnelStats.upserted,
-        security_reqs_fields:    securityReqsStats.upserted,
+        section_l_fields:           sectionLStats.upserted,
+        section_m_fields:           sectionMStats.upserted,
+        admin_data_fields:          adminDataStats.upserted,
+        rating_scales_fields:       ratingScalesStats.upserted,
+        sow_pws_fields:             sowPwsStats.upserted,
+        cost_price_fields:          costPriceStats.upserted,
+        past_performance_fields:    pastPerformanceStats.upserted,
+        key_personnel_fields:       keyPersonnelStats.upserted,
+        security_reqs_fields:       securityReqsStats.upserted,
+        operational_context_fields: operationalContextStats.upserted,
+        technology_reqs_fields:     technologyReqsStats.upserted,
+      };
+
+      await logProcessingEvent(null, 'solicitation-compliance-extractor', 'completed', finalizeMeta);
+
+      // Centralized pipeline logging — solicitation-scoped
+      await logPipelineEvent(solicitationId, 'finalize', 'completed', {
+        output_summary: finalizeMeta,
       });
 
       return {
         completed: completedCount,
         failed:    failedCount,
         sections: {
-          section_l:        sectionLStats,
-          section_m:        sectionMStats,
-          admin_data:       adminDataStats,
-          rating_scales:    ratingScalesStats,
-          sow_pws:          sowPwsStats,
-          cost_price:       costPriceStats,
-          past_performance: pastPerformanceStats,
-          key_personnel:    keyPersonnelStats,
-          security_reqs:    securityReqsStats,
+          section_l:           sectionLStats,
+          section_m:           sectionMStats,
+          admin_data:          adminDataStats,
+          rating_scales:       ratingScalesStats,
+          sow_pws:             sowPwsStats,
+          cost_price:          costPriceStats,
+          past_performance:    pastPerformanceStats,
+          key_personnel:       keyPersonnelStats,
+          security_reqs:       securityReqsStats,
+          operational_context: operationalContextStats,
+          technology_reqs:     technologyReqsStats,
         },
       };
     });

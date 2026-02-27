@@ -202,6 +202,15 @@ export async function PUT(
     if (body.compliance_verification !== undefined) {
       upsertData.compliance_verification = body.compliance_verification;
     }
+    if (body.service_area_approaches !== undefined) {
+      upsertData.service_area_approaches = body.service_area_approaches;
+    }
+    if (body.site_staffing !== undefined) {
+      upsertData.site_staffing = body.site_staffing;
+    }
+    if (body.technology_selections !== undefined) {
+      upsertData.technology_selections = body.technology_selections;
+    }
     if (body.status !== undefined) {
       upsertData.status = body.status;
       // Set completed_at when marking as completed

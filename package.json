@@ -29,7 +29,6 @@
     "libreoffice-convert": "^1.8.1",
     "lucide-react": "^0.454.0",
     "next": "^16.1.6",
-    "pdf-parse": "^2.4.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "tailwind-merge": "^3.3.1",
@@ -43,6 +42,7 @@
     "@types/tmp": "^0.2.6",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
+    "pdf-parse": "^2.4.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { inngest } from '@/lib/inngest/client';
 import { requireStaffOrResponse } from '@/lib/auth';
+import ExcelJS from 'exceljs';
 
 // PDF service URL - configurable via environment variable
 const PDF_SERVICE_URL = process.env.PDF_SERVICE_URL || 'http://localhost:8000';
@@ -27,9 +28,56 @@ function isAllowedFile(file: File): boolean {
   return ALLOWED_EXTENSIONS.includes(ext) || ALLOWED_MIME_TYPES.includes(file.type);
 }
 
+/**
+ * Extract readable text from an Excel workbook (.xlsx / .xls).
+ * Iterates every sheet → every row → every cell and emits a TSV-style
+ * text representation that the AI classifier and extractor can understand.
+ */
+async function extractTextFromExcel(buffer: ArrayBuffer, filename: string): Promise<string> {
+  try {
+    const workbook = new ExcelJS.Workbook();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await workbook.xlsx.load(buffer as any);
+
+    const lines: string[] = [];
+    workbook.eachSheet((sheet) => {
+      lines.push(`\n=== Sheet: ${sheet.name} ===\n`);
+      sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        const cells: string[] = [];
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          // Handle rich-text cells, formulas, and plain values
+          const val = cell.text ?? cell.value?.toString() ?? '';
+          cells.push(val);
+        });
+        if (cells.some((c) => c.trim() !== '')) {
+          lines.push(`Row ${rowNumber}: ${cells.join('\t')}`);
+        }
+      });
+    });
+
+    const text = lines.join('\n');
+    console.log(`[excel-extract] ${filename}: ${workbook.worksheets.length} sheets, ${text.length} chars`);
+    return text;
+  } catch (err) {
+    console.error(`[excel-extract] Failed for ${filename}:`, err);
+    return `[Excel extraction failed for ${filename}]`;
+  }
+}
+
 async function extractTextFromFile(file: File): Promise<string> {
   const ext = getFileExtension(file.name);
 
+  // --- Excel files (.xlsx, .xls) ---
+  if (
+    ext === '.xlsx' || ext === '.xls' ||
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.type === 'application/vnd.ms-excel'
+  ) {
+    const buffer = await file.arrayBuffer();
+    return extractTextFromExcel(buffer, file.name);
+  }
+
+  // --- PDF files ---
   if (ext === '.pdf' || file.type === 'application/pdf') {
     // Use Python microservice for PDF extraction
     try {
@@ -47,17 +95,17 @@ async function extractTextFromFile(file: File): Promise<string> {
       }
 
       const result = await response.json();
-      console.log(`Extracted ${result.pages} pages, ${result.character_count} characters from ${file.name}`);
+      console.log(`[pdf-extract] ${file.name}: ${result.pages} pages, ${result.character_count} chars`);
       return result.text;
     } catch (pdfError) {
-      console.error(`PDF extraction failed for ${file.name}:`, pdfError);
-      // Fall back to raw text — AI can still work with partial content
-      return await file.text();
+      console.error(`[pdf-extract] Service unavailable for ${file.name}:`, pdfError instanceof Error ? pdfError.message : pdfError);
+      console.error(`[pdf-extract] ⚠️  Start the PDF service: cd pdf-service && python main.py`);
+      // Return a marker so the classifier knows extraction failed (instead of binary garbage)
+      return `[PDF text extraction failed – PDF service not available. Filename: ${file.name}]`;
     }
   }
 
-  // DOCX, XLSX, TXT: read as text (basic extraction)
-  // DOCX/XLSX give XML content which AI can work with
+  // --- DOCX, TXT, and other text-based formats ---
   return await file.text();
 }
 

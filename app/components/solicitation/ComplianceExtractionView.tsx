@@ -13,6 +13,8 @@ import {
   Trophy,
   Users,
   ShieldCheck,
+  Building,
+  Cpu,
   Loader2,
   CheckCircle,
   XCircle,
@@ -63,6 +65,8 @@ const CATEGORY_ICONS: Record<ExtractionCategory, React.ReactNode> = {
   past_performance: <Trophy className="h-5 w-5" />,
   key_personnel: <Users className="h-5 w-5" />,
   security_reqs: <ShieldCheck className="h-5 w-5" />,
+  operational_context: <Building className="h-5 w-5" />,
+  technology_reqs: <Cpu className="h-5 w-5" />,
 };
 
 const CATEGORY_ORDER: ExtractionCategory[] = [
@@ -75,6 +79,8 @@ const CATEGORY_ORDER: ExtractionCategory[] = [
   "past_performance",
   "key_personnel",
   "security_reqs",
+  "operational_context",
+  "technology_reqs",
 ];
 
 const CONFIDENCE_BORDER: Record<ExtractionConfidence, string> = {

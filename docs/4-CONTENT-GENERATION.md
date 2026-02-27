@@ -4,8 +4,6 @@
 
 Content generation is the final stage of the pipeline. It takes three data sources — company knowledge (Tier 1), opportunity-specific data (Tier 2), and AI-extracted RFP structure (Phase 7 compliance extractions) — and produces complete, multi-volume DOCX proposal responses using Claude Sonnet 4.5.
 
-There are two generation pipelines: the **modern draft pipeline** (Phase 9, production path) and the **legacy Stage 2 pipeline** (v1, still functional). This document covers both in detail.
-
 ---
 
 ## The AI Model
@@ -34,10 +32,13 @@ No other AI provider is used. All extraction AND generation runs through Claude.
 - Reads `compliance_extractions` for `section_l.volume_structure` to determine volumes and page limits
 - Falls back to default volumes if Section L had no volume structure: `[Technical Approach, Management, Past Performance, Cost/Price]`
 
+**Accepts:**
+- `graphicsProfile` in request body: `'minimal'` (default, text only) or `'standard'` (embeds org charts, timelines, process flows)
+
 **Creates:**
 - `proposal_drafts` record (status = `pending`)
 - `draft_volumes` rows (one per volume, status = `pending`)
-- Fires Inngest event: `proposal.draft.generate`
+- Fires Inngest event: `proposal.draft.generate` with `graphicsProfile`
 
 ### The Draft Generator Inngest Function
 
@@ -45,13 +46,20 @@ No other AI provider is used. All extraction AND generation runs through Claude.
 
 #### Step 1: Fetch All Data
 
-Loads three data sources from Supabase:
+Loads three data sources plus Tier 1 collections from Supabase:
 
 **Tier 1 — Company Profile:**
 - `company_name`, `legal_name`, `corporate_overview`, `core_services_summary`
 - `enterprise_win_themes[]`, `key_differentiators_summary`
 - `standard_management_approach`, `elevator_pitch`
-- `logo_url`, `proposal_poc`, `authorized_signer`
+- `logo_url`, `primary_color`, `secondary_color`, `proposal_poc`, `authorized_signer`
+
+**Tier 1 — Collections (piped directly into prompts):**
+- `personnel[]` — full records with education, work history, clearances, certifications
+- `past_performances[]` — contract history with CPARS ratings, achievements, task areas
+- `certifications[]` — certification type, agency, expiration
+- `contract_vehicles[]` — vehicle name, type, contract number, ceiling value, labor categories
+- `naics_codes[]` — NAICS code, title, is_primary
 
 **Tier 2 — Data Call Response:**
 - `opportunity_details` — contract_type, set_aside, prime_or_sub, teaming_partners[]
@@ -62,6 +70,11 @@ Loads three data sources from Supabase:
 **Phase 7 — Compliance Extractions:**
 - All 9 categories grouped by category name
 - Key fields: `section_l.volume_structure`, `section_m.evaluation_factors`, `sow_pws.task_areas`, `admin_data.clin_structure`, `past_performance.references_required`, `key_personnel.positions`
+
+**Color Palette:**
+- Built once from `company_profiles.primary_color` / `secondary_color` via `buildColorPalette()`
+- Derives: `primary`, `primaryDark`, `primaryLight`, `primaryNodeFill`, `tableHeaderBg`, `tableHeaderText`
+- Falls back to default blue (`#2563eb`) when no colors are set
 
 #### Step 2: Per-Volume Generation
 
@@ -80,11 +93,17 @@ For each volume (one Inngest step each):
 
 4. **Parse response:** `markdownToContentStructure()` splits markdown on H1/H2 headings into `{ sections: [{title, content}] }`
 
-5. **Generate DOCX:** `generateProposalVolume()` → `saveDocxToBuffer()`
+5. **Diagram embedding (if `graphicsProfile === 'standard'`):**
+   - Management volumes: org chart + transition timeline (generated in parallel)
+   - Technical volumes: quality control process flow
+   - Diagrams rendered as PNG via Mermaid, embedded as `ImageRun` in DOCX
+   - Inserted into matching content sections by keyword (e.g., "organizational" → org chart)
 
-6. **Upload:** Supabase Storage at `drafts/{companyId}/{solicitationId}/{order}_{name}.docx`
+6. **Generate DOCX:** `generateProposalVolume()` → `saveDocxToBuffer()` with company color palette
 
-7. **Update DB:** `draft_volumes` with status, word_count, page_estimate, page_limit_status, content_markdown
+7. **Upload:** Supabase Storage at `drafts/{companyId}/{solicitationId}/{order}_{name}.docx`
+
+8. **Update DB:** `draft_volumes` with status, word_count, page_estimate, page_limit_status, content_markdown
 
 #### Step 3: Compliance Matrix
 
@@ -125,6 +144,7 @@ Key rules:
 3. Use active voice and action verbs at the start of sentences
 4. Quantify claims whenever possible (percentages, years, dollar values, counts)
 5. Structure content so evaluators can quickly find evidence for each criterion
+6. NEVER exceed page limits — government evaluators strictly enforce page limits
 ```
 
 ### Volume-Specific User Prompts
@@ -137,6 +157,7 @@ Key rules:
 - SOW/PWS task areas from `sow_pws` extraction
 - Section M technical evaluation factors
 - Page limit and target word count
+- **Tier 1 enrichment:** Company certifications (type, agency, expiration), contract vehicles (name, type, contract #, ceiling), key personnel qualifications (education, certs, clearance, experience years)
 
 **Instructions include:**
 - Mirror the exact language from Section M evaluation factors
@@ -150,6 +171,7 @@ Key rules:
 **Data injected:**
 - Company `standard_management_approach`, `corporate_overview`
 - Key personnel from data call (role, name, qualifications_summary)
+- **Tier 1 enrichment:** Cross-references Tier 2 key_personnel with Tier 1 personnel records by name match. For each match appends: education (degree, field, institution), certifications, clearance level + status, total/federal experience years, recent work history (top 2 entries)
 - Teaming arrangements from opportunity details
 - Management-related evaluation factors
 
@@ -163,6 +185,7 @@ Key rules:
 
 **Data injected:**
 - Past performance references from data call (project_name, client_agency, contract_number, contract_value, period_of_performance, relevance_summary, POC)
+- **Tier 1 enrichment:** Cross-references Tier 2 refs with Tier 1 past_performances by contract number or project name. For each match appends: CPARS ratings (overall, quality, schedule), description of effort (truncated 500 chars), task areas, tools used, top 3 achievements with metrics, team size, role (Prime/Sub)
 - Recency/relevance criteria from `past_performance` extraction
 - References required count
 
@@ -177,6 +200,7 @@ Key rules:
 - CLIN structure from `admin_data` extraction
 - Contract type
 - Period of performance
+- **Tier 1 enrichment:** Active contract vehicles (name, type, ceiling, labor categories), relevant certifications
 
 **Instructions include:**
 - Write Price Narrative and Basis of Estimate (BOE) ONLY
@@ -188,16 +212,24 @@ Key rules:
 #### Default/Fallback Volume (`buildDefaultPrompt`)
 
 Used for any unrecognized volume name. Injects all available company and bid context. Treats the volume name as the subject matter.
+- **Tier 1 enrichment:** NAICS codes list, capability summary (counts of certs, vehicles, personnel, past perf)
 
-### Page Targeting
+### Page Limit Enforcement
 
-```typescript
-targetWordCount = pageLimit × 250 × 0.875
+`buildPageLimitInstruction(targetWordCount, pageLimit, spacing)` generates enforcement text:
+
+**When page limit exists (hard enforcement):**
+```
+HARD PAGE LIMIT: This volume has a STRICT X-page limit. Government page limits are absolute —
+proposals exceeding the limit may be rejected without evaluation.
+- MAXIMUM: Y words (X pages)
+- TARGET: Z words (87.5% utilization)
+- Do NOT exceed Y words. Prioritize highest-weighted evaluation factors if space is tight.
 ```
 
-- 250 words per page (single-spaced)
-- 87.5% utilization (leaves room for headings, white space, exhibits)
-- Injected into every prompt as: "TARGET LENGTH: approximately {N} words"
+**When no page limit:** Softer "Approximately X words" text.
+
+**Formula:** `targetWordCount = pageLimit × 250 × 0.875` (250 words/page single-spaced, 87.5% utilization for headings/whitespace)
 
 ### Sparse Data Handling
 
@@ -279,7 +311,7 @@ Rotated throughout the volume using the company's `enterprise_win_themes[]` from
 
 **File:** `lib/generation/docx/styles.ts`
 
-All DOCX output uses the `docx` npm library with a comprehensive professional style set:
+All DOCX output uses the `docx` npm library with a comprehensive professional style set. Styles are generated via `buildProposalStyles(palette)` which accepts a `ProposalColorPalette` — all color references are parameterized, not hardcoded.
 
 #### Headings (Hierarchical, Numbered)
 | Style | Font | Size | Color | Spacing |
@@ -325,10 +357,22 @@ All DOCX output uses the `docx` npm library with a comprehensive professional st
 - `IntenseReference` — Italic, blue (`#2563eb`)
 - `ExhibitReference` — Bold italic, blue (`#2563eb`)
 
-### Color Scheme
-Primary: `#2563eb` (Tailwind blue-600)
-Secondary: `#1e40af` (Tailwind blue-800)
-These are used consistently for headings, borders, table headers, and accent elements.
+### Color Palette System
+
+**File:** `lib/generation/docx/colors.ts`
+
+Colors are derived from the company's `primary_color` and `secondary_color` fields (set via color pickers in the Company Profile → Corporate Identity tab).
+
+| Palette Field | Derivation | Default |
+|---|---|---|
+| `primary` | Company primary color | `#2563eb` |
+| `primaryDark` | 20% darker | `#1e40af` |
+| `primaryLight` | 90% toward white | `#F0F9FF` |
+| `primaryNodeFill` | 80% toward white | `#dbeafe` |
+| `tableHeaderBg` | Same as primary | `#2563eb` |
+| `tableHeaderText` | Always white | `#FFFFFF` |
+
+When no company colors are set, falls back to the default blue palette. The palette is threaded through `buildProposalStyles()`, `parseMarkdownToDocx()`, `generateProposalVolume()`, and the cover page generator.
 
 ### Page Setup
 - **Margins:** 1 inch on all sides
@@ -382,113 +426,45 @@ Applied to all pages except the cover:
 
 **Directory:** `lib/generation/exhibits/`
 
+### Graphics Profile
+
+Selected by the user on the Strategy Confirmation screen before generation:
+- **Minimal** (default) — text only, no embedded diagrams
+- **Standard** — generates and embeds diagrams into DOCX content sections
+
+### Diagram Embedder (`lib/generation/docx/diagram-embedder.ts`)
+
+When `graphicsProfile === 'standard'`, generates volume-appropriate diagrams:
+
+| Volume Type | Diagrams Generated |
+|---|---|
+| Management | Org chart (from Tier 1 personnel) + Transition timeline |
+| Technical | Quality control process flow |
+| Other | None |
+
+Each diagram is rendered to PNG, read into an `ImageRun`, wrapped in a centered `Paragraph` with italic caption, and inserted into the matching content section by keyword (e.g., "organizational" → org chart, "transition" → timeline, "quality" → process flow).
+
 ### Org Charts (`org-chart.ts`)
-- Generated as PNG images
+- Generated as PNG images from Tier 1 `personnel` records (filtered to `is_key_personnel`)
 - Uses Mermaid syntax for org chart definitions
-- Rendered via Mermaid CLI or canvas fallback
-- Shows organizational hierarchy with key personnel in their roles
+- Company name as root node
 
 ### Process Diagrams (`process-diagram.ts`)
 - Generated as PNG images
 - Mermaid flowchart syntax
-- Shows workflow/process steps for technical approach
+- Standard processes defined (quality control, etc.)
 
 ### Timelines (`timeline.ts`)
 - Gantt chart generation
 - Shows transition timeline, PoP milestones
 
-### Exhibit Manager (`exhibit-manager.ts`)
-- Tracks sequential exhibit numbering (Exhibit 1, Exhibit 2, ...)
-- Validates cross-references between text and exhibits
-- Ensures exhibit references in text point to correct exhibit numbers
-
 ### Branding (`branding.ts`)
 - Logo integration into exhibits
-- Color consistency with company branding
+- Uses `CompanyProfile` type from `company-types.ts`
 
 ### Rendering (`render.ts`)
 - Mermaid CLI rendering to PNG image buffers
 - Puppeteer config for headless rendering (`puppeteer.config.json`)
-
----
-
-## Legacy Pipeline (v1) Generation Details
-
-**File:** `lib/inngest/functions/stage2-response-generator.ts`
-**Trigger:** `response.generate`
-
-### Data Loaded
-- Document + all `rfp_requirements` from Stage 1
-- Company data: past_performances, personnel, value_propositions, service_areas, tools_technologies, innovations, certifications, naics_codes, contract_vehicles, competitive_advantages, boilerplate_library
-
-### Volume Generation
-
-Each volume has a dedicated generator in `lib/generation/volumes/`:
-
-#### Technical Volume (`lib/generation/volumes/technical.ts`)
-Calls template functions that each make their own Claude calls:
-
-1. `generateExecutiveSummaryContent()` — Returns JSON: `{opening, understanding, solution, whyUs, discriminators}`
-2. Per task area (from requirements):
-   - `generateTaskAreaApproach()` — Returns JSON: `{understanding, methodology, benefit}`
-   - `generateDeliverablesList()` — Returns JSON array: `[{name, description, format}]`
-   - `generateWorkflowSteps()` — Returns JSON array of step strings (for process diagrams)
-3. Each task area section includes:
-   - Requirement box (quoting the RFP requirement)
-   - Understanding paragraph (first sentence bold)
-   - Methodology bullets
-   - Benefit callout box
-   - Exhibit reference (to process diagram)
-   - Proof points from value propositions
-   - Deliverables subsection
-
-#### Management Volume (`lib/generation/volumes/management.ts`)
-1. `generateManagementPhilosophy()` — Plain text paragraphs
-2. Org chart exhibit
-3. Key personnel table (name, title, years, clearance)
-4. `generateStaffingApproach()` — Plain text
-5. `generateCommunicationPlan()` — Plain text, weekly/monthly meeting cadence
-6. `generateQCApproach()` — Plain text quality control paragraphs
-
-#### Past Performance Volume (`lib/generation/volumes/past-performance.ts`)
-For each contract (top 5):
-- Contract details table (agency, number, value, period, role, team size)
-- Overview paragraph
-- Description of effort
-- Task areas (bulleted)
-- Achievements (bulleted)
-- CPARS rating table
-- Client POC
-
-#### Price Volume (`lib/generation/volumes/price.ts`)
-- Static structure: Price methodology, assumptions, labor categories
-- Table with labor categories from contract vehicles
-- All pricing uses `[PLACEHOLDER]` — no fabricated numbers
-
-#### Compliance Matrix (`lib/generation/volumes/compliance-matrix.ts`)
-- Word table: Requirement Number | Requirement Text | Section Reference | Category | Priority | Volume Section | Page
-- Separate Excel file via `lib/generation/compliance/matrix-generator.ts` using ExcelJS
-
-### Post-Processing Pipeline (`lib/generation/pipeline/`)
-
-After all volumes are generated:
-
-1. **`outline-generator.ts`** — Generates hierarchical outline from requirements
-2. **`page-tracker.ts`** — Tracks page count per volume against limits
-3. **`docx-page-counter.ts`** — Estimates pages from word count (250 words/page)
-4. **`content-condenser.ts`** — If a volume exceeds page limits, uses Claude to condense:
-   - Standard condense: remove redundant examples, tighten language
-   - Aggressive condense: force bullet points, remove all examples, combine sentences
-   - **Never removes compliance statements** — those are preserved verbatim
-5. **`pdf-converter.ts`** — LibreOffice DOCX→PDF conversion (currently disabled on Windows)
-6. **`package-builder.ts`** — ZIP assembly of all volumes + compliance matrix
-7. **`checklist-generator.ts`** — Submission checklist generation
-
-### Compliance Language in v1 Prompts
-
-`getComplianceInstructions(companyName)` is prepended to several template prompts (technical approach, management philosophy, staffing, communication plan, QC). It establishes exact verb-echoing requirements for every "shall" and "must" statement.
-
-`getGhostingContext(advantages)` is also prepended, providing competitive advantage phrases to weave into the narrative without naming competitors.
 
 ---
 
@@ -522,34 +498,11 @@ Post-processes section headings to append requirement number references:
 
 ## Export and Download
 
-### Draft Pipeline Downloads
+### Volume Downloads
 
 **Route:** `GET /api/solicitations/[id]/draft/volumes/[volumeId]`
 - Downloads DOCX from Supabase Storage via signed URL
-- Individual volume download
-
-### Legacy Pipeline Downloads
-
-**Route A:** `GET /api/proposals/[id]/download`
-- Reads `proposal_volumes` from DB
-- Creates ZIP using `archiver` (zlib level 9)
-- Contents: `{volume_type}-volume.docx` files + `compliance-matrix.xlsx`
-- Returns `application/zip` as `proposal-{documentId}.zip`
-
-**Route B:** `GET /api/download/[proposalId]`
-- Structured folder layout: `Proposal_{solicitationNumber}/`
-- DOCX at root: `Volume_I_Technical.docx`, `Volume_II_Management.docx`, `Volume_III_PastPerformance.docx`, `Volume_IV_Price.docx`
-- PDFs in `Final_Submission/` subfolder (currently empty — PDF conversion disabled)
-- `Appendix_B_Compliance_Matrix.xlsx`
-- Returns `Proposal_{solicitationNumber}.zip`
-
-### HTML Preview (Legacy)
-
-**File:** `lib/templates/rfp-response-template.ts`
-- HTML export with CSS print styles
-- Cover page, TOC, section dividers
-- Font: Arial, Primary color: `#2563eb`
-- Currently deprecated (volumes have no text content for HTML rendering in v2)
+- Individual volume download from the Draft tab UI
 
 ---
 
@@ -561,31 +514,31 @@ Post-processes section headings to append requirement number references:
                     │  Expert proposal writer      │
                     │  SHIPLEY methodology         │
                     │  Compliance-first language    │
+                    │  Hard page limit enforcement  │
                     │  Placeholder convention       │
                     └──────────────┬──────────────┘
                                    │
-         ┌─────────────────────────┼─────────────────────────┐
-         │                         │                         │
-    ┌────┴─────┐            ┌──────┴──────┐           ┌──────┴──────┐
-    │  TIER 1  │            │   TIER 2    │           │  PHASE 7    │
-    │ Company  │            │  Data Call  │           │ Extractions │
-    │ Profile  │            │  Response   │           │             │
-    ├──────────┤            ├─────────────┤           ├─────────────┤
-    │ Name     │            │ PP refs     │           │ Section L   │
-    │ Overview │            │ Key persons │           │ Section M   │
-    │ Services │            │ Tech appch  │           │ SOW/PWS     │
-    │ Win thms │            │ Oppty dtls  │           │ Admin data  │
-    │ Mgmt apch│            │ Compliance  │           │ Rating scls │
-    │ Elevator │            │ verification│           │ Cost/price  │
-    │ Differnt │            │             │           │ PP criteria │
-    └────┬─────┘            └──────┬──────┘           │ Key pers    │
-         │                         │                  │ Security    │
-         │                         │                  └──────┬──────┘
-         └─────────────────────────┼─────────────────────────┘
+    ┌──────────────────────────────┼──────────────────────────────┐
+    │                              │                              │
+┌───┴──────┐   ┌──────────┐  ┌────┴─────┐           ┌───────────┴──┐
+│  TIER 1  │   │ TIER 1   │  │  TIER 2  │           │   PHASE 7    │
+│ Profile  │   │ Collctns │  │ Data Call│           │  Extractions │
+├──────────┤   ├──────────┤  ├──────────┤           ├──────────────┤
+│ Name     │   │Personnel │  │ PP refs  │           │ Section L    │
+│ Overview │   │Past Perf │  │ Key pers │           │ Section M    │
+│ Services │   │Certs     │  │ Tech app │           │ SOW/PWS      │
+│ Win thms │   │Vehicles  │  │ Oppty dtl│           │ Admin data   │
+│ Mgmt apch│   │NAICS     │  │ Complnce │           │ Cost/price   │
+│ Colors   │   │          │  │          │           │ PP criteria  │
+└───┬──────┘   └────┬─────┘  └────┬─────┘           └──────┬──────┘
+    └───────────────┼─────────────┼────────────────────────┘
+                    │    CROSS-REFERENCE            │
+                    │  Tier 2 refs ↔ Tier 1 records │
+                    └──────────────┬────────────────┘
                                    │
                     ┌──────────────┴──────────────┐
                     │     VOLUME-SPECIFIC PROMPT   │
-                    │  + Target word count          │
+                    │  + Hard page limit ceiling    │
                     │  + Evaluation factors          │
                     │  + Win theme instructions      │
                     │  + Sparse data handling        │
@@ -601,13 +554,14 @@ Post-processes section headings to append requirement number references:
                                    │
                     ┌──────────────┴──────────────┐
                     │     DOCX GENERATION          │
-                    │  Professional styling         │
+                    │  Company color palette        │
                     │  Cover page + TOC             │
                     │  Headers/footers              │
                     │  Numbered headings            │
                     │  Requirement boxes             │
                     │  Win theme callouts            │
                     │  Tables + exhibits             │
+                    │  Embedded diagrams (standard)  │
                     └──────────────┬──────────────┘
                                    │
                     ┌──────────────┴──────────────┐

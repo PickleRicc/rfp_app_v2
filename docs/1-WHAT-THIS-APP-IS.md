@@ -46,7 +46,7 @@ ClicklessAI automates the entire pipeline — from document upload to finished D
 - Full access to the staff application
 - Can manage multiple companies
 - Upload solicitations, run extraction, trigger generation
-- Access all routes: `/`, `/documents`, `/company/*`, `/solicitations/*`, `/proposals/*`, `/results/*`
+- Access all routes: `/solicitations`, `/companies`, `/company/*`, `/solicitations/*`
 
 ### Client Users (Paying Customers)
 - Access the self-service portal at `/portal/*`
@@ -113,24 +113,22 @@ Each pipeline step runs as an Inngest background function, chained via events. S
 
 | Page | Purpose |
 |---|---|
-| `/` (Home) | Upload RFP documents, see company context |
+| `/solicitations` | Landing page — all solicitations for the selected company |
+| `/solicitations/new` | Upload a new solicitation package |
+| `/solicitations/[id]` | 6-tab solicitation workspace: Documents, Reconciliation, Compliance, Templates, Data Call, Draft |
 | `/companies` | List and switch between companies |
-| `/company/profile` | Edit company identity (CAGE, UEI, SAM, contacts) |
+| `/company/profile` | Edit company identity (CAGE, UEI, SAM, contacts, brand colors) |
 | `/company/boilerplate` | Manage reusable text blocks |
 | `/company/capabilities` | Define service areas |
 | `/company/certifications` | Track certifications |
 | `/company/differentiators` | Win themes and competitive advantages |
 | `/company/past-performance` | Historical contract records |
 | `/company/personnel` | Employee roster and resumes |
-| `/solicitations` | All solicitations for the selected company |
-| `/solicitations/new` | Upload a new solicitation package |
-| `/solicitations/[id]` | 6-tab solicitation workspace: Documents, Reconciliation, Compliance, Templates, Data Call, Draft |
 
 ## API Surface
 
 - **18 company data endpoints** — CRUD for profile, boilerplate, capabilities, certifications, differentiators, past performance, personnel
 - **12 solicitation pipeline endpoints** — upload, documents, reconciliation, compliance, data call, draft generation
-- **7 legacy document endpoints** — the v1 single-document pipeline (still functional)
 - **1 Inngest webhook** — receives background job events
 - **1 auth callback** — Supabase OAuth
 - **1 portal endpoint** — client document access
@@ -142,19 +140,20 @@ Each pipeline step runs as an Inngest background function, chained via events. S
 | `solicitationDocumentClassifier` | Document uploaded | Classify into 11 types |
 | `solicitationReconciler` | All docs classified | Reconcile amendments, detect templates |
 | `solicitationComplianceExtractor` | Reconciliation complete | 9 extraction passes |
-| `proposalDraftGenerator` | Draft triggered | Generate DOCX per volume |
-| `documentClassifier` (legacy) | Document uploaded | Classify single doc |
-| `rfpIntelligenceAnalyzer` (legacy) | Document classified | Extract 8 sections + requirements |
-| `rfpResponseGenerator` (legacy) | Generation triggered | Generate 4-volume proposal |
+| `proposalDraftGenerator` | Draft triggered | Generate DOCX per volume with optional diagrams |
 
 ## What Makes This Different
 
 1. **Function-based extraction, not label-based:** The AI searches for content by purpose (signal keywords like "page limits", "evaluation factors", "shall provide") rather than looking for fixed headers like "Section L". This handles the full spectrum of federal procurement vehicles (FAR 15, SeaPort NxG, GSA Schedule, FAR 12/13, Army TORs).
 
-2. **Three-tier prompt assembly:** Every generated volume draws from company knowledge (Tier 1), opportunity-specific data (Tier 2), AND the AI-extracted RFP structure (Phase 7 compliance extractions).
+2. **Three-tier prompt assembly:** Every generated volume draws from company knowledge (Tier 1 — including full personnel resumes, past performance with CPARS, certifications, contract vehicles, NAICS codes), opportunity-specific data (Tier 2), AND the AI-extracted RFP structure (Phase 7 compliance extractions).
 
-3. **User overrides preserved:** If a user manually edits an extraction result, re-running extraction will never overwrite their edit.
+3. **Hard page limit enforcement:** When the RFP specifies page limits, the system enforces absolute word count ceilings with government-style rejection warnings — not soft "approximately" targets.
 
-4. **Compliance language enforcement:** The system forces specific patterns like "[Company] will [verb from requirement]" to create evaluator-friendly, directly compliant responses.
+4. **User overrides preserved:** If a user manually edits an extraction result, re-running extraction will never overwrite their edit.
 
-5. **Professional DOCX output:** Complete Word documents with hierarchical numbering, headers/footers, cover pages, table of contents, requirement boxes, win theme callout boxes, and a compliance matrix.
+5. **Compliance language enforcement:** The system forces specific patterns like "[Company] will [verb from requirement]" to create evaluator-friendly, directly compliant responses.
+
+6. **Company-branded DOCX output:** Complete Word documents using the company's brand colors (primary/secondary), with hierarchical numbering, headers/footers, cover pages, table of contents, requirement boxes, win theme callout boxes, and a compliance matrix.
+
+7. **Optional diagram embedding:** Standard graphics profile generates and embeds org charts, transition timelines, and quality control process flows directly into DOCX volumes using Mermaid.

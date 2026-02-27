@@ -30,11 +30,14 @@ export type DataCallFileSection =
  * Used in the accordion UI to label collapsible panels.
  */
 export const DATA_CALL_SECTION_LABELS: Record<string, string> = {
-  opportunity_details:    'Opportunity Details',
-  past_performance:       'Past Performance',
-  key_personnel:          'Key Personnel',
-  technical_approach:     'Technical Approach',
-  compliance_verification: 'Compliance Verification',
+  opportunity_details:      'Opportunity Details',
+  past_performance:         'Past Performance',
+  key_personnel:            'Key Personnel',
+  technical_approach:       'Technical Approach',
+  compliance_verification:  'Compliance Verification',
+  service_area_approaches:  'Service Area Approaches',
+  site_staffing:            'Site Staffing Plan',
+  technology_selections:    'Technology Selections',
 };
 
 /**
@@ -42,11 +45,14 @@ export const DATA_CALL_SECTION_LABELS: Record<string, string> = {
  * These strings map to Lucide React component names used in the data call dashboard.
  */
 export const DATA_CALL_SECTION_ICONS: Record<string, string> = {
-  opportunity_details:    'Briefcase',
-  past_performance:       'Trophy',
-  key_personnel:          'Users',
-  technical_approach:     'Lightbulb',
-  compliance_verification: 'ShieldCheck',
+  opportunity_details:      'Briefcase',
+  past_performance:         'Trophy',
+  key_personnel:            'Users',
+  technical_approach:       'Lightbulb',
+  compliance_verification:  'ShieldCheck',
+  service_area_approaches:  'Layers',
+  site_staffing:            'MapPin',
+  technology_selections:    'Cpu',
 };
 
 // ===== SECTION DATA INTERFACES =====
@@ -188,6 +194,74 @@ export interface ComplianceVerification {
   required_attachments: Record<string, string | null>;
 }
 
+// ===== NEW TIER 2 SECTION INTERFACES (v2) =====
+
+/**
+ * Per-service-area approach entry for IT operations / multi-service-area contracts.
+ * Dynamically generated from SOW/PWS extraction service_area_index.
+ * Stored as items in data_call_responses.service_area_approaches JSONB array.
+ */
+export interface ServiceAreaApproach {
+  /** Section code from the SOW/PWS (e.g., "3.2.1") */
+  area_code: string;
+
+  /** Service area name (e.g., "Service Desk") */
+  area_name: string;
+
+  /** How the company will deliver this service area */
+  approach_narrative: string;
+
+  /** Tools and platforms the company will use for this area */
+  proposed_tools: string;
+
+  /** FTEs, roles, and staffing model for this area */
+  proposed_staffing: string;
+
+  /** What makes the company's approach better for this area */
+  key_differentiator: string;
+}
+
+/**
+ * Per-site staffing plan for multi-site contracts.
+ * Dynamically generated from operational_context extraction sites.
+ * Stored as items in data_call_responses.site_staffing JSONB array.
+ */
+export interface SiteStaffingPlan {
+  /** Site name (e.g., "Adelphi Lab Center (ALC)") */
+  site_name: string;
+
+  /** Site location (e.g., "Adelphi, Maryland") */
+  location: string;
+
+  /** Proposed FTE count for this site (e.g., "25 FTEs") */
+  proposed_fte_count: string;
+
+  /** Key roles assigned to this site */
+  key_roles: string;
+
+  /** Special requirements for this site (clearance, on-site days, etc.) */
+  special_requirements: string;
+}
+
+/**
+ * Per-technology selection for contracts requiring specific platforms.
+ * Dynamically generated from technology_reqs extraction.
+ * Stored as items in data_call_responses.technology_selections JSONB array.
+ */
+export interface TechnologySelection {
+  /** Technology name (e.g., "ServiceNow") */
+  technology_name: string;
+
+  /** Company's experience with this technology */
+  company_experience: string;
+
+  /** How the company will use this technology on the contract */
+  proposed_usage: string;
+
+  /** Relevant certifications held by company personnel */
+  certifications_held: string;
+}
+
 // ===== FORM SCHEMA INTERFACES =====
 
 /**
@@ -309,6 +383,15 @@ export interface DataCallResponse {
   /** Compliance verification section data */
   compliance_verification: ComplianceVerification;
 
+  /** Per-service-area approach entries (v2) */
+  service_area_approaches: ServiceAreaApproach[];
+
+  /** Per-site staffing plan entries (v2) */
+  site_staffing: SiteStaffingPlan[];
+
+  /** Per-technology selection entries (v2) */
+  technology_selections: TechnologySelection[];
+
   /**
    * Cached form schema — generated from compliance_extractions.
    * null until the data call has been loaded at least once.
@@ -385,6 +468,9 @@ export interface DataCallSaveRequest {
   key_personnel?: KeyPersonnelEntry[];
   technical_approach?: Partial<TechnicalApproach>;
   compliance_verification?: Partial<ComplianceVerification>;
+  service_area_approaches?: ServiceAreaApproach[];
+  site_staffing?: SiteStaffingPlan[];
+  technology_selections?: TechnologySelection[];
   status?: DataCallStatus;
 }
 

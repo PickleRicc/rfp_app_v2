@@ -7,6 +7,9 @@ import {
   Users,
   Lightbulb,
   ShieldCheck,
+  Layers,
+  MapPin,
+  Cpu,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -25,6 +28,9 @@ import type {
   KeyPersonnelEntry,
   TechnicalApproach,
   ComplianceVerification,
+  ServiceAreaApproach,
+  SiteStaffingPlan,
+  TechnologySelection,
   DataCallFile,
   DataCallSection,
 } from "@/lib/supabase/tier2-types";
@@ -33,6 +39,7 @@ import { PastPerformanceSection } from "./PastPerformanceSection";
 import { TechnicalApproachSection } from "./TechnicalApproachSection";
 import { KeyPersonnelSection } from "./KeyPersonnelSection";
 import { ComplianceVerificationSection } from "./ComplianceVerificationSection";
+import { DynamicArraySection } from "./DynamicArraySection";
 
 // ============================================================
 // Types
@@ -59,6 +66,9 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   key_personnel:           <Users className="h-5 w-5" />,
   technical_approach:      <Lightbulb className="h-5 w-5" />,
   compliance_verification: <ShieldCheck className="h-5 w-5" />,
+  service_area_approaches: <Layers className="h-5 w-5" />,
+  site_staffing:           <MapPin className="h-5 w-5" />,
+  technology_selections:   <Cpu className="h-5 w-5" />,
 };
 
 // ============================================================
@@ -144,6 +154,21 @@ function buildDefaultFormData(
       case "compliance_verification":
         data[section.id] = emptyComplianceVerification();
         break;
+      case "service_area_approaches":
+      case "site_staffing":
+      case "technology_selections":
+        // Dynamic array sections — initialize with empty objects matching the field count
+        data[section.id] = Array.from(
+          { length: section.dynamic_count ?? 0 },
+          () => {
+            const obj: Record<string, string> = {};
+            for (const field of section.fields) {
+              obj[field.key] = (field.default_value as string) ?? "";
+            }
+            return obj;
+          }
+        );
+        break;
     }
   }
 
@@ -162,6 +187,9 @@ function mergeResponseData(
     key_personnel?: KeyPersonnelEntry[] | null;
     technical_approach?: Partial<TechnicalApproach> | null;
     compliance_verification?: Partial<ComplianceVerification> | null;
+    service_area_approaches?: ServiceAreaApproach[] | null;
+    site_staffing?: SiteStaffingPlan[] | null;
+    technology_selections?: TechnologySelection[] | null;
   } | null
 ): Record<string, unknown> {
   const defaults = buildDefaultFormData(schema);
@@ -182,6 +210,18 @@ function mergeResponseData(
     compliance_verification: response.compliance_verification
       ? { ...emptyComplianceVerification(), ...response.compliance_verification }
       : defaults["compliance_verification"],
+    service_area_approaches:
+      response.service_area_approaches && response.service_area_approaches.length > 0
+        ? response.service_area_approaches
+        : defaults["service_area_approaches"],
+    site_staffing:
+      response.site_staffing && response.site_staffing.length > 0
+        ? response.site_staffing
+        : defaults["site_staffing"],
+    technology_selections:
+      response.technology_selections && response.technology_selections.length > 0
+        ? response.technology_selections
+        : defaults["technology_selections"],
   };
 }
 
@@ -230,6 +270,24 @@ function isSectionComplete(
           return files.some((f) => f.field_key === fileKey && f.section === "key_personnel");
         }
         const val = entry[field.key as keyof KeyPersonnelEntry];
+        return val !== "" && val != null;
+      })
+    );
+  }
+
+  // Dynamic array sections (service_area_approaches, site_staffing, technology_selections)
+  if (
+    sectionId === "service_area_approaches" ||
+    sectionId === "site_staffing" ||
+    sectionId === "technology_selections"
+  ) {
+    const items = sectionData as Record<string, string>[];
+    if (!items || items.length === 0) return true; // No items required = auto-complete
+    const requiredFields = section.fields.filter((f) => f.required);
+    if (requiredFields.length === 0) return true;
+    return items.every((item) =>
+      requiredFields.every((field) => {
+        const val = item[field.key];
         return val !== "" && val != null;
       })
     );
@@ -313,6 +371,29 @@ function validateDataCall(
                 message: `Personnel ${i + 1}: ${field.label} is required`,
               });
             }
+          }
+        });
+      });
+      continue;
+    }
+
+    // Dynamic array sections (service_area_approaches, site_staffing, technology_selections)
+    if (
+      section.id === "service_area_approaches" ||
+      section.id === "site_staffing" ||
+      section.id === "technology_selections"
+    ) {
+      const items = (sectionData as Record<string, string>[]) ?? [];
+      const requiredFields = section.fields.filter((f) => f.required);
+      items.forEach((item, i) => {
+        requiredFields.forEach((field) => {
+          const val = item[field.key];
+          if (val === "" || val == null) {
+            errors.push({
+              sectionId: section.id,
+              fieldKey: `${field.key}_${i}`,
+              message: `Item ${i + 1}: ${field.label} is required`,
+            });
           }
         });
       });
@@ -458,6 +539,36 @@ function renderSection(
           companyId={companyId}
           onFileUploaded={onFileUploaded}
           onFileRemoved={onFileRemoved}
+        />
+      );
+
+    case "service_area_approaches":
+      return (
+        <DynamicArraySection
+          section={section}
+          data={(formData["service_area_approaches"] as Record<string, string>[]) ?? []}
+          onChange={(val) => updateSection("service_area_approaches", val)}
+          readOnlyKeys={["area_code", "area_name"]}
+        />
+      );
+
+    case "site_staffing":
+      return (
+        <DynamicArraySection
+          section={section}
+          data={(formData["site_staffing"] as Record<string, string>[]) ?? []}
+          onChange={(val) => updateSection("site_staffing", val)}
+          readOnlyKeys={["site_name", "location"]}
+        />
+      );
+
+    case "technology_selections":
+      return (
+        <DynamicArraySection
+          section={section}
+          data={(formData["technology_selections"] as Record<string, string>[]) ?? []}
+          onChange={(val) => updateSection("technology_selections", val)}
+          readOnlyKeys={["technology_name"]}
         />
       );
 

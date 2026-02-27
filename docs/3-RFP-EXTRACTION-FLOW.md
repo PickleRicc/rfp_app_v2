@@ -1,15 +1,12 @@
 # RFP Extraction Flow — Under the Hood
 
-## Overview: Two Parallel Pipelines
+## Overview
 
-The codebase contains two distinct extraction pipelines:
+The extraction pipeline processes uploaded solicitation documents through classification, reconciliation, compliance extraction, and data call generation before feeding into content generation.
 
-| Pipeline | Status | Tables | Trigger Pattern |
-|---|---|---|---|
-| **Legacy (v1)** | Functional but superseded | `documents`, `section_results`, `rfp_responses` | `document.uploaded` → `document.classified` → `response.generate` |
-| **Modern (v2)** | Production path | `solicitations`, `solicitation_documents`, `compliance_extractions`, `data_call_responses`, `proposal_drafts` | `solicitation.document.uploaded` → `classification.complete` → `reconciliation.complete` → `proposal.draft.generate` |
-
-This document covers the **modern v2 pipeline** in full depth, with a summary of v1 at the end.
+| Tables | Trigger Pattern |
+|---|---|
+| `solicitations`, `solicitation_documents`, `compliance_extractions`, `data_call_responses`, `proposal_drafts` | `solicitation.document.uploaded` → `classification.complete` → `reconciliation.complete` → `proposal.draft.generate` |
 
 ---
 
@@ -421,32 +418,6 @@ For each volume:
   4. Claude call: model=claude-sonnet-4-5-20250929, max_tokens=8192, temperature=0.3
   5. Response → markdown → parse into sections → generate DOCX
 ```
-
----
-
-## Legacy Pipeline (v1) Summary
-
-### Stage 0 — Document Classifier
-**File:** `lib/inngest/functions/stage0-classifier.ts`
-**Trigger:** `document.uploaded`
-
-Classifies single uploaded document into `rfp`, `proposal`, `contract`, or `other` using Claude + keyword checks. If RFP-like, fires `document.classified`.
-
-### Stage 1 — RFP Intelligence Analyzer
-**File:** `lib/inngest/functions/stage1-rfp-intelligence.ts`
-**Trigger:** `document.classified`
-
-Runs **10 AI calls** per document:
-1. Eight section analyses (Executive Summary, Project Scope, Technical Requirements, Timeline, Budget/Pricing, Evaluation Criteria, Submission Requirements, Key Stakeholders) → stored in `section_results`
-2. Requirements extraction — finds all "shall/must/should" statements, deliverables, PWS task areas → stored in `rfp_requirements`. Includes JSON repair strategy for truncated output. Targets 30+ requirements numbered as `REQ 001`, `REQ 002`, etc.
-3. Volume structure detection → stored in `documents.metadata`
-4. Solicitation number extraction → stored in `documents.solicitation_number`
-
-### Stage 2 — Response Generator
-**File:** `lib/inngest/functions/stage2-response-generator.ts`
-**Trigger:** `response.generate` (manual)
-
-Fetches requirements + all company data, generates 4 volumes (Technical, Management, Past Performance, Price), produces DOCX + Excel compliance matrix.
 
 ---
 

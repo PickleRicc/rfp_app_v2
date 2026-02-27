@@ -12,15 +12,17 @@
  * Each category corresponds to a distinct section of the solicitation package.
  */
 export type ExtractionCategory =
-  | 'section_l'        // Instructions to Offerors — volumes, page limits, formatting
-  | 'section_m'        // Evaluation Criteria — factors, subfactors, methodology
-  | 'admin_data'       // Administrative — NAICS, size standard, set-aside, PoP, CLINs
-  | 'rating_scales'    // Rating scales and factor weightings
-  | 'sow_pws'          // SOW / PWS / SOO — task areas, deliverables, PoP, place of performance
-  | 'cost_price'       // Cost & Pricing Instructions — contract type, templates, breakouts
-  | 'past_performance' // Past Performance — references, recency, relevance, PPQ
-  | 'key_personnel'    // Key Personnel — positions, qualifications, clearance, resumes
-  | 'security_reqs';   // Security Requirements — DD254, clearance, CMMC/NIST, CUI
+  | 'section_l'           // Instructions to Offerors — volumes, page limits, formatting
+  | 'section_m'           // Evaluation Criteria — factors, subfactors, methodology
+  | 'admin_data'          // Administrative — NAICS, size standard, set-aside, PoP, CLINs
+  | 'rating_scales'       // Rating scales and factor weightings
+  | 'sow_pws'             // SOW / PWS / SOO — task areas, deliverables, PoP, place of performance
+  | 'cost_price'          // Cost & Pricing Instructions — contract type, templates, breakouts
+  | 'past_performance'    // Past Performance — references, recency, relevance, PPQ
+  | 'key_personnel'       // Key Personnel — positions, qualifications, clearance, resumes
+  | 'security_reqs'       // Security Requirements — DD254, clearance, CMMC/NIST, CUI
+  | 'operational_context' // Operational Context — agency, sites, users, incumbent, contract scale
+  | 'technology_reqs';    // Technology Requirements — platforms, protocols, standards, frameworks
 
 /**
  * AI confidence level for an extracted value.
@@ -41,15 +43,17 @@ export type ExtractionStatus = 'pending' | 'extracting' | 'completed' | 'failed'
  * Used in the compliance review UI to label grouped results.
  */
 export const EXTRACTION_CATEGORY_LABELS: Record<ExtractionCategory, string> = {
-  section_l:        'Section L — Instructions to Offerors',
-  section_m:        'Section M — Evaluation Criteria',
-  admin_data:       'Administrative Data',
-  rating_scales:    'Rating Scales & Weightings',
-  sow_pws:          'SOW / PWS / SOO',
-  cost_price:       'Cost & Pricing Instructions',
-  past_performance: 'Past Performance',
-  key_personnel:    'Key Personnel',
-  security_reqs:    'Security Requirements',
+  section_l:           'Section L — Instructions to Offerors',
+  section_m:           'Section M — Evaluation Criteria',
+  admin_data:          'Administrative Data',
+  rating_scales:       'Rating Scales & Weightings',
+  sow_pws:             'SOW / PWS / SOO',
+  cost_price:          'Cost & Pricing Instructions',
+  past_performance:    'Past Performance',
+  key_personnel:       'Key Personnel',
+  security_reqs:       'Security Requirements',
+  operational_context: 'Operational Context',
+  technology_reqs:     'Technology Requirements',
 };
 
 /**
@@ -57,15 +61,17 @@ export const EXTRACTION_CATEGORY_LABELS: Record<ExtractionCategory, string> = {
  * These strings map to Lucide React component names used in the compliance dashboard.
  */
 export const EXTRACTION_CATEGORY_ICONS: Record<ExtractionCategory, string> = {
-  section_l:        'ClipboardList',
-  section_m:        'Scale',
-  admin_data:       'Building2',
-  rating_scales:    'BarChart3',
-  sow_pws:          'FileText',
-  cost_price:       'DollarSign',
-  past_performance: 'Trophy',
-  key_personnel:    'Users',
-  security_reqs:    'ShieldCheck',
+  section_l:           'ClipboardList',
+  section_m:           'Scale',
+  admin_data:          'Building2',
+  rating_scales:       'BarChart3',
+  sow_pws:             'FileText',
+  cost_price:          'DollarSign',
+  past_performance:    'Trophy',
+  key_personnel:       'Users',
+  security_reqs:       'ShieldCheck',
+  operational_context: 'Building',
+  technology_reqs:     'Cpu',
 };
 
 /**
@@ -257,7 +263,23 @@ export interface SowPwsFields {
   /** Whether the document uses SOW, PWS, or SOO */
   document_type?: 'SOW' | 'PWS' | 'SOO' | string;
 
-  /** Task areas or functional areas */
+  /** True if SOO-based — contractor must generate PWS */
+  requires_contractor_pws?: boolean;
+
+  /** 1-2 sentence plain-English scope summary */
+  scope_summary?: string;
+
+  /** Count of discrete service areas identified */
+  total_service_areas?: number;
+
+  /** Structured index of all service areas */
+  service_area_index?: Array<{
+    code: string;
+    name: string;
+    summary: string;
+  }>;
+
+  /** Task areas or functional areas (backward compat) */
   task_areas?: Array<{
     name: string;
     description?: string | null;
@@ -275,6 +297,12 @@ export interface SowPwsFields {
 
   /** Place of performance */
   place_of_performance?: string;
+
+  /** Stated transformation or modernization objectives */
+  modernization_goals?: string[];
+
+  /** Operational context summary (e.g., "maintain operations while modernizing") */
+  operational_context?: string;
 }
 
 /**
@@ -374,4 +402,106 @@ export interface SecurityReqsFields {
 
   /** SPRS assessment score requirement */
   sprs_score?: string;
+}
+
+/**
+ * Typed structure for per-service-area detail extraction (Pass 2).
+ * Stored as separate compliance_extraction rows with field_name: `service_area_detail_{code}`.
+ */
+export interface ServiceAreaDetailFields {
+  area_code: string;
+  area_name: string;
+  description: string;
+  sub_requirements: Array<{
+    id: string;
+    text: string;
+    type: 'shall' | 'must' | 'will' | 'objective';
+  }>;
+  required_technologies: Array<{
+    name: string;
+    context: string;
+    requirement_level: 'required' | 'preferred' | 'current';
+  }>;
+  required_frameworks: string[];
+  staffing_indicators: Array<{
+    metric: string;
+    context: string;
+  }>;
+  performance_metrics: Array<{
+    metric: string;
+    target: string;
+  }>;
+  site_requirements: string[];
+  clin_mapping: string;
+  security_environment: string[];
+}
+
+/**
+ * Typed structure for Operational Context extraction field values.
+ * Captures agency identity, contract scale, sites, and networks.
+ */
+export interface OperationalContextFields {
+  agency_name?: string;
+  agency_abbreviation?: string;
+  agency_mission?: string;
+  user_count?: string;
+  staff_composition?: string;
+  incumbent_contractor?: string | null;
+  estimated_contract_value?: string | null;
+  contract_scope_summary?: string;
+  sites?: Array<{
+    name: string;
+    abbreviation: string;
+    location: string;
+    description: string;
+    is_primary: boolean;
+  }>;
+  networks?: Array<{
+    name: string;
+    classification: string;
+    description: string;
+  }>;
+  security_environment_summary?: string;
+  clin_categories?: Array<{
+    category: string;
+    description: string;
+    scope: string;
+  }>;
+}
+
+/**
+ * Typed structure for Technology Requirements extraction field values.
+ * Captures every named tool, platform, protocol, standard, and framework.
+ */
+export interface TechnologyReqsFields {
+  required_platforms?: Array<{
+    name: string;
+    category: string;
+    context: string;
+    requirement_level: 'mandatory' | 'current_environment' | 'preferred';
+  }>;
+  required_protocols?: Array<{
+    name: string;
+    context: string;
+  }>;
+  required_standards?: Array<{
+    name: string;
+    context: string;
+  }>;
+  operating_systems?: Array<{
+    name: string;
+    percentage: string | null;
+    context: string;
+  }>;
+  security_tools?: Array<{
+    name: string;
+    context: string;
+  }>;
+  infrastructure_platforms?: Array<{
+    name: string;
+    category: string;
+    context: string;
+  }>;
+  application_count?: string | null;
+  endpoint_count?: string | null;
 }

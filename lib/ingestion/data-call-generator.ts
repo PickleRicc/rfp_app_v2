@@ -629,6 +629,259 @@ function buildComplianceVerificationSection(
   };
 }
 
+// ===== NEW SECTION BUILDERS (v2) =====
+
+/**
+ * Section 6: Service Area Approaches
+ * One card per service area from SOW/PWS extraction service_area_index.
+ * Pre-fills area code/name from extraction and includes extracted sub-requirements
+ * and technologies in field descriptions.
+ */
+function buildServiceAreaApproachSection(
+  extractions: ComplianceExtraction[]
+): DataCallSection | null {
+  // Read service area index from sow_pws extractions
+  const serviceAreaIndex = getExtractionValue<Array<{ code: string; name: string; summary: string }>>(
+    extractions, 'sow_pws', 'service_area_index'
+  );
+
+  if (!serviceAreaIndex || !Array.isArray(serviceAreaIndex) || serviceAreaIndex.length === 0) {
+    return null; // No service areas extracted — skip this section
+  }
+
+  // Build description with service area names
+  const areaNames = serviceAreaIndex.slice(0, 5).map(a => `${a.code} ${a.name}`).join(', ');
+  const moreCount = serviceAreaIndex.length > 5 ? ` and ${serviceAreaIndex.length - 5} more` : '';
+  const description = `Describe your approach for each of the ${serviceAreaIndex.length} service areas identified in the SOW/PWS: ${areaNames}${moreCount}. Each card is pre-filled with the area name and includes extracted requirements.`;
+
+  // For each service area, look up its deep detail extraction
+  const fields: DataCallFormField[] = [];
+  for (const area of serviceAreaIndex) {
+    // Try to find the detail extraction for richer field descriptions
+    const detailRow = extractions.find(
+      e => e.category === 'sow_pws' && e.field_name === `service_area_detail_${area.code}`
+    );
+    const detail = detailRow?.field_value as Record<string, unknown> | undefined;
+
+    // Build rich placeholder from extracted details
+    let approachPlaceholder = `Describe how you will deliver ${area.name}`;
+    if (detail?.sub_requirements && Array.isArray(detail.sub_requirements)) {
+      const reqCount = (detail.sub_requirements as Array<unknown>).length;
+      approachPlaceholder += ` (${reqCount} requirements identified)`;
+    }
+
+    let toolsPlaceholder = 'Tools and platforms for this service area';
+    if (detail?.required_technologies && Array.isArray(detail.required_technologies)) {
+      const techNames = (detail.required_technologies as Array<{ name: string }>).map(t => t.name).join(', ');
+      if (techNames) toolsPlaceholder = `RFP references: ${techNames}`;
+    }
+
+    let staffingPlaceholder = 'FTEs, roles, and staffing model';
+    if (detail?.staffing_indicators && Array.isArray(detail.staffing_indicators)) {
+      const indicators = (detail.staffing_indicators as Array<{ metric: string }>).map(s => s.metric).join('; ');
+      if (indicators) staffingPlaceholder = `RFP indicators: ${indicators}`;
+    }
+
+    const citation = detailRow?.field_label ? makeCitation(detailRow.field_label) : makeCitation(`SOW/PWS ${area.code}`);
+
+    fields.push(
+      {
+        key:          `sa_${area.code}_approach`,
+        label:        `${area.code} — ${area.name}: Approach`,
+        type:         'textarea',
+        required:     true,
+        rfp_citation: citation,
+        placeholder:  approachPlaceholder,
+      },
+      {
+        key:          `sa_${area.code}_tools`,
+        label:        `${area.code} — ${area.name}: Proposed Tools`,
+        type:         'textarea',
+        required:     false,
+        rfp_citation: citation,
+        placeholder:  toolsPlaceholder,
+      },
+      {
+        key:          `sa_${area.code}_staffing`,
+        label:        `${area.code} — ${area.name}: Proposed Staffing`,
+        type:         'textarea',
+        required:     false,
+        rfp_citation: citation,
+        placeholder:  staffingPlaceholder,
+      },
+      {
+        key:          `sa_${area.code}_differentiator`,
+        label:        `${area.code} — ${area.name}: Key Differentiator`,
+        type:         'textarea',
+        required:     false,
+        rfp_citation: null,
+        placeholder:  'What makes your approach to this area better than competitors?',
+      }
+    );
+  }
+
+  return {
+    id:                  'service_area_approaches',
+    title:               'Service Area Approaches',
+    description,
+    fields,
+    dynamic_count:        serviceAreaIndex.length,
+    dynamic_count_source: `${serviceAreaIndex.length} service areas identified from SOW/PWS extraction`,
+  };
+}
+
+/**
+ * Section 7: Site Staffing Plan
+ * One card per site from operational_context extraction.
+ * Pre-fills site name and location.
+ */
+function buildSiteStaffingSection(
+  extractions: ComplianceExtraction[]
+): DataCallSection | null {
+  const sites = getExtractionValue<Array<{ name: string; abbreviation: string; location: string; description: string; is_primary: boolean }>>(
+    extractions, 'operational_context', 'sites'
+  );
+
+  if (!sites || !Array.isArray(sites) || sites.length === 0) {
+    return null; // No sites extracted — skip this section
+  }
+
+  // Include network info if available
+  const networks = getExtractionValue<Array<{ name: string; classification: string }>>(
+    extractions, 'operational_context', 'networks'
+  );
+  let description = `Provide staffing plans for each of the ${sites.length} site(s) identified in the solicitation.`;
+  if (networks && Array.isArray(networks) && networks.length > 0) {
+    const netNames = networks.map(n => `${n.name} (${n.classification})`).join(', ');
+    description += ` Networks in use: ${netNames}.`;
+  }
+
+  const fields: DataCallFormField[] = [];
+  for (const site of sites) {
+    const siteLabel = site.abbreviation ? `${site.name} (${site.abbreviation})` : site.name;
+    const citation = makeCitation(`Operational Context: ${siteLabel}`);
+
+    fields.push(
+      {
+        key:           `site_${site.abbreviation || site.name.replace(/\s+/g, '_')}_fte`,
+        label:         `${siteLabel}: Proposed FTE Count`,
+        type:          'text',
+        required:      true,
+        rfp_citation:  citation,
+        placeholder:   `Number of FTEs at ${siteLabel}`,
+      },
+      {
+        key:          `site_${site.abbreviation || site.name.replace(/\s+/g, '_')}_roles`,
+        label:        `${siteLabel}: Key Roles`,
+        type:         'textarea',
+        required:     true,
+        rfp_citation: citation,
+        placeholder:  `Key roles assigned to ${siteLabel} (e.g., Site Lead, 3 Network Engineers)`,
+      },
+      {
+        key:          `site_${site.abbreviation || site.name.replace(/\s+/g, '_')}_reqs`,
+        label:        `${siteLabel}: Special Requirements`,
+        type:         'textarea',
+        required:     false,
+        rfp_citation: citation,
+        placeholder:  `Clearance, on-site days, special access requirements for ${siteLabel}`,
+      }
+    );
+  }
+
+  return {
+    id:                  'site_staffing',
+    title:               'Site Staffing Plan',
+    description,
+    fields,
+    dynamic_count:        sites.length,
+    dynamic_count_source: `${sites.length} site(s) identified from operational context extraction`,
+  };
+}
+
+/**
+ * Section 8: Technology Selections
+ * One card per required/mandatory technology from technology_reqs extraction.
+ * Pre-fills technology name.
+ */
+function buildTechnologySelectionSection(
+  extractions: ComplianceExtraction[]
+): DataCallSection | null {
+  const platforms = getExtractionValue<Array<{ name: string; category: string; context: string; requirement_level: string }>>(
+    extractions, 'technology_reqs', 'required_platforms'
+  ) || [];
+  const infraPlatforms = getExtractionValue<Array<{ name: string; category: string; context: string }>>(
+    extractions, 'technology_reqs', 'infrastructure_platforms'
+  ) || [];
+
+  // Filter to mandatory and current_environment technologies
+  const requiredPlatforms = platforms.filter(
+    p => p.requirement_level === 'mandatory' || p.requirement_level === 'current_environment'
+  );
+
+  // Combine with infrastructure platforms (which are implicitly current_environment)
+  const allTechs = [
+    ...requiredPlatforms.map(p => ({ name: p.name, category: p.category, context: p.context })),
+    ...infraPlatforms.map(p => ({ name: p.name, category: p.category, context: p.context })),
+  ];
+
+  // Deduplicate by name
+  const seen = new Set<string>();
+  const uniqueTechs = allTechs.filter(t => {
+    if (seen.has(t.name)) return false;
+    seen.add(t.name);
+    return true;
+  });
+
+  if (uniqueTechs.length === 0) {
+    return null; // No required technologies — skip this section
+  }
+
+  const description = `Provide your experience and proposed usage for ${uniqueTechs.length} key technologies identified in the solicitation.`;
+
+  const fields: DataCallFormField[] = [];
+  for (const tech of uniqueTechs) {
+    const techKey = tech.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const citation = makeCitation(`Technology Requirements: ${tech.name}`);
+
+    fields.push(
+      {
+        key:          `tech_${techKey}_experience`,
+        label:        `${tech.name} (${tech.category}): Company Experience`,
+        type:         'textarea',
+        required:     true,
+        rfp_citation: citation,
+        placeholder:  `Years of experience, number of deployments, team expertise with ${tech.name}. Context: ${tech.context}`,
+      },
+      {
+        key:          `tech_${techKey}_usage`,
+        label:        `${tech.name}: Proposed Usage`,
+        type:         'textarea',
+        required:     false,
+        rfp_citation: citation,
+        placeholder:  `How you will use ${tech.name} on this contract`,
+      },
+      {
+        key:          `tech_${techKey}_certs`,
+        label:        `${tech.name}: Certifications Held`,
+        type:         'textarea',
+        required:     false,
+        rfp_citation: null,
+        placeholder:  `Relevant certifications held by team members for ${tech.name}`,
+      }
+    );
+  }
+
+  return {
+    id:                  'technology_selections',
+    title:               'Technology Selections',
+    description,
+    fields,
+    dynamic_count:        uniqueTechs.length,
+    dynamic_count_source: `${uniqueTechs.length} key technologies identified from technology requirements extraction`,
+  };
+}
+
 // ===== MAIN EXPORT =====
 
 /**
@@ -665,7 +918,7 @@ export async function generateDataCallSchema(
 
   const rows: ComplianceExtraction[] = extractions ?? [];
 
-  // Build the 5 sections
+  // Build the core 5 sections + optional new sections
   const sections: DataCallSection[] = [
     buildOpportunityDetailsSection(rows),
     buildPastPerformanceSection(rows),
@@ -673,6 +926,16 @@ export async function generateDataCallSchema(
     buildTechnicalApproachSection(rows),
     buildComplianceVerificationSection(rows),
   ];
+
+  // Append new v2 sections when extraction data exists
+  const serviceAreaSection = buildServiceAreaApproachSection(rows);
+  if (serviceAreaSection) sections.push(serviceAreaSection);
+
+  const siteStaffingSection = buildSiteStaffingSection(rows);
+  if (siteStaffingSection) sections.push(siteStaffingSection);
+
+  const techSelectionSection = buildTechnologySelectionSection(rows);
+  if (techSelectionSection) sections.push(techSelectionSection);
 
   return {
     solicitation_id: solicitationId,

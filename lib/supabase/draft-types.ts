@@ -266,6 +266,35 @@ export interface StrategyConfirmation {
 
   /** Evaluation factors from Section M with weight descriptions */
   evaluation_factors: StrategyEvalFactor[];
+
+  // ===== Enriched Extraction Data (from operational_context, technology_reqs, sow_pws) =====
+
+  /** Agency name from operational_context extraction */
+  agency_name: string | null;
+
+  /** Plain-English contract scope summary */
+  contract_scope_summary: string | null;
+
+  /** User population size (e.g., "approximately 3,500") */
+  user_count: string | null;
+
+  /** Number of performance sites from operational_context */
+  site_count: number;
+
+  /** Number of service areas from sow_pws extraction */
+  service_area_count: number;
+
+  /** Whether the SOO requires the contractor to generate a PWS */
+  requires_contractor_pws: boolean;
+
+  /** Document type: SOO, SOW, or PWS */
+  document_type: string | null;
+
+  /** Auto-detected contract style from extraction signals */
+  detected_contract_style: string;
+
+  /** Number of required/current technology platforms from technology_reqs */
+  technology_count: number;
 }
 
 // ===== API RESPONSE TYPES =====

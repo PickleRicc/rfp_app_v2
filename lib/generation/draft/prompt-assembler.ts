@@ -24,8 +24,31 @@ import type {
   SectionMFields,
   SowPwsFields,
   AdminDataFields,
+  OperationalContextFields,
+  TechnologyReqsFields,
+  ServiceAreaDetailFields,
 } from '@/lib/supabase/compliance-types';
+import type {
+  ServiceAreaApproach,
+  SiteStaffingPlan,
+  TechnologySelection,
+} from '@/lib/supabase/tier2-types';
 import { getComplianceInstructions } from '@/lib/generation/content/compliance-language';
+
+// ===== CONTRACT STYLE =====
+
+/**
+ * Auto-detected contract style based on extraction data.
+ * Drives prompt structure adaptation — IT operations contracts get per-service-area
+ * structure, software dev gets SDLC phases, etc.
+ */
+export type ContractStyle =
+  | 'it_operations'     // SOO/PWS with 5+ service areas, operational scope
+  | 'software_dev'      // SOW with phases, sprints, SDLC
+  | 'consulting'        // Advisory, assessment, strategy
+  | 'research'          // R&D, lab support, scientific
+  | 'mixed'             // Combination
+  | 'general';          // Default
 
 // ===== INTERFACES =====
 
@@ -72,6 +95,17 @@ export interface VolumePromptData {
 
   /** Tier 1 NAICS codes */
   naicsCodes?: NaicsCode[];
+
+  // ===== TIER 2 v2 COLLECTIONS (new enriched sections) =====
+
+  /** Tier 2 per-service-area approach entries from data call */
+  serviceAreaApproaches?: ServiceAreaApproach[];
+
+  /** Tier 2 per-site staffing plan entries from data call */
+  siteStaffing?: SiteStaffingPlan[];
+
+  /** Tier 2 per-technology selection entries from data call */
+  technologySelections?: TechnologySelection[];
 }
 
 /**
@@ -255,11 +289,139 @@ Example:
 `;
 }
 
+// ===== CONTRACT STYLE DETECTION =====
+
+/**
+ * Auto-detect the contract style from extraction data.
+ * Drives prompt structure — IT ops gets per-service-area sections,
+ * software dev gets SDLC phases, etc.
+ */
+export function detectContractStyle(
+  extractions: ComplianceExtractionsByCategory
+): ContractStyle {
+  const sowPwsRows = extractions.sow_pws || [];
+  const opCtxRows = extractions.operational_context || [];
+  const techReqRows = extractions.technology_reqs || [];
+
+  // Extract key signals
+  let documentType: string | null = null;
+  let totalServiceAreas = 0;
+
+  for (const row of sowPwsRows) {
+    if (row.field_name === 'document_type') {
+      documentType = (row.field_value as string) || null;
+    }
+    if (row.field_name === 'total_service_areas') {
+      totalServiceAreas = Number(row.field_value) || 0;
+    }
+  }
+
+  // Check for IT ops indicators
+  const itOpsKeywords = ['servicenow', 'cisco', 'nutanix', 'sccm', 'mecm', 'active directory',
+    'vmware', 'solarwinds', 'jamf', 'puppet', 'ansible', 'service desk', 'help desk',
+    'it operations', 'it support', 'infrastructure'];
+  let itOpsSignals = 0;
+
+  for (const row of techReqRows) {
+    const valueStr = JSON.stringify(row.field_value || '').toLowerCase();
+    for (const kw of itOpsKeywords) {
+      if (valueStr.includes(kw)) itOpsSignals++;
+    }
+  }
+
+  // IT Operations: SOO/PWS with 5+ service areas OR strong IT ops tech signals
+  if (
+    (documentType === 'SOO' || documentType === 'PWS') &&
+    (totalServiceAreas >= 5 || itOpsSignals >= 3)
+  ) {
+    return 'it_operations';
+  }
+  if (totalServiceAreas >= 5 && itOpsSignals >= 2) {
+    return 'it_operations';
+  }
+
+  // Software dev: SOW with development-related keywords
+  const devKeywords = ['agile', 'sprint', 'sdlc', 'devops', 'devsecops', 'ci/cd',
+    'software development', 'application development', 'coding'];
+  let devSignals = 0;
+  for (const row of sowPwsRows) {
+    const valueStr = JSON.stringify(row.field_value || '').toLowerCase();
+    for (const kw of devKeywords) {
+      if (valueStr.includes(kw)) devSignals++;
+    }
+  }
+  if (documentType === 'SOW' && devSignals >= 2) {
+    return 'software_dev';
+  }
+
+  // Research: agency mission or scope indicates R&D
+  const researchKeywords = ['research', 'laboratory', 'r&d', 'scientific', 'experiment'];
+  let researchSignals = 0;
+  for (const row of opCtxRows) {
+    const valueStr = JSON.stringify(row.field_value || '').toLowerCase();
+    for (const kw of researchKeywords) {
+      if (valueStr.includes(kw)) researchSignals++;
+    }
+  }
+  // Research lab IT support is still it_operations if it has service areas
+  if (researchSignals >= 2 && totalServiceAreas < 5) {
+    return 'research';
+  }
+
+  // Consulting: advisory keywords
+  const consultingKeywords = ['advisory', 'assessment', 'strategy', 'consulting', 'analysis'];
+  let consultingSignals = 0;
+  for (const row of sowPwsRows) {
+    const valueStr = JSON.stringify(row.field_value || '').toLowerCase();
+    for (const kw of consultingKeywords) {
+      if (valueStr.includes(kw)) consultingSignals++;
+    }
+  }
+  if (consultingSignals >= 2) {
+    return 'consulting';
+  }
+
+  // Mixed: has significant signals from multiple categories
+  const signalCounts = [itOpsSignals, devSignals, researchSignals, consultingSignals].filter(s => s >= 2);
+  if (signalCounts.length >= 2) {
+    return 'mixed';
+  }
+
+  return 'general';
+}
+
+// ===== EXTRACTION HELPERS =====
+
+/**
+ * Extract a single field value from a category's extraction rows by field_name.
+ */
+function getExtractionField<T>(
+  rows: ComplianceExtractionsByCategory[keyof ComplianceExtractionsByCategory],
+  fieldName: string
+): T | null {
+  const row = rows?.find(r => r.field_name === fieldName);
+  return row ? (row.field_value as T) : null;
+}
+
+/**
+ * Collect all service area detail rows from sow_pws extractions.
+ * These have field_name pattern: service_area_detail_{code}
+ */
+function getServiceAreaDetails(
+  sowPwsRows: ComplianceExtractionsByCategory['sow_pws']
+): ServiceAreaDetailFields[] {
+  return (sowPwsRows || [])
+    .filter(r => r.field_name.startsWith('service_area_detail_'))
+    .map(r => r.field_value as ServiceAreaDetailFields)
+    .filter(Boolean);
+}
+
 // ===== VOLUME-SPECIFIC PROMPT BUILDERS =====
 
 /**
  * Build user prompt for a Technical volume.
- * Covers technical approach, tools, staffing model, SOW task areas, and Section M technical factors.
+ * Enriched with operational context, service area details, technology requirements,
+ * and contract style-adaptive structure.
  */
 function buildTechnicalPrompt(
   volumeName: string,
@@ -270,14 +432,40 @@ function buildTechnicalPrompt(
   const { companyProfile, dataCallResponse, extractions } = data;
   const { technical_approach, opportunity_details } = dataCallResponse;
 
-  // SOW/PWS task areas from Phase 7 extraction
-  const sowPwsExtraction = extractions.sow_pws || [];
-  const sowPwsFields: SowPwsFields = sowPwsExtraction.length > 0
-    ? (sowPwsExtraction[0].field_value as SowPwsFields) || {}
-    : {};
-  const taskAreas = sowPwsFields.task_areas || [];
+  const contractStyle = detectContractStyle(extractions);
 
-  // Section M evaluation factors (technical-related)
+  // ── Operational Context from extraction ──
+  const opCtxRows = extractions.operational_context || [];
+  const agencyName = getExtractionField<string>(opCtxRows, 'agency_name');
+  const agencyAbbr = getExtractionField<string>(opCtxRows, 'agency_abbreviation');
+  const agencyMission = getExtractionField<string>(opCtxRows, 'agency_mission');
+  const userCount = getExtractionField<string>(opCtxRows, 'user_count');
+  const staffComposition = getExtractionField<string>(opCtxRows, 'staff_composition');
+  const incumbentContractor = getExtractionField<string | null>(opCtxRows, 'incumbent_contractor');
+  const estimatedValue = getExtractionField<string | null>(opCtxRows, 'estimated_contract_value');
+  const contractScopeSummary = getExtractionField<string>(opCtxRows, 'contract_scope_summary');
+  const sites = getExtractionField<OperationalContextFields['sites']>(opCtxRows, 'sites') || [];
+  const networks = getExtractionField<OperationalContextFields['networks']>(opCtxRows, 'networks') || [];
+  const secEnvSummary = getExtractionField<string>(opCtxRows, 'security_environment_summary');
+
+  // ── SOW/PWS from extraction ──
+  const sowPwsRows = extractions.sow_pws || [];
+  const scopeSummary = getExtractionField<string>(sowPwsRows, 'scope_summary');
+  const totalServiceAreas = getExtractionField<number>(sowPwsRows, 'total_service_areas') || 0;
+  const serviceAreaIndex = getExtractionField<SowPwsFields['service_area_index']>(sowPwsRows, 'service_area_index') || [];
+  const taskAreas = getExtractionField<SowPwsFields['task_areas']>(sowPwsRows, 'task_areas') || [];
+  const serviceAreaDetails = getServiceAreaDetails(sowPwsRows);
+  const modernizationGoals = getExtractionField<string[]>(sowPwsRows, 'modernization_goals') || [];
+
+  // ── Technology Requirements from extraction ──
+  const techReqRows = extractions.technology_reqs || [];
+  const requiredPlatforms = getExtractionField<TechnologyReqsFields['required_platforms']>(techReqRows, 'required_platforms') || [];
+  const requiredStandards = getExtractionField<TechnologyReqsFields['required_standards']>(techReqRows, 'required_standards') || [];
+  const infrastructurePlatforms = getExtractionField<TechnologyReqsFields['infrastructure_platforms']>(techReqRows, 'infrastructure_platforms') || [];
+  const endpointCount = getExtractionField<string | null>(techReqRows, 'endpoint_count');
+  const applicationCount = getExtractionField<string | null>(techReqRows, 'application_count');
+
+  // ── Section M evaluation factors ──
   const sectionMExtraction = extractions.section_m || [];
   const sectionMFields: SectionMFields = sectionMExtraction.length > 0
     ? (sectionMExtraction[0].field_value as SectionMFields) || {}
@@ -293,10 +481,129 @@ function buildTechnicalPrompt(
     companyProfile.enterprise_win_themes || []
   );
 
-  const taskAreaText = taskAreas.length > 0
-    ? taskAreas.map(ta => `  - ${ta.name}: ${ta.description || 'See SOW for details'}`).join('\n')
-    : '  [PLACEHOLDER: SOW task areas not extracted — review solicitation SOW/PWS section]';
+  // ── Tier 2 enrichment: service area approaches, site staffing, technology selections ──
+  const serviceAreaApproaches = data.serviceAreaApproaches || [];
+  const siteStaffing = data.siteStaffing || [];
+  const technologySelections = data.technologySelections || [];
 
+  // ── Build prompt sections ──
+
+  // Agency & Contract Context
+  const agencyDisplayName = agencyName
+    ? `${agencyName}${agencyAbbr ? ` (${agencyAbbr})` : ''}`
+    : '[PLACEHOLDER: Agency name]';
+
+  const contractContextBlock = `CONTRACT CONTEXT:
+- Agency: ${agencyDisplayName}
+- Agency Mission: ${agencyMission || '[PLACEHOLDER: Agency mission not extracted]'}
+- Contract Scope: ${contractScopeSummary || scopeSummary || '[PLACEHOLDER: Contract scope not extracted]'}
+- User Population: ${userCount || '[PLACEHOLDER: User count not extracted]'} ${staffComposition || ''}
+- Estimated Contract Value: ${estimatedValue || '[PLACEHOLDER: Contract value not extracted]'}
+- Contract Type: ${opportunity_details?.contract_type || '[PLACEHOLDER: Contract type not specified]'}
+- Incumbent: ${incumbentContractor || '[PLACEHOLDER: Incumbent not identified]'}
+- Detected Contract Style: ${contractStyle}`;
+
+  // Sites
+  const sitesBlock = sites.length > 0
+    ? `\nPERFORMANCE SITES (${sites.length} sites):\n${sites.map(s =>
+        `  - ${s.name}${s.abbreviation ? ` (${s.abbreviation})` : ''}: ${s.location}${s.is_primary ? ' [PRIMARY]' : ''}${s.description ? ` — ${s.description}` : ''}`
+      ).join('\n')}`
+    : '';
+
+  // Networks & Security Environment
+  const networksBlock = networks.length > 0
+    ? `\nNETWORK ENVIRONMENT:\n${networks.map(n =>
+        `  - ${n.name} (${n.classification}): ${n.description}`
+      ).join('\n')}${secEnvSummary ? `\n  Security Summary: ${secEnvSummary}` : ''}`
+    : secEnvSummary
+    ? `\nSECURITY ENVIRONMENT: ${secEnvSummary}`
+    : '';
+
+  // Technology Landscape
+  const techLandscapeBlock = (requiredPlatforms.length > 0 || infrastructurePlatforms.length > 0)
+    ? `\nTECHNOLOGY LANDSCAPE:\n${[
+        ...requiredPlatforms.map(p => `  - ${p.name} (${p.category}): ${p.context} [${p.requirement_level}]`),
+        ...infrastructurePlatforms.map(p => `  - ${p.name} (${p.category}): ${p.context}`),
+      ].join('\n')}${endpointCount ? `\n  Endpoints: ${endpointCount}` : ''}${applicationCount ? `\n  Applications: ${applicationCount}` : ''}`
+    : '';
+
+  const standardsBlock = requiredStandards.length > 0
+    ? `\nREQUIRED STANDARDS & FRAMEWORKS:\n${requiredStandards.map(s => `  - ${s.name}: ${s.context}`).join('\n')}`
+    : '';
+
+  // Service Areas (for IT ops contracts)
+  let serviceAreasBlock = '';
+  if (serviceAreaIndex.length > 0) {
+    serviceAreasBlock = `\nSERVICE AREAS (${totalServiceAreas} areas identified from SOW/PWS):`;
+    for (const area of serviceAreaIndex) {
+      // Find matching detail extraction
+      const detail = serviceAreaDetails.find(d => d.area_code === area.code);
+      // Find matching Tier 2 approach
+      const approach = serviceAreaApproaches.find(a => a.area_code === area.code);
+
+      serviceAreasBlock += `\n\n  === ${area.code} ${area.name} ===`;
+      serviceAreasBlock += `\n  Summary: ${area.summary}`;
+
+      if (detail) {
+        if (detail.sub_requirements?.length > 0) {
+          serviceAreasBlock += `\n  Key Requirements (${detail.sub_requirements.length}):`;
+          for (const req of detail.sub_requirements.slice(0, 5)) {
+            serviceAreasBlock += `\n    - [${req.type.toUpperCase()}] ${req.text}`;
+          }
+          if (detail.sub_requirements.length > 5) {
+            serviceAreasBlock += `\n    ... and ${detail.sub_requirements.length - 5} more requirements`;
+          }
+        }
+        if (detail.required_technologies?.length > 0) {
+          serviceAreasBlock += `\n  Required Technologies: ${detail.required_technologies.map(t => `${t.name} (${t.requirement_level})`).join(', ')}`;
+        }
+        if (detail.performance_metrics?.length > 0) {
+          serviceAreasBlock += `\n  SLAs/Metrics: ${detail.performance_metrics.map(m => `${m.metric}: ${m.target}`).join('; ')}`;
+        }
+        if (detail.staffing_indicators?.length > 0) {
+          serviceAreasBlock += `\n  Staffing Indicators: ${detail.staffing_indicators.map(s => s.metric).join('; ')}`;
+        }
+        if (detail.site_requirements?.length > 0) {
+          serviceAreasBlock += `\n  Site Requirements: ${detail.site_requirements.join(', ')}`;
+        }
+      }
+
+      if (approach) {
+        serviceAreasBlock += `\n  OUR APPROACH: ${approach.approach_narrative}`;
+        if (approach.proposed_tools) serviceAreasBlock += `\n  Proposed Tools: ${approach.proposed_tools}`;
+        if (approach.proposed_staffing) serviceAreasBlock += `\n  Proposed Staffing: ${approach.proposed_staffing}`;
+        if (approach.key_differentiator) serviceAreasBlock += `\n  Differentiator: ${approach.key_differentiator}`;
+      }
+    }
+  }
+
+  // Fallback task areas (for non-IT-ops or legacy data)
+  const taskAreaText = serviceAreaIndex.length === 0 && taskAreas.length > 0
+    ? `\nSOW/PWS TASK AREAS:\n${taskAreas.map(ta => `  - ${ta.name}: ${ta.description || 'See SOW for details'}`).join('\n')}`
+    : serviceAreaIndex.length === 0
+    ? '\nSOW/PWS TASK AREAS:\n  [PLACEHOLDER: SOW task areas not extracted — review solicitation SOW/PWS section]'
+    : '';
+
+  // Technology Selections from Tier 2
+  const techSelectionsBlock = technologySelections.length > 0
+    ? `\nOUR TECHNOLOGY SELECTIONS:\n${technologySelections.map(t =>
+        `  - ${t.technology_name}: Experience: ${t.company_experience || '[PLACEHOLDER]'}${t.proposed_usage ? `, Usage: ${t.proposed_usage}` : ''}${t.certifications_held ? `, Certs: ${t.certifications_held}` : ''}`
+      ).join('\n')}`
+    : '';
+
+  // Site Staffing from Tier 2
+  const siteStaffingBlock = siteStaffing.length > 0
+    ? `\nOUR SITE STAFFING PLAN:\n${siteStaffing.map(s =>
+        `  - ${s.site_name} (${s.location}): ${s.proposed_fte_count}${s.key_roles ? ` — ${s.key_roles}` : ''}${s.special_requirements ? ` | ${s.special_requirements}` : ''}`
+      ).join('\n')}`
+    : '';
+
+  // Modernization goals
+  const modernizationBlock = modernizationGoals.length > 0
+    ? `\nMODERNIZATION / TRANSFORMATION OBJECTIVES:\n${modernizationGoals.map(g => `  - ${g}`).join('\n')}`
+    : '';
+
+  // Section M factors
   const technicalFactorText = technicalFactors.length > 0
     ? technicalFactors.map(f => {
         const subfactors = f.subfactors?.map(sf => `    - ${sf.name}: ${sf.description || ''}`).join('\n') || '';
@@ -304,7 +611,7 @@ function buildTechnicalPrompt(
       }).join('\n')
     : '  [PLACEHOLDER: Technical evaluation factors not extracted from Section M]';
 
-  // Build Tier 1 enrichment sections (conditionally included when data exists)
+  // Tier 1 enrichments
   const certifications = data.certifications || [];
   const certSection = certifications.length > 0
     ? `\nCOMPANY CERTIFICATIONS:\n${certifications.map(c => `  - ${c.certification_type}${c.certifying_agency ? ` (${c.certifying_agency})` : ''}${c.expiration_date ? ` — expires ${c.expiration_date}` : ''}`).join('\n')}\n`
@@ -326,11 +633,41 @@ function buildTechnicalPrompt(
       }).join('\n')}\n`
     : '';
 
+  // ── Structure instructions based on contract style ──
+  let structureInstruction: string;
+  switch (contractStyle) {
+    case 'it_operations':
+      structureInstruction = `Structure this volume as follows:
+   Executive Summary → Understanding of Requirements →
+   [Per Service Area: address each service area (${serviceAreaIndex.map(a => `${a.code} ${a.name}`).join(' → ')}) with its own subsection] →
+   Cross-Cutting Capabilities (Security, Quality, ITIL Framework) →
+   Multi-Site Staffing Overview (${sites.map(s => s.name).join(', ')}) →
+   Transition Approach → Risk Management`;
+      break;
+    case 'software_dev':
+      structureInstruction = `Structure this volume as follows:
+   Executive Summary → Technical Approach → Architecture →
+   Development Methodology → Testing Strategy → DevSecOps →
+   Staffing Plan → Risk Management → Quality Management`;
+      break;
+    case 'research':
+      structureInstruction = `Structure this volume as follows:
+   Executive Summary → Understanding of Research Mission →
+   Technical Approach → Laboratory Support Methodology →
+   Staffing Plan → Risk Management → Quality Management`;
+      break;
+    default:
+      structureInstruction = `Structure: Executive Summary → Technical Approach → Staffing Plan → Risk Management → Quality Management.`;
+  }
+
   const spacing = data.pageLimitSpacing || 'single';
 
-  return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response.
+  return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response to ${agencyDisplayName}.
 
 ${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}
+
+${contractContextBlock}
+${sitesBlock}${networksBlock}${techLandscapeBlock}${standardsBlock}
 
 COMPANY TECHNICAL CAPABILITIES:
 - Core Services: ${companyProfile.core_services_summary || '[PLACEHOLDER: Core services summary not provided]'}
@@ -343,29 +680,30 @@ OUR TECHNICAL APPROACH FOR THIS BID:
 - Staffing Model: ${technical_approach?.staffing_model || '[PLACEHOLDER: Staffing model not described]'}
 - Key Assumptions: ${technical_approach?.assumptions || '[PLACEHOLDER: Technical assumptions not documented]'}
 - Risk Mitigations: ${technical_approach?.risks || '[PLACEHOLDER: Risk areas and mitigations not documented]'}
-- Contract Type: ${opportunity_details?.contract_type || '[PLACEHOLDER: Contract type not specified]'}
-
-SOW/PWS TASK AREAS TO ADDRESS:
-${taskAreaText}
+${serviceAreasBlock}${taskAreaText}${techSelectionsBlock}${siteStaffingBlock}${modernizationBlock}
 
 SECTION M TECHNICAL EVALUATION FACTORS (address each explicitly):
 ${technicalFactorText}
 
 WRITING INSTRUCTIONS:
 1. Open each major section with a win theme callout box (see below).
-2. Address EVERY technical evaluation subfactor by mirroring the exact language from Section M.
-3. Include a requirements traceability approach — show how your technical approach traces to each SOW task area.
-4. Use specific evidence for every capability claim — reference contract experience, tools, or certifications.
-5. Structure: Executive Summary → Technical Approach → Staffing Plan → Risk Management → Quality Management.
-6. Use action verbs and "shall/will" phrasing throughout. Avoid vague language like "we believe" or "we will try."
-7. Every claim must be backed by specific evidence from the company's experience.
+2. ${structureInstruction}
+3. Address EVERY technical evaluation subfactor by mirroring the exact language from Section M.
+4. Include a requirements traceability approach — show how your technical approach traces to each SOW task/service area.
+5. Use specific evidence for every capability claim — reference contract experience, tools, or certifications.
+6. Name specific technologies (${requiredPlatforms.slice(0, 5).map(p => p.name).join(', ') || 'as specified in the SOW'}) — do NOT use generic placeholders when technology names are known.
+7. Reference the actual agency name "${agencyDisplayName}" — never use generic "the agency" or "[PLACEHOLDER: Agency name]".
+8. For multi-site contracts, describe how operations will be managed across ${sites.length > 0 ? sites.map(s => s.name).join(', ') : 'all performance sites'}.
+9. Use action verbs and "shall/will" phrasing throughout. Avoid vague language like "we believe" or "we will try."
+10. Every claim must be backed by specific evidence from the company's experience.
 ${winThemeInstructions}
 ${buildSparseDataInstruction()}`;
 }
 
 /**
  * Build user prompt for a Management volume.
- * Covers organizational structure, key personnel, QCP, transition plan, risk management.
+ * Enriched with multi-site management, ITIL/SLA framework, operational context,
+ * and CLIN category management.
  */
 function buildManagementPrompt(
   volumeName: string,
@@ -373,8 +711,36 @@ function buildManagementPrompt(
   data: VolumePromptData,
   targetWordCount: number
 ): string {
-  const { companyProfile, dataCallResponse } = data;
+  const { companyProfile, dataCallResponse, extractions } = data;
   const { key_personnel, opportunity_details } = dataCallResponse;
+
+  const contractStyle = detectContractStyle(extractions);
+
+  // ── Operational Context from extraction ──
+  const opCtxRows = extractions.operational_context || [];
+  const agencyName = getExtractionField<string>(opCtxRows, 'agency_name');
+  const agencyAbbr = getExtractionField<string>(opCtxRows, 'agency_abbreviation');
+  const userCount = getExtractionField<string>(opCtxRows, 'user_count');
+  const sites = getExtractionField<OperationalContextFields['sites']>(opCtxRows, 'sites') || [];
+  const incumbentContractor = getExtractionField<string | null>(opCtxRows, 'incumbent_contractor');
+  const clinCategories = getExtractionField<OperationalContextFields['clin_categories']>(opCtxRows, 'clin_categories') || [];
+  const networks = getExtractionField<OperationalContextFields['networks']>(opCtxRows, 'networks') || [];
+
+  // ── Technology standards (for ITIL/framework refs) ──
+  const techReqRows = extractions.technology_reqs || [];
+  const requiredStandards = getExtractionField<TechnologyReqsFields['required_standards']>(techReqRows, 'required_standards') || [];
+
+  // ── Service area performance metrics (for SLA framework) ──
+  const sowPwsRows = extractions.sow_pws || [];
+  const serviceAreaDetails = getServiceAreaDetails(sowPwsRows);
+  const allPerformanceMetrics = serviceAreaDetails.flatMap(d => d.performance_metrics || []);
+
+  // ── Tier 2 enrichments ──
+  const siteStaffing = data.siteStaffing || [];
+
+  const agencyDisplayName = agencyName
+    ? `${agencyName}${agencyAbbr ? ` (${agencyAbbr})` : ''}`
+    : '[PLACEHOLDER: Agency name]';
 
   const winThemeInstructions = buildWinThemeInstructions(
     companyProfile.enterprise_win_themes || []
@@ -384,7 +750,6 @@ function buildManagementPrompt(
   const tier1Personnel = data.personnel || [];
   const personnelText = key_personnel && key_personnel.length > 0
     ? key_personnel.map((kp, i) => {
-        // Try to find Tier 1 match by name
         const tier1Match = tier1Personnel.find(p =>
           p.full_name.toLowerCase() === (kp.name || '').toLowerCase()
         );
@@ -411,9 +776,64 @@ function buildManagementPrompt(
     ? `Performing as: Subcontractor`
     : `Performing as: Prime Contractor`;
 
+  // ── Multi-site management context ──
+  const multiSiteBlock = sites.length > 1
+    ? `\nMULTI-SITE MANAGEMENT CONTEXT (${sites.length} sites):
+${sites.map(s =>
+  `  - ${s.name}${s.abbreviation ? ` (${s.abbreviation})` : ''}: ${s.location}${s.is_primary ? ' [PRIMARY]' : ''}`
+).join('\n')}
+${siteStaffing.length > 0 ? `\nPROPOSED SITE STAFFING:\n${siteStaffing.map(s =>
+  `  - ${s.site_name}: ${s.proposed_fte_count}${s.key_roles ? ` — ${s.key_roles}` : ''}${s.special_requirements ? ` | ${s.special_requirements}` : ''}`
+).join('\n')}` : ''}`
+    : '';
+
+  // ── CLIN Category Management ──
+  const clinBlock = clinCategories.length > 0
+    ? `\nCLIN CATEGORIES TO MANAGE:\n${clinCategories.map(c =>
+        `  - ${c.category}: ${c.description}${c.scope ? ` — Scope: ${c.scope}` : ''}`
+      ).join('\n')}`
+    : '';
+
+  // ── ITIL/Framework requirements ──
+  const itilStandards = requiredStandards.filter(s =>
+    s.name.toLowerCase().includes('itil') || s.name.toLowerCase().includes('itsm')
+  );
+  const frameworkBlock = itilStandards.length > 0
+    ? `\nITIL/ITSM FRAMEWORK REQUIREMENTS:\n${itilStandards.map(s => `  - ${s.name}: ${s.context}`).join('\n')}`
+    : '';
+
+  // ── SLA Framework ──
+  const slaBlock = allPerformanceMetrics.length > 0
+    ? `\nSLA/PERFORMANCE METRICS FROM SOW (address in QCP and SLA Management sections):\n${allPerformanceMetrics.slice(0, 15).map(m =>
+        `  - ${m.metric}: ${m.target}`
+      ).join('\n')}${allPerformanceMetrics.length > 15 ? `\n  ... and ${allPerformanceMetrics.length - 15} more metrics` : ''}`
+    : '';
+
+  // ── Network environment for security management ──
+  const networkBlock = networks.length > 0
+    ? `\nNETWORK ENVIRONMENT (address in security management approach):\n${networks.map(n =>
+        `  - ${n.name} (${n.classification}): ${n.description}`
+      ).join('\n')}`
+    : '';
+
+  // ── Structure instructions based on contract style ──
+  let structureInstruction: string;
+  switch (contractStyle) {
+    case 'it_operations':
+      structureInstruction = `Structure:
+   Executive Summary → Organizational Structure (enterprise + per-site) → Key Personnel Bios →
+   Multi-Site Management Plan (how you manage across ${sites.length} sites) →
+   Staffing Plan (per-site FTE breakdown calibrated to ${userCount || 'user population'}) →
+   Transition Plan (phased by site, address incumbent ${incumbentContractor || 'contractor'} knowledge transfer) →
+   ITIL Process Framework → SLA Management Plan → Quality Control Plan → Risk Management Plan`;
+      break;
+    default:
+      structureInstruction = `Structure: Executive Summary → Organizational Structure → Key Personnel Bios → Staffing Plan → Transition Plan (Phase-In/Phase-Out) → Quality Control Plan → Risk Management Plan.`;
+  }
+
   const spacing = data.pageLimitSpacing || 'single';
 
-  return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response.
+  return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response to ${agencyDisplayName}.
 
 ${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}
 
@@ -421,18 +841,22 @@ COMPANY MANAGEMENT APPROACH:
 - Standard Management Approach: ${companyProfile.standard_management_approach || '[PLACEHOLDER: Standard management approach narrative not provided in Tier 1 profile]'}
 - Corporate Overview: ${companyProfile.corporate_overview || '[PLACEHOLDER: Corporate overview not provided]'}
 - ${teaming}
+- Contract Scale: ${userCount ? `Supporting ${userCount}` : '[PLACEHOLDER: User count]'} across ${sites.length > 0 ? `${sites.length} sites` : '[PLACEHOLDER: site count]'}
 
 KEY PERSONNEL FOR THIS BID:
 ${personnelText}
+${multiSiteBlock}${clinBlock}${frameworkBlock}${slaBlock}${networkBlock}
 
 WRITING INSTRUCTIONS:
 1. Open each major section with a win theme callout box (see below).
-2. Structure: Executive Summary → Organizational Structure → Key Personnel Bios → Staffing Plan → Transition Plan (Phase-In/Phase-Out) → Quality Control Plan → Risk Management Plan.
+2. ${structureInstruction}
 3. For each key personnel entry, include: role, name, relevant qualifications, years of experience, and how their experience directly supports this contract.
-4. Transition Plan must address: Day 1 readiness, knowledge transfer process, incumbent staff retention strategy (if applicable), and timeline with milestones.
-5. Quality Control Plan must address: QCP methodology, inspection points, corrective action procedures, and continuous improvement process.
-6. Use the standard management approach narrative as the foundation — customize it for this specific opportunity.
+4. Transition Plan must address: Day 1 readiness, knowledge transfer from ${incumbentContractor || 'incumbent contractor'}, staff retention strategy, and timeline with milestones.${sites.length > 1 ? ` Address phased transition across ${sites.map(s => s.name).join(', ')}.` : ''}
+5. Quality Control Plan must address: QCP methodology, inspection points, corrective action procedures, and continuous improvement process.${allPerformanceMetrics.length > 0 ? ' Tie QCP to the SLA metrics listed above.' : ''}
+6. Use the standard management approach narrative as the foundation — customize it for ${agencyDisplayName}.
 7. Mirror Section M management evaluation factor language throughout.
+8. Reference the actual agency name "${agencyDisplayName}" — never use generic placeholders.
+9. Calibrate staffing numbers to the contract scale (${userCount || '[PLACEHOLDER]'} users, ${sites.length} sites).
 ${winThemeInstructions}
 ${buildSparseDataInstruction()}`;
 }

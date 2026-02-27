@@ -13,6 +13,7 @@ import {
   Loader2,
   ClipboardCheck,
   Send,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCompany } from "@/lib/context/CompanyContext";
@@ -24,6 +25,7 @@ import { TemplateFieldsPanel } from "@/app/components/solicitation/TemplateField
 import { ComplianceExtractionView } from "@/app/components/solicitation/ComplianceExtractionView";
 import { DataCallView } from "@/app/components/datacall/DataCallView";
 import { DraftGenerationView } from "@/app/components/draft/DraftGenerationView";
+import { PipelineLogsView } from "./components/PipelineLogsView";
 import type {
   SolicitationWithDocuments,
   SolicitationDocument,
@@ -95,6 +97,11 @@ const TABS: Tab[] = [
     id: "draft",
     label: "Draft",
     icon: <Send className="h-4 w-4" />,
+  },
+  {
+    id: "logs",
+    label: "Logs",
+    icon: <ScrollText className="h-4 w-4" />,
   },
 ];
 
@@ -476,6 +483,11 @@ export default function SolicitationDetailPage() {
             companyId={selectedCompanyId}
             onTabChange={setActiveTab}
           />
+        )}
+
+        {/* ======= LOGS TAB ======= */}
+        {activeTab === "logs" && solicitation && (
+          <PipelineLogsView solicitationId={solicitation.id} />
         )}
       </Tier1TabLayout>
     </div>

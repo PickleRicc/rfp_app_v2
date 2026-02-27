@@ -58,6 +58,7 @@ import type {
   SectionMFields,
 } from '@/lib/supabase/compliance-types';
 import type { DraftVolume } from '@/lib/supabase/draft-types';
+import { logPipelineEvent } from '@/lib/logging/pipeline-logger';
 
 // ===== CONSTANTS =====
 
@@ -75,6 +76,8 @@ const ALL_EXTRACTION_CATEGORIES: ExtractionCategory[] = [
   'past_performance',
   'key_personnel',
   'security_reqs',
+  'operational_context',
+  'technology_reqs',
 ];
 
 // ===== HELPERS =====
@@ -326,6 +329,21 @@ export const proposalDraftGenerator = inngest.createFunction(
           volume_count: volumes?.length || 0,
         });
 
+        // Pipeline-scoped logging
+        await logPipelineEvent(solicitationId, 'fetch-all-data', 'completed', {
+          output_summary: {
+            volume_count: volumes?.length || 0,
+            extraction_categories: Object.entries(extractionsByCategory)
+              .filter(([, rows]) => rows.length > 0)
+              .map(([cat, rows]) => `${cat}: ${rows.length} fields`),
+            tier2_sections: {
+              service_area_approaches: (dataCall as DataCallResponse).service_area_approaches?.length || 0,
+              site_staffing: (dataCall as DataCallResponse).site_staffing?.length || 0,
+              technology_selections: (dataCall as DataCallResponse).technology_selections?.length || 0,
+            },
+          },
+        });
+
         return {
           companyProfile: company as CompanyProfile,
           dataCallResponse: dataCall as DataCallResponse,
@@ -371,7 +389,7 @@ export const proposalDraftGenerator = inngest.createFunction(
             })
             .eq('id', volume.id);
 
-          // Build the prompt data bundle with Tier 1 collections for richer prompts
+          // Build the prompt data bundle with Tier 1 + Tier 2 v2 collections for richer prompts
           const promptData: VolumePromptData = {
             companyProfile,
             dataCallResponse,
@@ -383,6 +401,10 @@ export const proposalDraftGenerator = inngest.createFunction(
             certifications: certifications || [],
             contractVehicles: contractVehicles || [],
             naicsCodes: naicsCodes || [],
+            // Tier 2 v2: enriched sections from data call
+            serviceAreaApproaches: dataCallResponse.service_area_approaches || [],
+            siteStaffing: dataCallResponse.site_staffing || [],
+            technologySelections: dataCallResponse.technology_selections || [],
           };
 
           // Assemble volume-specific AI prompts
@@ -729,18 +751,34 @@ export const proposalDraftGenerator = inngest.createFunction(
         })
         .eq('id', draftId);
 
+      const draftSummaryMeta = {
+        solicitation_id: solicitationId,
+        company_id: companyId,
+        draft_id: draftId,
+        total_volumes: totalCount,
+        completed_volumes: completedCount,
+        failed_volumes: failedCount,
+        final_status: finalStatus,
+        volume_details: volumeResults.map((r: Record<string, unknown>) => ({
+          name: r.volumeName,
+          status: r.status,
+          wordCount: r.wordCount || null,
+          pageEstimate: r.pageEstimate || null,
+        })),
+      };
+
       await logProcessingEvent(
         'draft-generator',
         finalStatus === 'completed' ? 'completed' : 'failed',
-        {
-          solicitation_id: solicitationId,
-          company_id: companyId,
-          draft_id: draftId,
-          total_volumes: totalCount,
-          completed_volumes: completedCount,
-          failed_volumes: failedCount,
-          final_status: finalStatus,
-        }
+        draftSummaryMeta
+      );
+
+      // Pipeline-scoped logging
+      await logPipelineEvent(
+        solicitationId,
+        'draft-generator',
+        finalStatus === 'completed' ? 'completed' : 'failed',
+        { output_summary: draftSummaryMeta }
       );
 
       console.log(`[draft-generator] Finalized: ${completedCount}/${totalCount} volumes completed, status=${finalStatus}`);

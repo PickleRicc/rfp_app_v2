@@ -35,7 +35,13 @@ import type {
   StrategyPersonnel,
 } from '@/lib/supabase/draft-types';
 import type { KeyPersonnelEntry } from '@/lib/supabase/tier2-types';
-import type { SectionLFields, SectionMFields } from '@/lib/supabase/compliance-types';
+import type {
+  SectionLFields,
+  SectionMFields,
+  ComplianceExtractionsByCategory,
+  ExtractionCategory,
+} from '@/lib/supabase/compliance-types';
+import { detectContractStyle } from '@/lib/generation/draft/prompt-assembler';
 
 // ===== HELPERS =====
 
@@ -83,6 +89,27 @@ async function assembleStrategyConfirmation(
     .eq('category', 'section_m')
     .eq('field_name', 'evaluation_factors');
 
+  // --- Extractions: operational_context (agency, sites, users) ---
+  const { data: opCtxRows } = await supabase
+    .from('compliance_extractions')
+    .select('field_name, field_value')
+    .eq('solicitation_id', solicitationId)
+    .eq('category', 'operational_context');
+
+  // --- Extractions: technology_reqs (platforms count) ---
+  const { data: techReqRows } = await supabase
+    .from('compliance_extractions')
+    .select('field_name, field_value')
+    .eq('solicitation_id', solicitationId)
+    .eq('category', 'technology_reqs');
+
+  // --- Extractions: sow_pws (service areas, document type) ---
+  const { data: sowPwsRows } = await supabase
+    .from('compliance_extractions')
+    .select('field_name, field_value')
+    .eq('solicitation_id', solicitationId)
+    .eq('category', 'sow_pws');
+
   // --- Parse Section L volume_structure ---
   let volumeStructure: StrategyVolume[] = [];
   if (sectionLRows && sectionLRows.length > 0) {
@@ -129,6 +156,74 @@ async function assembleStrategyConfirmation(
     ? (dataCall.past_performance as unknown[]).length
     : 0;
 
+  // --- Parse enriched extraction data ---
+  const opCtxMap = new Map<string, unknown>();
+  for (const row of opCtxRows || []) {
+    opCtxMap.set(row.field_name, row.field_value);
+  }
+
+  const sowPwsMap = new Map<string, unknown>();
+  for (const row of sowPwsRows || []) {
+    sowPwsMap.set(row.field_name, row.field_value);
+  }
+
+  // Count technology platforms (required + infrastructure)
+  const requiredPlatforms = (techReqRows || []).find(r => r.field_name === 'required_platforms');
+  const infraPlatforms = (techReqRows || []).find(r => r.field_name === 'infrastructure_platforms');
+  const technologyCount =
+    (Array.isArray(requiredPlatforms?.field_value) ? requiredPlatforms.field_value.length : 0) +
+    (Array.isArray(infraPlatforms?.field_value) ? infraPlatforms.field_value.length : 0);
+
+  // Count sites from operational_context
+  const sitesValue = opCtxMap.get('sites');
+  const siteCount = Array.isArray(sitesValue) ? sitesValue.length : 0;
+
+  // Service area count from sow_pws
+  const serviceAreaCount = Number(sowPwsMap.get('total_service_areas') || 0);
+
+  // Auto-detect contract style using extraction data
+  // Build minimal ComplianceExtractionsByCategory for detectContractStyle
+  const allCategories: ExtractionCategory[] = [
+    'section_l', 'section_m', 'admin_data', 'rating_scales',
+    'sow_pws', 'cost_price', 'past_performance', 'key_personnel',
+    'security_reqs', 'operational_context', 'technology_reqs',
+  ];
+  const extractionsByCategory = {} as ComplianceExtractionsByCategory;
+  for (const cat of allCategories) {
+    extractionsByCategory[cat] = [];
+  }
+
+  // Populate sow_pws, operational_context, technology_reqs for style detection
+  for (const row of sowPwsRows || []) {
+    extractionsByCategory.sow_pws.push({
+      id: '', solicitation_id: solicitationId, category: 'sow_pws',
+      field_name: row.field_name, field_label: row.field_name,
+      field_value: row.field_value, confidence: 'high',
+      is_user_override: false, extraction_status: 'completed',
+      created_at: '', updated_at: '',
+    });
+  }
+  for (const row of opCtxRows || []) {
+    extractionsByCategory.operational_context.push({
+      id: '', solicitation_id: solicitationId, category: 'operational_context',
+      field_name: row.field_name, field_label: row.field_name,
+      field_value: row.field_value, confidence: 'high',
+      is_user_override: false, extraction_status: 'completed',
+      created_at: '', updated_at: '',
+    });
+  }
+  for (const row of techReqRows || []) {
+    extractionsByCategory.technology_reqs.push({
+      id: '', solicitation_id: solicitationId, category: 'technology_reqs',
+      field_name: row.field_name, field_label: row.field_name,
+      field_value: row.field_value, confidence: 'high',
+      is_user_override: false, extraction_status: 'completed',
+      created_at: '', updated_at: '',
+    });
+  }
+
+  const detectedContractStyle = detectContractStyle(extractionsByCategory);
+
   return {
     // Tier 1
     company_name:               company?.company_name ?? '',
@@ -154,6 +249,17 @@ async function assembleStrategyConfirmation(
     // Extractions
     volume_structure:           volumeStructure,
     evaluation_factors:         evaluationFactors,
+
+    // Enriched extraction data
+    agency_name:                (opCtxMap.get('agency_name') as string) ?? null,
+    contract_scope_summary:     (opCtxMap.get('contract_scope_summary') as string) ?? null,
+    user_count:                 (opCtxMap.get('user_count') as string) ?? null,
+    site_count:                 siteCount,
+    service_area_count:         serviceAreaCount,
+    requires_contractor_pws:    Boolean(sowPwsMap.get('requires_contractor_pws')),
+    document_type:              (sowPwsMap.get('document_type') as string) ?? null,
+    detected_contract_style:    detectedContractStyle,
+    technology_count:           technologyCount,
   };
 }
 
