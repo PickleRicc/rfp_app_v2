@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "@/lib/supabase/client";
 import { validateIntakeToken } from "@/lib/intake/validate-token";
 
+/** Fields that external clients are allowed to update on past performance records. */
+const ALLOWED_PP_FIELDS = new Set([
+  'contract_nickname', 'contract_name', 'contract_number', 'task_order_number',
+  'client_agency', 'client_office', 'contract_type', 'contract_value',
+  'annual_value', 'start_date', 'end_date', 'base_period', 'option_periods',
+  'role', 'percentage_of_work', 'prime_contractor', 'team_size',
+  'place_of_performance', 'client_poc', 'alternate_poc',
+  'cpars_rating', 'customer_feedback',
+  'overview', 'description_of_effort',
+  'task_areas', 'tools_used', 'achievements', 'relevance_tags',
+]);
+
 /**
  * GET /api/intake/[token]/past-performance/[id]
  * Public. Fetch a single past performance record.
@@ -55,8 +67,16 @@ export async function PUT(
   }
 
   try {
-    const body = await request.json();
+    const rawBody = await request.json();
     const supabase = getServerClient();
+
+    // Strip any fields not in the allowlist to prevent mass assignment
+    const body: Record<string, unknown> = {};
+    for (const key of Object.keys(rawBody)) {
+      if (ALLOWED_PP_FIELDS.has(key)) {
+        body[key] = rawBody[key];
+      }
+    }
 
     // Verify ownership
     const { data: existing } = await supabase
