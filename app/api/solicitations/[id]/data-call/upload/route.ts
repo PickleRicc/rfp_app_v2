@@ -26,7 +26,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { requireStaffOrResponse } from '@/lib/auth';
 import type { DataCallFile, DataCallFileSection } from '@/lib/supabase/tier2-types';
-import { PDFParse } from 'pdf-parse';
 
 // ===== CONSTANTS =====
 
@@ -227,13 +226,7 @@ export async function POST(
         }
       }
       if (!extractedText) {
-        try {
-          const parser = new PDFParse({ data: Buffer.from(fileBuffer) });
-          const result = await parser.getText();
-          extractedText = result.text || null;
-        } catch (err) {
-          console.warn(`pdf-parse extraction failed for ${sanitizedFilename}:`, err);
-        }
+        console.warn(`PDF_SERVICE_URL not set — cannot extract PDF text for ${sanitizedFilename}`);
       }
     }
 

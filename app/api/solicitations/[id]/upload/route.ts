@@ -3,7 +3,6 @@ import { getServerClient } from '@/lib/supabase/client';
 import { inngest } from '@/lib/inngest/client';
 import { requireStaffOrResponse } from '@/lib/auth';
 import ExcelJS from 'exceljs';
-import { PDFParse } from 'pdf-parse';
 
 // Allowed MIME types and extensions for solicitation document uploads
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.xlsx', '.xls', '.txt'];
@@ -94,16 +93,8 @@ async function extractTextFromFile(file: File): Promise<string> {
         console.warn(`[pdf-extract] Service error for ${file.name}, falling back to pdf-parse:`, err instanceof Error ? err.message : err);
       }
     }
-    try {
-      const buf = Buffer.from(await file.arrayBuffer());
-      const parser = new PDFParse({ data: buf });
-      const result = await parser.getText();
-      console.log(`[pdf-parse] ${file.name}: ${result.text.length} chars`);
-      return result.text;
-    } catch (parseErr) {
-      console.error(`[pdf-parse] Failed for ${file.name}:`, parseErr instanceof Error ? parseErr.message : parseErr);
-      return `[PDF text extraction failed. Filename: ${file.name}]`;
-    }
+    console.warn(`PDF_SERVICE_URL not set — cannot extract PDF text for ${file.name}`);
+    return `[PDF text extraction failed – PDF_SERVICE_URL not configured. Filename: ${file.name}]`;
   }
 
   // --- DOCX, TXT, and other text-based formats ---

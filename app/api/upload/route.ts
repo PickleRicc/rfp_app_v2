@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { inngest } from '@/lib/inngest/client';
 import { requireStaffOrResponse } from '@/lib/auth';
-import { PDFParse } from 'pdf-parse';
 
 export async function POST(request: NextRequest) {
   const auth = await requireStaffOrResponse();
@@ -92,19 +91,10 @@ export async function POST(request: NextRequest) {
       }
 
       if (!extracted) {
-        try {
-          const buf = Buffer.from(await file.arrayBuffer());
-          const parser = new PDFParse({ data: buf });
-          const result = await parser.getText();
-          fileContent = result.text;
-          console.log(`[pdf-parse] ${file.name}: ${result.text.length} chars`);
-        } catch (parseErr) {
-          console.error(`[pdf-parse] Failed for ${file.name}:`, parseErr instanceof Error ? parseErr.message : parseErr);
-          return NextResponse.json(
-            { error: 'Failed to extract text from PDF' },
-            { status: 422 }
-          );
-        }
+        return NextResponse.json(
+          { error: 'PDF extraction service not configured. Set PDF_SERVICE_URL environment variable.' },
+          { status: 503 }
+        );
       }
     } else {
       fileContent = await file.text();

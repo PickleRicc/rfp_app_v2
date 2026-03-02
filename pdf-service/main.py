@@ -10,10 +10,11 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="PDF Extraction Service", version="1.0.0")
 
-# Enable CORS for Next.js frontend
+# Enable CORS — the service is called server-to-server from Next.js API routes,
+# not from the browser, so we allow all origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],  # Next.js dev server
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

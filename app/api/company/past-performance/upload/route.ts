@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "@/lib/supabase/client";
 import { requireStaffOrResponse } from "@/lib/auth";
 import { extractPastPerformanceFromText } from "@/lib/ingestion/past-performance-file-extractor";
-import { PDFParse } from "pdf-parse";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -113,13 +112,7 @@ export async function POST(request: NextRequest) {
         }
       }
       if (!extractedText) {
-        try {
-          const parser = new PDFParse({ data: Buffer.from(fileBuffer) });
-          const result = await parser.getText();
-          extractedText = result.text || null;
-        } catch (err) {
-          console.warn("pdf-parse extraction failed:", err);
-        }
+        console.warn("PDF_SERVICE_URL not set — cannot extract PDF text server-side");
       }
     } else {
       try {
