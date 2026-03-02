@@ -438,6 +438,9 @@ export interface DataCallFile {
   /** MIME type (e.g., 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') */
   mime_type: string | null;
 
+  /** Text content extracted from uploaded PDFs via the Python PDF extraction service */
+  extracted_text: string | null;
+
   created_at: string;
 }
 

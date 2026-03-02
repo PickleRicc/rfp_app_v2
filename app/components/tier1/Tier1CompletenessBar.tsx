@@ -3,10 +3,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Tier1Completeness } from '@/lib/supabase/company-types';
 
+type FetchFn = (url: string, options?: RequestInit) => Promise<Response>;
+
 interface Tier1CompletenessBarProps {
   companyId: string;
   /** Optional callback to imperatively trigger a re-fetch (attach a ref if needed) */
   onRefreshRef?: (refresh: () => void) => void;
+  /** Optional fetch function override for token-based access */
+  fetchFn?: FetchFn;
 }
 
 interface StatusResponse {
@@ -41,7 +45,7 @@ function getBorderColor(score: number): string {
  * Shows a color-coded progress bar, per-section scores, and a list of
  * missing fields when the profile is incomplete.
  */
-export function Tier1CompletenessBar({ companyId, onRefreshRef }: Tier1CompletenessBarProps) {
+export function Tier1CompletenessBar({ companyId, onRefreshRef, fetchFn }: Tier1CompletenessBarProps) {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,9 +55,9 @@ export function Tier1CompletenessBar({ companyId, onRefreshRef }: Tier1Completen
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/company/tier1-status', {
-        headers: { 'X-Company-Id': companyId },
-      });
+      const doFetch = fetchFn || ((url: string, opts?: RequestInit) =>
+        fetch(url, { ...opts, headers: { ...Object.fromEntries(new Headers(opts?.headers).entries()), 'X-Company-Id': companyId } }));
+      const res = await doFetch('/api/company/tier1-status');
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -66,7 +70,7 @@ export function Tier1CompletenessBar({ companyId, onRefreshRef }: Tier1Completen
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, fetchFn]);
 
   useEffect(() => {
     fetchStatus();

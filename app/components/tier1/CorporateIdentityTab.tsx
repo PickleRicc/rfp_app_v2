@@ -11,10 +11,13 @@ import {
   type SAMStatusResult,
 } from '@/lib/validation/tier1-validators';
 
+type FetchFn = (url: string, options?: RequestInit) => Promise<Response>;
+
 interface CorporateIdentityTabProps {
   companyId: string;
   initialData: Partial<CompanyProfile>;
   onSaved: () => void;
+  fetchFn?: FetchFn;
 }
 
 const SOCIOECONOMIC_OPTIONS = [
@@ -39,8 +42,10 @@ export function CorporateIdentityTab({
   companyId,
   initialData,
   onSaved,
+  fetchFn,
 }: CorporateIdentityTabProps) {
   const { fetchWithCompany } = useFetchWithCompany();
+  const doFetch: FetchFn = fetchFn || fetchWithCompany;
 
   // ---- Form state (each tab manages its own) ----
   const [legalName, setLegalName] = useState('');
@@ -272,7 +277,7 @@ export function CorporateIdentityTab({
         authorized_signer: authorizedSigner,
       };
 
-      const response = await fetchWithCompany('/api/company/profile', {
+      const response = await doFetch('/api/company/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

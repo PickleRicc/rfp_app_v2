@@ -8,7 +8,7 @@ export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
-// Using Claude Sonnet 4.5 (latest version)
-export const MODEL = 'claude-sonnet-4-5-20250929';
+// Using Claude Sonnet 4.6
+export const MODEL = 'claude-sonnet-4-6';
 
 console.log('✅ Anthropic client initialized with model:', MODEL);

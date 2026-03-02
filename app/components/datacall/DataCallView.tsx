@@ -282,15 +282,19 @@ function isSectionComplete(
     sectionId === "technology_selections"
   ) {
     const items = sectionData as Record<string, string>[];
-    if (!items || items.length === 0) return true; // No items required = auto-complete
+    if (!items || items.length === 0) return true;
     const requiredFields = section.fields.filter((f) => f.required);
     if (requiredFields.length === 0) return true;
-    return items.every((item) =>
-      requiredFields.every((field) => {
+    return items.every((item) => {
+      const hasPopulatedValues = Object.values(item).some(
+        (v) => typeof v === "string" && v.trim().length > 0
+      );
+      if (hasPopulatedValues) return true;
+      return requiredFields.every((field) => {
         const val = item[field.key];
         return val !== "" && val != null;
-      })
-    );
+      });
+    });
   }
 
   if (sectionData && typeof sectionData === "object" && !Array.isArray(sectionData)) {
@@ -386,6 +390,10 @@ function validateDataCall(
       const items = (sectionData as Record<string, string>[]) ?? [];
       const requiredFields = section.fields.filter((f) => f.required);
       items.forEach((item, i) => {
+        const hasPopulatedValues = Object.values(item).some(
+          (v) => typeof v === "string" && v.trim().length > 0
+        );
+        if (hasPopulatedValues) return;
         requiredFields.forEach((field) => {
           const val = item[field.key];
           if (val === "" || val == null) {

@@ -15,6 +15,7 @@ import {
   LogOut,
   User,
   FolderOpen,
+  Crosshair,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -28,6 +29,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 const navigation = [
   { name: "Solicitations", href: "/solicitations", icon: FolderOpen },
+  { name: "Capture", href: "/capture", icon: Crosshair },
   { name: "Company Data", href: "/company/profile", icon: Building2 },
   { name: "All Companies", href: "/companies", icon: Users },
 ];

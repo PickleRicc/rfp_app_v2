@@ -7,6 +7,10 @@ import { solicitationDocumentClassifier } from '@/lib/inngest/functions/solicita
 import { solicitationReconciler } from '@/lib/inngest/functions/solicitation-reconciler';
 import { solicitationComplianceExtractor } from '@/lib/inngest/functions/solicitation-compliance-extractor';
 import { proposalDraftGenerator } from '@/lib/inngest/functions/proposal-draft-generator';
+import { touchupScorer } from '@/lib/inngest/functions/touchup-scorer';
+import { touchupRewriter } from '@/lib/inngest/functions/touchup-rewriter';
+import { touchupPackageScorer } from '@/lib/inngest/functions/touchup-package-scorer';
+import { opportunityAnalyzer } from '@/lib/inngest/functions/opportunity-analyzer';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -18,5 +22,9 @@ export const { GET, POST, PUT } = serve({
     solicitationReconciler,
     solicitationComplianceExtractor,
     proposalDraftGenerator,
+    touchupScorer,
+    touchupRewriter,
+    touchupPackageScorer,
+    opportunityAnalyzer,
   ],
 });

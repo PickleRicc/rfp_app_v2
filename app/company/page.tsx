@@ -15,6 +15,10 @@ import {
   UserPlus,
   X,
   Copy,
+  Link2,
+  ExternalLink,
+  Trash2,
+  CheckCircle2,
   type LucideIcon,
 } from 'lucide-react';
 import { useCompany } from '@/lib/context/CompanyContext';
@@ -50,6 +54,8 @@ export default function CompanyDashboard() {
     temporaryPassword: string;
     companyName: string;
   } | null>(null);
+
+  const [intakeLinkOpen, setIntakeLinkOpen] = useState(false);
 
   useEffect(() => {
     if (selectedCompanyId) {
@@ -101,23 +107,41 @@ export default function CompanyDashboard() {
               <p className="text-muted-foreground">Manage company information for proposal generation</p>
             </div>
             {selectedCompany && hasProfile && (
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => {
-                  setInviteOpen(true);
-                  setInviteEmail('');
-                  setInvitePassword('');
-                  setInviteError(null);
-                  setInviteResult(null);
-                }}
-              >
-                <UserPlus className="h-4 w-4" />
-                Invite client
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setIntakeLinkOpen(true)}
+                >
+                  <Link2 className="h-4 w-4" />
+                  Share intake link
+                </Button>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setInviteOpen(true);
+                    setInviteEmail('');
+                    setInvitePassword('');
+                    setInviteError(null);
+                    setInviteResult(null);
+                  }}
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Invite client
+                </Button>
+              </div>
             )}
           </div>
         </div>
+
+        {intakeLinkOpen && selectedCompanyId && (
+          <IntakeLinkModal
+            companyId={selectedCompanyId}
+            companyName={selectedCompany?.company_name ?? ''}
+            onClose={() => setIntakeLinkOpen(false)}
+          />
+        )}
 
         {inviteOpen && selectedCompanyId && (
           <InviteClientModal
@@ -547,6 +571,261 @@ function InviteClientModal({
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             </div>
           </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface IntakeTokenDisplay {
+  id: string;
+  token: string;
+  label: string | null;
+  expires_at: string;
+  access_count: number;
+  last_accessed_at: string | null;
+  created_at: string;
+}
+
+function IntakeLinkModal({
+  companyId,
+  companyName,
+  onClose,
+}: {
+  companyId: string;
+  companyName: string;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tokens, setTokens] = useState<IntakeTokenDisplay[]>([]);
+  const [newUrl, setNewUrl] = useState<string | null>(null);
+  const [label, setLabel] = useState('');
+  const [expiresInDays, setExpiresInDays] = useState(30);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    fetchTokens();
+  }, []);
+
+  const fetchTokens = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/company/intake-token', {
+        headers: { 'X-Company-Id': companyId },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTokens(data.tokens || []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateLink = async () => {
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/company/intake-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          label: label.trim() || null,
+          expiresInDays,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to generate link');
+        return;
+      }
+      setNewUrl(data.intakeUrl);
+      setLabel('');
+      await fetchTokens();
+    } catch {
+      setError('Failed to generate link');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const revokeToken = async (tokenId: string) => {
+    try {
+      await fetch(`/api/company/intake-token?tokenId=${tokenId}`, {
+        method: 'DELETE',
+      });
+      setTokens((prev) => prev.filter((t) => t.id !== tokenId));
+    } catch {
+      // ignore
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const baseUrl =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : '';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
+      <div
+        className="rounded-xl border border-border bg-card shadow-lg max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-foreground">Share Intake Link</h2>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-muted">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Generate a secure link for <strong>{companyName}</strong> to fill in their Enterprise Profile remotely.
+          No login required — the link provides direct access to the intake form.
+        </p>
+
+        {newUrl ? (
+          <div className="space-y-4 mb-6">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+              <p className="text-sm font-medium text-green-800 mb-2">Link generated successfully!</p>
+              <div className="flex gap-2">
+                <Input readOnly value={newUrl} className="font-mono text-xs" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => copyToClipboard(newUrl)}
+                  title="Copy link"
+                >
+                  {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => window.open(newUrl, '_blank')}
+                  title="Open in new tab"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-green-700 mt-2">
+                Send this link to your client. They can open it in any browser to fill in their profile.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => setNewUrl(null)}
+            >
+              Generate another link
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Label (optional)</label>
+              <Input
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="e.g., Sent to John Smith"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Expires in</label>
+              <select
+                value={expiresInDays}
+                onChange={(e) => setExpiresInDays(parseInt(e.target.value, 10))}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value={7}>7 days</option>
+                <option value={14}>14 days</option>
+                <option value={30}>30 days</option>
+                <option value={60}>60 days</option>
+                <option value={90}>90 days</option>
+              </select>
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button
+              onClick={generateLink}
+              disabled={generating}
+              className="w-full gap-2"
+            >
+              <Link2 className="h-4 w-4" />
+              {generating ? 'Generating...' : 'Generate intake link'}
+            </Button>
+          </div>
+        )}
+
+        {tokens.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Active links</h3>
+            <div className="space-y-2">
+              {tokens.map((t) => {
+                const isExpired = new Date(t.expires_at) < new Date();
+                const url = `${baseUrl}/intake/${t.token}`;
+                return (
+                  <div
+                    key={t.id}
+                    className={`rounded-lg border p-3 text-sm ${
+                      isExpired ? 'border-red-200 bg-red-50' : 'border-border bg-muted/30'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground truncate">
+                          {t.label || 'Intake link'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {isExpired ? 'Expired' : `Expires ${new Date(t.expires_at).toLocaleDateString()}`}
+                          {' · '}{t.access_count} access{t.access_count !== 1 ? 'es' : ''}
+                          {t.last_accessed_at && ` · Last used ${new Date(t.last_accessed_at).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        {!isExpired && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => copyToClipboard(url)}
+                            title="Copy link"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => revokeToken(t.id)}
+                          title="Revoke link"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {loading && tokens.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-4">Loading existing links...</p>
         )}
       </div>
     </div>

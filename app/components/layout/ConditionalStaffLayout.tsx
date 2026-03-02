@@ -15,8 +15,9 @@ export function ConditionalStaffLayout({
 }) {
   const pathname = usePathname();
   const isPortal = pathname?.startsWith("/portal");
+  const isIntake = pathname?.startsWith("/intake");
 
-  if (isPortal) {
+  if (isPortal || isIntake) {
     return <>{children}</>;
   }
 

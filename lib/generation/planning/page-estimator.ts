@@ -29,7 +29,7 @@ export const PAGE_CONSTANTS = {
   PARAGRAPHS_PER_PAGE: 3, // Approximate paragraphs per page
   COVER_PAGES: 1,       // Cover page
   TOC_PAGES: 2,         // TOC + Table of Exhibits
-  COVER_LETTER_PAGES: 1, // Cover letter
+  COVER_LETTER_PAGES: 0, // Cover letter removed — no longer generated
 };
 
 /**

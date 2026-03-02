@@ -2,19 +2,19 @@
 
 ## Overview
 
-Content generation is the final stage of the pipeline. It takes three data sources — company knowledge (Tier 1), opportunity-specific data (Tier 2), and AI-extracted RFP structure (Phase 7 compliance extractions) — and produces complete, multi-volume DOCX proposal responses using Claude Sonnet 4.5.
+Content generation is the final stage of the pipeline. It takes three data sources — company knowledge (Tier 1), opportunity-specific data (Tier 2), and AI-extracted RFP structure (Phase 7 compliance extractions) — and produces complete, multi-volume DOCX proposal responses using Claude Sonnet 4.6. An optional Touchup phase (Phase 10) scores the first draft against compliance requirements and rewrites it to fill gaps.
 
 ---
 
 ## The AI Model
 
-**Model:** `claude-sonnet-4-5-20250929`
+**Model:** `claude-sonnet-4-6`
 **Client:** Anthropic TypeScript SDK
 **File:** `lib/anthropic/client.ts`
 
 ```typescript
 export const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-export const MODEL = 'claude-sonnet-4-5-20250929';
+export const MODEL = 'claude-sonnet-4-6';
 ```
 
 No other AI provider is used. All extraction AND generation runs through Claude.
@@ -544,7 +544,7 @@ Post-processes section headings to append requirement number references:
                     │  + Sparse data handling        │
                     └──────────────┬──────────────┘
                                    │
-                           Claude Sonnet 4.5
+                           Claude Sonnet 4.6
                         (temp=0.3, 8192 tokens)
                                    │
                     ┌──────────────┴──────────────┐
@@ -570,3 +570,123 @@ Post-processes section headings to append requirement number references:
                     │  preview in DB                │
                     └─────────────────────────────┘
 ```
+
+---
+
+## Touchup Pipeline (Phase 10) — Per-Volume Interactive
+
+### Overview
+
+The Touchup feature is an optional post-generation layer that sits downstream of the Phase 9 draft pipeline. It does NOT modify the first draft — it produces a separate second draft. The system uses a **per-volume interactive workflow** with a dedicated Touchup tab, giving users full control over which volumes to score and rewrite.
+
+**Two-step user flow:**
+1. **Score** — Select volumes and run AI scoring. Review the gap analysis for each volume.
+2. **Rewrite** — Explicitly trigger a rewrite for specific volumes after reviewing scores.
+
+### Architecture
+
+```
+User selects volumes → Click "Score Selected"
+   ↓
+Inngest: proposal.touchup.score (one per volume)
+   ↓
+User reviews gap analysis per volume
+   ↓
+User clicks "Rewrite This Volume"
+   ↓
+Inngest: proposal.touchup.rewrite (one per volume)
+   ↓ Rewrite + Regression Guard + DOCX
+User reviews result, downloads DOCX
+   ↓
+Optional: Generate Compliance Matrix (synchronous)
+```
+
+### Inngest Functions
+
+#### Touchup Scorer (`lib/inngest/functions/touchup-scorer.ts`)
+
+**Event:** `proposal.touchup.score`
+**Payload:** `{ solicitationId, companyId, draftId, touchupId, touchupVolumeId }`
+
+Scores a single volume. Steps:
+1. `fetch-data` — Load company profile, compliance extractions, data call, single draft volume content
+2. `score-volume` — Call Claude Sonnet 4.6 via `messages.stream().finalMessage()` (`max_tokens: 32768`, `temperature: 0.1`), parse gap analysis JSON, set volume status to `'scored'`
+
+**Prompt file:** `lib/generation/touchup/scoring-prompt.ts`
+
+The AI outputs structured JSON:
+- `compliance_score`: 0-100
+- `requirements_coverage[]`: per-requirement status (covered/partial/missing)
+- `data_verification[]`: claims cross-checked against source data
+- `missing_content[]`: topics with available data not used
+- `placeholder_items[]`: each [PLACEHOLDER] with resolution if data exists
+- `compliance_language_issues[]`: tone/phrasing problems
+- Fabrication flags: claims not backed by any source
+
+#### Touchup Rewriter (`lib/inngest/functions/touchup-rewriter.ts`)
+
+**Event:** `proposal.touchup.rewrite`
+**Payload:** `{ solicitationId, companyId, draftId, touchupId, touchupVolumeId }`
+
+Rewrites a single volume and runs regression guard. Steps:
+1. `fetch-data` — Load all source data + draft volume + gap analysis from scoring
+2. `rewrite-volume` — Call Claude Sonnet 4.6 via `messages.stream().finalMessage()` (`max_tokens: 32768`, `temperature: 0.3`)
+3. `regression-guard` — Section-by-section comparison via Claude (`max_tokens: 8192`, `temperature: 0.1`), deterministic decision rule, DOCX generation, upload to storage. Sets volume status to `'completed'`.
+
+**Prompt files:**
+- `lib/generation/touchup/rewrite-prompt.ts`
+- `lib/generation/touchup/regression-guard-prompt.ts`
+
+**Regression Guard Decision Rule** (deterministic code, not AI): if touchup_total >= draft1_total, keep touchup; otherwise revert to draft 1. Assembles final volume from best sections; logs reversions in `regression_reversions` JSONB.
+
+**Streaming Transport:** Both functions use `anthropic.messages.stream().finalMessage()` to satisfy the Anthropic SDK's requirement for streaming when `max_tokens >= 32768`. Returns the same `Message` shape. Individual calls take 3-5 minutes, within Inngest step limits.
+
+### Database Tables
+
+**Schema:** `supabase_tables/supabase-touchup-draft-migration.sql` + `supabase-touchup-v2-migration.sql`
+
+- `touchup_analyses` — Lightweight session container. `status` is `'active'` or `'completed'`. Aggregate stats (overall score, total gaps) are computed on-the-fly by the GET endpoint, not stored by Inngest.
+- `touchup_volumes` — Per-volume data. Status flow: `pending → scoring → scored → rewriting → completed`. Stores `gap_analysis` (JSONB), `content_markdown`, `regression_reversions`, scores.
+
+**Types:** `lib/supabase/touchup-types.ts`
+
+### API Routes
+
+**File:** `app/api/solicitations/[id]/touchup/route.ts`
+
+- `GET` — Returns: `draftReady` flag, `draftVolumes` (for selector), `touchup` analysis record, `volumes` with statuses and scores, `aggregates` (computed on-the-fly). Auto-cleans stale sessions if user regenerated their draft.
+- `POST (action: "score")` — Accepts `{ action: "score", volumeIds: string[] }`. Creates/upserts `touchup_analyses` and `touchup_volumes`, sends one `proposal.touchup.score` Inngest event per volume. Duplicate guard: skips volumes already in `'scoring'` status.
+- `POST (action: "rewrite")` — Accepts `{ action: "rewrite", touchupVolumeId: string }`. Validates volume is `'scored'`. Sends one `proposal.touchup.rewrite` Inngest event.
+- `POST (action: "generate-matrix")` — Synchronous. Builds a markdown compliance matrix from existing `touchup_volumes` gap analysis data. No AI call needed.
+
+**Download:** `GET /api/solicitations/[id]/touchup/volumes/[volumeId]` — Downloads touchup DOCX
+
+### Safeguards
+
+- **Stale session cleanup** — GET endpoint detects orphaned `touchup_analyses` (zero volumes after draft regeneration cascade-delete) and auto-deletes them.
+- **Computed aggregates** — `overall_compliance_score`, `total_gaps`, etc. calculated at read time from current `touchup_volumes` data. Always accurate.
+- **Duplicate scoring guard** — API checks volume status before accepting; Inngest checks at execution start.
+- **Rewrite prerequisite** — Volume must be `'scored'` before rewrite is accepted.
+- **Draft completion check** — GET returns `draftReady: false` if no completed draft exists.
+- **Re-scoring** — Resets all scoring/rewriting fields when user re-scores a previously scored volume.
+
+### UI Integration
+
+The Touchup feature has its own dedicated tab in the solicitation page, separate from the Draft tab.
+
+**Tab added to:** `app/solicitations/[id]/page.tsx` — "Touchup" tab with Sparkles icon, between Draft and Logs.
+
+**Component:** `app/components/touchup/TouchupTab.tsx`
+
+- **Draft prerequisite check** — Shows "complete your draft first" if no completed draft
+- **Volume selector** — Multi-select checkboxes of completed draft volumes with status badges
+- **Score button** — "Score Selected Volumes" triggers per-volume scoring
+- **Volume cards** — One per touchup volume, showing:
+  - `scoring`: spinner with progress message
+  - `scored`: compliance score, requirements coverage summary, fabrication flags, expandable gap analysis, "Rewrite This Volume" button
+  - `rewriting`: spinner with progress message
+  - `completed`: before/after scores, word count, page estimate, regression reversions, DOCX download, markdown preview
+  - `failed`: error message
+- **Aggregates banner** — Average compliance score, total gaps, scored/rewritten counts
+- **Generate Compliance Matrix** button — Visible when at least one volume is scored/completed
+- **3-second polling** — Active when any volume is in `'scoring'` or `'rewriting'` status

@@ -14,6 +14,7 @@ import {
   ClipboardCheck,
   Send,
   ScrollText,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCompany } from "@/lib/context/CompanyContext";
@@ -25,6 +26,7 @@ import { TemplateFieldsPanel } from "@/app/components/solicitation/TemplateField
 import { ComplianceExtractionView } from "@/app/components/solicitation/ComplianceExtractionView";
 import { DataCallView } from "@/app/components/datacall/DataCallView";
 import { DraftGenerationView } from "@/app/components/draft/DraftGenerationView";
+import { TouchupTab } from "@/app/components/touchup/TouchupTab";
 import { PipelineLogsView } from "./components/PipelineLogsView";
 import type {
   SolicitationWithDocuments,
@@ -97,6 +99,11 @@ const TABS: Tab[] = [
     id: "draft",
     label: "Draft",
     icon: <Send className="h-4 w-4" />,
+  },
+  {
+    id: "touchup",
+    label: "Touchup",
+    icon: <Sparkles className="h-4 w-4" />,
   },
   {
     id: "logs",
@@ -482,6 +489,14 @@ export default function SolicitationDetailPage() {
             solicitationId={solicitationId}
             companyId={selectedCompanyId}
             onTabChange={setActiveTab}
+          />
+        )}
+
+        {/* ======= TOUCHUP TAB ======= */}
+        {activeTab === "touchup" && selectedCompanyId && (
+          <TouchupTab
+            solicitationId={solicitationId}
+            companyId={selectedCompanyId}
           />
         )}
 

@@ -477,8 +477,8 @@ function CompleteView({
         <ComplianceMatrixSection content={complianceVolume.content_markdown} />
       )}
 
-      {/* Regenerate button */}
-      <div className="flex justify-end">
+      {/* Action buttons */}
+      <div className="flex justify-end gap-3">
         <button
           type="button"
           onClick={onRegenerate}
@@ -526,19 +526,22 @@ export function DraftGenerationView({
       const res = await fetch(`/api/solicitations/${solicitationId}/draft`, {
         headers: { "X-Company-Id": companyId },
       });
-      if (!res.ok) return; // StrategyConfirmation will handle its own error
+      if (!res.ok) return;
       const data: DraftGetResponse = await res.json();
 
       if (!data.draft) {
         setView("strategy");
-      } else if (data.draft.status === "generating" || data.draft.status === "pending") {
+        return;
+      }
+
+      if (data.draft.status === "generating" || data.draft.status === "pending") {
         setVolumes(data.volumes);
         setView("generating");
         startPolling();
-      } else if (
-        data.draft.status === "completed" ||
-        data.draft.status === "failed"
-      ) {
+        return;
+      }
+
+      if (data.draft.status === "completed" || data.draft.status === "failed") {
         setVolumes(data.volumes);
         setView("complete");
       }
@@ -689,7 +692,7 @@ export function DraftGenerationView({
     );
   }
 
-  // complete view
+  // complete view (draft)
   return (
     <CompleteView
       volumes={volumes}

@@ -11,6 +11,8 @@ import {
   Clock,
   Download,
   RefreshCw,
+  Copy,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCompany } from "@/lib/context/CompanyContext";
@@ -19,8 +21,6 @@ import type {
   PipelineSummary,
 } from "@/lib/supabase/pipeline-log-types";
 import { PIPELINE_STAGE_LABELS } from "@/lib/supabase/pipeline-log-types";
-
-// ===== HELPERS =====
 
 function formatDuration(ms: number | null): string {
   if (ms === null) return "—";
@@ -32,6 +32,17 @@ function formatDuration(ms: number | null): string {
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatFullTimestamp(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -56,7 +67,154 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   warning: "bg-amber-50 text-amber-700 border-amber-200",
 };
 
-// ===== COMPONENT =====
+function formatMetadataValue(value: unknown, indent = 0): string {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    if (value.every((v) => typeof v === "string" || typeof v === "number")) {
+      return value.join("\n" + " ".repeat(indent));
+    }
+    return JSON.stringify(value, null, 2);
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value, null, 2);
+  }
+  return String(value);
+}
+
+function logToClipboardText(log: PipelineLog): string {
+  const lines: string[] = [];
+  lines.push(`[${log.status.toUpperCase()}] ${getStageLabel(log.stage)}`);
+  lines.push(`Time: ${formatFullTimestamp(log.created_at)}`);
+  if (log.duration_ms !== null) lines.push(`Duration: ${formatDuration(log.duration_ms)}`);
+  if (log.error) lines.push(`Error: ${log.error}`);
+  if (log.metadata && Object.keys(log.metadata).length > 0) {
+    lines.push("--- Metadata ---");
+    for (const [key, value] of Object.entries(log.metadata)) {
+      const formatted = formatMetadataValue(value, key.length + 2);
+      if (formatted.includes("\n")) {
+        lines.push(`${key}:`);
+        lines.push(formatted);
+      } else {
+        lines.push(`${key}: ${formatted}`);
+      }
+    }
+  }
+  return lines.join("\n");
+}
+
+function allLogsToClipboardText(logs: PipelineLog[]): string {
+  const sections: string[] = [];
+  sections.push(`=== Pipeline Logs (${logs.length} events) ===`);
+  sections.push(`Generated: ${new Date().toLocaleString()}`);
+  sections.push("");
+
+  for (const log of logs) {
+    sections.push(logToClipboardText(log));
+    sections.push(""); // blank line between entries
+  }
+
+  return sections.join("\n");
+}
+
+function CopyButton({
+  getText,
+  label,
+  className,
+}: {
+  getText: () => string;
+  label?: string;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(getText());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for non-HTTPS
+      const textArea = document.createElement("textarea");
+      textArea.value = getText();
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className={cn(
+        "flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors",
+        copied && "border-green-300 bg-green-50 text-green-700",
+        className
+      )}
+      title={label || "Copy to clipboard"}
+    >
+      {copied ? (
+        <Check className="h-3 w-3" />
+      ) : (
+        <Copy className="h-3 w-3" />
+      )}
+      {label && <span>{copied ? "Copied!" : label}</span>}
+    </button>
+  );
+}
+
+function MetadataRenderer({ metadata }: { metadata: Record<string, unknown> }) {
+  const entries = Object.entries(metadata);
+
+  return (
+    <div className="space-y-2">
+      {entries.map(([key, value]) => {
+        const isObject = typeof value === "object" && value !== null;
+        const isArray = Array.isArray(value);
+        const isStringArray = isArray && value.every((v: unknown) => typeof v === "string");
+        const isNestedObject = isObject && !isArray;
+
+        return (
+          <div key={key} className="text-xs">
+            <span className="font-mono font-semibold text-muted-foreground">
+              {key}
+            </span>
+            {isStringArray ? (
+              <div className="mt-0.5 ml-3 space-y-0.5">
+                {(value as string[]).map((item, i) => (
+                  <div key={i} className="font-mono text-foreground">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            ) : isNestedObject ? (
+              <div className="mt-0.5 ml-3 rounded border border-border bg-muted/30 p-2">
+                <pre className="whitespace-pre-wrap break-all font-mono text-[11px] text-foreground">
+                  {JSON.stringify(value, null, 2)}
+                </pre>
+              </div>
+            ) : isArray ? (
+              <div className="mt-0.5 ml-3 rounded border border-border bg-muted/30 p-2">
+                <pre className="whitespace-pre-wrap break-all font-mono text-[11px] text-foreground">
+                  {JSON.stringify(value, null, 2)}
+                </pre>
+              </div>
+            ) : (
+              <span className="ml-2 font-mono text-foreground">
+                {formatMetadataValue(value)}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 interface PipelineLogsViewProps {
   solicitationId: string;
@@ -100,7 +258,6 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
       setSummary(data.summary || null);
       setError(null);
 
-      // Stop auto-refresh if pipeline is complete (no in-progress stages)
       if (data.summary?.stages_in_progress?.length === 0 && data.summary?.total_events > 0) {
         setAutoRefresh(false);
       }
@@ -112,12 +269,10 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
     }
   }, [solicitationId, selectedCompanyId, stageFilter, statusFilter]);
 
-  // Initial fetch
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
-  // Auto-refresh
   useEffect(() => {
     if (autoRefresh) {
       intervalRef.current = setInterval(fetchLogs, 5000);
@@ -142,6 +297,14 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
     });
   };
 
+  const expandAll = () => {
+    setExpandedLogIds(new Set(logs.filter(l => Object.keys(l.metadata || {}).length > 0).map(l => l.id)));
+  };
+
+  const collapseAll = () => {
+    setExpandedLogIds(new Set());
+  };
+
   const handleExport = () => {
     const blob = new Blob(
       [JSON.stringify({ logs, summary }, null, 2)],
@@ -155,7 +318,6 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
     URL.revokeObjectURL(url);
   };
 
-  // Get unique stages for filter dropdown
   const uniqueStages = [...new Set(logs.map((l) => l.stage))].sort();
 
   if (loading) {
@@ -187,6 +349,9 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
     );
   }
 
+  const warningCount = logs.filter((l) => l.status === "warning").length;
+  const failedCount = logs.filter((l) => l.status === "failed").length;
+
   return (
     <div className="space-y-4">
       {/* ===== Pipeline Overview ===== */}
@@ -203,9 +368,19 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
                   Total: {formatDuration(summary.pipeline_duration_ms)}
                 </span>
               )}
+              {(warningCount > 0 || failedCount > 0) && (
+                <span className="text-xs">
+                  {failedCount > 0 && (
+                    <span className="text-red-600 font-medium">{failedCount} failed</span>
+                  )}
+                  {failedCount > 0 && warningCount > 0 && " · "}
+                  {warningCount > 0 && (
+                    <span className="text-amber-600 font-medium">{warningCount} warnings</span>
+                  )}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
-              {/* Status counts */}
               {Object.entries(summary.by_status).map(([status, count]) => (
                 <span
                   key={status}
@@ -233,7 +408,7 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
                 title={`${getStageLabel(stage)}: ${info.status}${info.duration_ms ? ` (${formatDuration(info.duration_ms)})` : ""}`}
               >
                 {STATUS_ICONS[info.status]}
-                <span className="max-w-[120px] truncate">{getStageLabel(stage)}</span>
+                <span className="max-w-[140px] truncate">{getStageLabel(stage)}</span>
                 {info.duration_ms !== null && (
                   <span className="text-[10px] opacity-70">
                     {formatDuration(info.duration_ms)}
@@ -272,7 +447,25 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
           <option value="warning">Warning</option>
         </select>
 
+        <button
+          onClick={expandAll}
+          className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Expand All
+        </button>
+        <button
+          onClick={collapseAll}
+          className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Collapse All
+        </button>
+
         <div className="ml-auto flex items-center gap-2">
+          <CopyButton
+            getText={() => allLogsToClipboardText(logs)}
+            label="Copy All"
+          />
+
           <button
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={cn(
@@ -291,7 +484,7 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
             className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
             <Download className="h-3 w-3" />
-            Export
+            Export JSON
           </button>
         </div>
       </div>
@@ -301,20 +494,30 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
         {logs.map((log) => {
           const isExpanded = expandedLogIds.has(log.id);
           const hasMetadata = Object.keys(log.metadata || {}).length > 0;
+          const hasError = !!log.error;
+          const isWarning = log.status === "warning";
+          const isFailed = log.status === "failed";
 
           return (
-            <div key={log.id} className="group">
-              <button
-                onClick={() => hasMetadata && toggleExpanded(log.id)}
+            <div
+              key={log.id}
+              className={cn(
+                "group",
+                isFailed && "bg-red-50/30",
+                isWarning && "bg-amber-50/20"
+              )}
+            >
+              <div
+                onClick={() => (hasMetadata || hasError) && toggleExpanded(log.id)}
                 className={cn(
                   "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm",
-                  hasMetadata && "cursor-pointer hover:bg-muted/30",
-                  !hasMetadata && "cursor-default"
+                  (hasMetadata || hasError) && "cursor-pointer hover:bg-muted/30",
+                  !(hasMetadata || hasError) && "cursor-default"
                 )}
               >
                 {/* Expand chevron */}
                 <span className="w-4 shrink-0">
-                  {hasMetadata &&
+                  {(hasMetadata || hasError) &&
                     (isExpanded ? (
                       <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                     ) : (
@@ -333,7 +536,27 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
                 {/* Stage label */}
                 <span className="min-w-0 flex-1 truncate font-medium text-foreground">
                   {getStageLabel(log.stage)}
+                  {/* Inline volume name if available */}
+                  {typeof log.metadata?.volume_name === "string" && (
+                    <span className="ml-1.5 font-normal text-muted-foreground">
+                      — {log.metadata.volume_name}
+                    </span>
+                  )}
                 </span>
+
+                {/* Quick stats for scoring */}
+                {log.metadata?.compliance_score !== undefined && (
+                  <span className={cn(
+                    "shrink-0 rounded px-1.5 py-0.5 text-[11px] font-mono font-bold",
+                    Number(log.metadata.compliance_score) >= 80
+                      ? "bg-green-100 text-green-800"
+                      : Number(log.metadata.compliance_score) >= 60
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-red-100 text-red-800"
+                  )}>
+                    {String(log.metadata.compliance_score)}/100
+                  </span>
+                )}
 
                 {/* Status badge */}
                 <span
@@ -349,38 +572,44 @@ export function PipelineLogsView({ solicitationId }: PipelineLogsViewProps) {
                 <span className="shrink-0 w-[60px] text-right text-xs text-muted-foreground">
                   {formatDuration(log.duration_ms)}
                 </span>
-              </button>
+              </div>
 
               {/* Expanded metadata */}
-              {isExpanded && hasMetadata && (
+              {isExpanded && (hasMetadata || hasError) && (
                 <div className="border-t border-border bg-muted/20 px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                      Details
+                    </span>
+                    <CopyButton
+                      getText={() => logToClipboardText(log)}
+                      label="Copy"
+                      className="py-0.5"
+                    />
+                  </div>
+
                   {/* Error message */}
                   {log.error && (
-                    <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                      <span className="font-medium">Error:</span> {log.error}
+                    <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 font-mono">
+                      <span className="font-bold">Error:</span> {log.error}
                     </div>
                   )}
 
-                  {/* Metadata table */}
-                  <div className="space-y-1.5">
-                    {Object.entries(log.metadata).map(([key, value]) => (
-                      <div key={key} className="flex gap-3 text-xs">
-                        <span className="shrink-0 w-40 font-mono text-muted-foreground">
-                          {key}:
-                        </span>
-                        <span className="min-w-0 flex-1 break-all font-mono text-foreground">
-                          {typeof value === "object"
-                            ? JSON.stringify(value, null, 2)
-                            : String(value)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  {/* Metadata */}
+                  {hasMetadata && (
+                    <MetadataRenderer metadata={log.metadata} />
+                  )}
                 </div>
               )}
             </div>
           );
         })}
+      </div>
+
+      {/* Log count footer */}
+      <div className="text-center text-xs text-muted-foreground">
+        Showing {logs.length} log entries
+        {logs.length >= 500 && " (limit reached — use filters to narrow results)"}
       </div>
     </div>
   );

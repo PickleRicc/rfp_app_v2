@@ -34,7 +34,7 @@ export interface SectionPageCount {
 
 // Constants for page estimation
 const WORDS_PER_PAGE = 450;   // 11pt, single-spaced, standard margins
-const FRONT_MATTER_ESTIMATE = 4; // cover page + TOC (2 pages) + cover letter
+const FRONT_MATTER_ESTIMATE = 3; // cover page + TOC (2 pages)
 
 /**
  * Count pages from a DOCX buffer by extracting actual text content.

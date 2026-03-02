@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 import type { CompanyProfile, ContractVehicle, Certification, ISOCMMIStatus, DCAAApprovedSystems } from '@/lib/supabase/company-types';
 
+type FetchFn = (url: string, options?: RequestInit) => Promise<Response>;
+
 interface VehiclesCertificationsTabProps {
   companyId: string;
   initialProfileData: Partial<CompanyProfile>;
   onSaved: () => void;
+  fetchFn?: FetchFn;
 }
 
 interface VehicleForm {
@@ -76,8 +79,10 @@ export function VehiclesCertificationsTab({
   companyId,
   initialProfileData,
   onSaved,
+  fetchFn,
 }: VehiclesCertificationsTabProps) {
   const { fetchWithCompany } = useFetchWithCompany();
+  const doFetch: FetchFn = fetchFn || fetchWithCompany;
 
   // Profile-level JSONB state
   const [isoCmmi, setIsoCmmi] = useState<ISOCMMIStatus>({ ...DEFAULT_ISO_CMMI });
@@ -137,7 +142,7 @@ export function VehiclesCertificationsTab({
   const fetchCertData = async () => {
     try {
       setCertDataLoading(true);
-      const response = await fetchWithCompany('/api/company/certifications');
+      const response = await doFetch('/api/company/certifications');
       const data = await response.json();
       setVehicles(data.contractVehicles || []);
       setCertifications(data.certifications || []);
@@ -160,7 +165,7 @@ export function VehiclesCertificationsTab({
   const addVehicle = async () => {
     if (!vehicleForm.vehicle_name || !vehicleForm.vehicle_type) return;
     try {
-      const response = await fetchWithCompany('/api/company/certifications', {
+      const response = await doFetch('/api/company/certifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -191,7 +196,7 @@ export function VehiclesCertificationsTab({
   const addCertification = async () => {
     if (!certForm.certification_type) return;
     try {
-      const response = await fetchWithCompany('/api/company/certifications', {
+      const response = await doFetch('/api/company/certifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -217,7 +222,7 @@ export function VehiclesCertificationsTab({
   // ---- Facility clearance save ----
   const saveFacilityClearance = async () => {
     try {
-      const response = await fetchWithCompany('/api/company/certifications', {
+      const response = await doFetch('/api/company/certifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -244,7 +249,7 @@ export function VehiclesCertificationsTab({
       await saveFacilityClearance();
 
       // Save JSONB fields on profile
-      const response = await fetchWithCompany('/api/company/profile', {
+      const response = await doFetch('/api/company/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

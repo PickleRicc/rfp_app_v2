@@ -34,6 +34,8 @@ import type {
   TechnologySelection,
 } from '@/lib/supabase/tier2-types';
 import { getComplianceInstructions } from '@/lib/generation/content/compliance-language';
+import type { RfpChecklists } from '@/lib/generation/pipeline/soo-checklist-builder';
+import { formatChecklistForPrompt } from '@/lib/generation/pipeline/soo-checklist-builder';
 
 // ===== CONTRACT STYLE =====
 
@@ -106,6 +108,18 @@ export interface VolumePromptData {
 
   /** Tier 2 per-technology selection entries from data call */
   technologySelections?: TechnologySelection[];
+
+  /** Data call files with extracted text (resumes, LOCs, certs) */
+  dataCallFiles?: Array<{
+    id: string;
+    section: string;
+    field_key: string;
+    filename: string;
+    extracted_text: string | null;
+  }>;
+
+  /** RFP checklists from Layer A — sections, technologies, CDRLs, metrics */
+  rfpChecklists?: RfpChecklists;
 }
 
 /**
@@ -220,10 +234,16 @@ function buildPageLimitInstruction(
   if (pageLimit) {
     const wordsPerPage = spacing === 'double' ? WORDS_PER_PAGE_DOUBLE : WORDS_PER_PAGE_SINGLE;
     const maxWordCount = pageLimit * wordsPerPage;
-    return `HARD PAGE LIMIT: This volume has a STRICT ${pageLimit}-page limit. Government page limits are absolute — proposals exceeding the limit may be rejected without evaluation.
-- MAXIMUM: ${maxWordCount} words (${pageLimit} pages)
-- TARGET: ${targetWordCount} words (87.5% utilization)
-- Do NOT exceed ${maxWordCount} words. Prioritize highest-weighted evaluation factors if space is tight.`;
+    return `HARD PAGE LIMIT: This volume has a STRICT ${pageLimit}-page limit (${maxWordCount} words maximum at ${wordsPerPage} words/page). Government evaluators will DISCARD all content beyond page ${pageLimit} without reading it.
+
+WORD BUDGET — plan BEFORE writing:
+- ABSOLUTE MAXIMUM: ${maxWordCount} words. Do NOT exceed this under any circumstances.
+- TARGET: ${targetWordCount} words (87.5% utilization — leaves margin for formatting).
+- Tables count toward the page limit. Keep tables compact (abbreviate where possible).
+- Win theme callout boxes count toward the limit. Use 1-2 sentences per box, not paragraphs.
+- Prioritize: address ALL evaluation factors and ALL service areas, but use concise prose. Favor specific evidence over verbose narrative.
+- If content won't fit: shorten lower-weighted sections, consolidate tables, and remove redundant introductory paragraphs. NEVER drop an evaluation factor or service area to save space.
+- Do NOT include a compliance matrix or appendix within this volume — those are separate volumes.`;
   }
 
   return `TARGET LENGTH: Approximately ${targetWordCount} words (no page limit specified — use professional judgment).`;
@@ -265,10 +285,42 @@ function buildSparseDataInstruction(): string {
   return `
 SPARSE DATA HANDLING:
 Where specific data is unavailable or not provided, insert a placeholder in this exact format:
-[PLACEHOLDER: describe what specific information is needed here]
+[HUMAN INPUT REQUIRED: describe what specific information is needed here]
 
 This allows the reviewer to identify exactly what information must be supplied before the proposal is finalized.
-Do NOT fabricate specific numbers, dates, contract values, personnel names, or other facts — use placeholders instead.
+
+FABRICATION PREVENTION — CRITICAL:
+You MUST NOT invent, fabricate, or assume ANY of the following unless explicitly provided in the source data above:
+
+1. SLA METRICS: Do NOT fabricate resolution times, response times, uptime percentages, or availability targets.
+   BAD: "Critical tickets resolved within 1 business day"
+   GOOD: "Critical tickets resolved within [HUMAN INPUT REQUIRED: resolution SLA per contract metrics]"
+   GOOD (if SOW provides it): "Critical tickets resolved within 4 hours per SOW Table 3"
+
+2. TOOL/SOFTWARE NAMES: Only name tools that appear in the provided source data (tools_and_platforms,
+   technology_selections, service_area_approaches, or SOW task areas). Do NOT guess enterprise tools.
+   BAD: "Using Citrix VDI, Dameware, Ansible, and Puppet for configuration management"
+   GOOD: "Using [list only tools from source data] for configuration management"
+   If no specific tools are provided for a service area, describe the APPROACH without naming specific products.
+
+3. INCUMBENT CONTRACTORS: NEVER name an incumbent contractor unless explicitly provided in source data.
+   BAD: "Transition from Agile Defense, Inc."
+   GOOD: "Transition from the incumbent contractor"
+
+4. CDRL TURNAROUND TIMES: Only state CDRL deadlines that appear in the SOW deliverables data.
+   BAD: "CDRL A004 delivered within 3 business days"
+   GOOD: "CDRL A004 delivered per the schedule specified in the SOW"
+
+5. SPECIFIC NUMERIC COMMITMENTS: Do NOT fabricate staffing ratios, CSAT targets, deployment timelines,
+   installation SLAs, or any numeric commitment that could become a contractually binding obligation.
+   BAD: "98% customer satisfaction target" / "New devices deployed within 1 business day"
+   GOOD: "[HUMAN INPUT REQUIRED: customer satisfaction target]" or describe the process without a specific number.
+
+6. PERSONNEL DETAILS: Use ONLY data from the KEY PERSONNEL REGISTRY and personnel records above.
+   Do NOT add education details, certifications, or experience claims not in the source data.
+
+When in doubt, use a placeholder. A placeholder is always preferable to a fabricated claim that could
+create an unwanted contractual obligation or fail source verification during scoring.
 `;
 }
 
@@ -286,6 +338,36 @@ Example:
 > The contractor shall provide a detailed technical approach for managing IT infrastructure.
 
 [Company Name] will implement a comprehensive IT infrastructure management approach...
+`;
+}
+
+// ===== CHECKLIST INJECTION =====
+
+/**
+ * Build the checklist enforcement block to inject into volume user prompts.
+ * Adapts language based on document style (SOO/SOW/PWS).
+ */
+function buildChecklistEnforcementBlock(checklists: RfpChecklists | undefined): string {
+  if (!checklists) return '';
+  const formatted = formatChecklistForPrompt(checklists);
+  if (!formatted.trim()) return '';
+  return `\n${formatted}`;
+}
+
+/**
+ * Build modernization goals enforcement block.
+ * Only injected when extraction data has modernization_goals.
+ */
+function buildModernizationEnforcementBlock(
+  modernizationGoals: string[],
+  docLabel: string
+): string {
+  if (!modernizationGoals || modernizationGoals.length === 0) return '';
+  const numbered = modernizationGoals.map((g, i) => `  ${i + 1}. ${g}`).join('\n');
+  return `
+MODERNIZATION/STRATEGIC GOALS: The ${docLabel} defines the following strategic objectives.
+You MUST address each one explicitly and describe how your approach supports it:
+${numbered}
 `;
 }
 
@@ -416,6 +498,82 @@ function getServiceAreaDetails(
     .filter(Boolean);
 }
 
+/**
+ * Build a compliance data block from data_call_responses.compliance_verification.
+ * Surfaces SPRS score, CAGE code, FCL status, etc. for the AI to reference.
+ */
+function buildComplianceDataBlock(dataCallResponse: DataCallResponse): string {
+  const cv = dataCallResponse.compliance_verification;
+  if (!cv || Object.keys(cv).length === 0) return '';
+
+  const parts: string[] = ['\nCOMPLIANCE DATA:'];
+  const obj = cv as unknown as Record<string, unknown>;
+  if (obj.sprs_score) parts.push(`  - SPRS Score: ${obj.sprs_score} (assessed ${obj.sprs_assessment_date || 'date unknown'})`);
+  if (obj.facility_clearance_level) parts.push(`  - Facility Clearance: ${obj.facility_clearance_level} (CAGE: ${obj.facility_clearance_cage || 'N/A'})`);
+  if (obj.sdvosb_certified) parts.push(`  - SDVOSB: Certified (${obj.sdvosb_cert_number || 'N/A'}, expires ${obj.sdvosb_expiration || 'N/A'})`);
+  if (obj.nist_800_171_compliant) parts.push(`  - NIST 800-171: Compliant (${obj.open_poam_items || 0} open POA&M items)`);
+  if (obj.cmmi_level) parts.push(`  - CMMI Level: ${obj.cmmi_level}`);
+  parts.push('');
+  return parts.join('\n');
+}
+
+/**
+ * Build an AUTHORITATIVE key personnel registry block from data_call_responses.key_personnel.
+ * This block is injected into EVERY volume prompt to ensure all volumes use the same names.
+ */
+function buildKeyPersonnelRegistryBlock(
+  keyPersonnel?: DataCallResponse['key_personnel'],
+  personnelRecords?: { full_name: string; availability?: string }[]
+): string {
+  if (!keyPersonnel || keyPersonnel.length === 0) return '';
+
+  const entries = keyPersonnel.map((kp, i) => {
+    const match = personnelRecords?.find(p => p.full_name.toLowerCase() === (kp.name || '').toLowerCase());
+    const availTag = match?.availability ? ` [Availability: ${match.availability}]` : '';
+    return `  ${i + 1}. ${kp.role}: ${kp.name}${availTag}`;
+  }).join('\n');
+
+  return `
+══════════════════════════════════════════════════════
+AUTHORITATIVE KEY PERSONNEL REGISTRY (USE THESE NAMES IN ALL VOLUMES):
+${entries}
+
+CRITICAL: Use ONLY the names listed above for key personnel leads throughout this volume.
+Do NOT use names from resume documents, personnel database records, or any other source
+if they differ from this registry. This registry is the single source of truth for the
+proposal package. Using different names across volumes is a compliance failure.
+If a person's availability is NOT "Immediately Available", account for their delayed
+start in transition planning — do NOT imply Day 1 availability.
+══════════════════════════════════════════════════════
+`;
+}
+
+/**
+ * Build a personnel documents block from extracted resume/LOC text.
+ */
+function buildPersonnelDocsBlock(
+  files?: VolumePromptData['dataCallFiles']
+): string {
+  if (!files || files.length === 0) return '';
+
+  const resumeFiles = files.filter(f => f.field_key.includes('resume') && f.extracted_text);
+  const locFiles = files.filter(f => f.field_key.includes('loc') && f.extracted_text);
+
+  if (resumeFiles.length === 0 && locFiles.length === 0) return '';
+
+  const parts: string[] = ['\nKEY PERSONNEL DOCUMENTS:'];
+  for (const f of resumeFiles) {
+    parts.push(`\n--- Resume: ${f.filename} ---`);
+    parts.push(f.extracted_text!);
+  }
+  for (const f of locFiles) {
+    parts.push(`\n--- Letter of Commitment: ${f.filename} ---`);
+    parts.push(f.extracted_text!);
+  }
+  parts.push('');
+  return parts.join('\n');
+}
+
 // ===== VOLUME-SPECIFIC PROMPT BUILDERS =====
 
 /**
@@ -456,6 +614,7 @@ function buildTechnicalPrompt(
   const taskAreas = getExtractionField<SowPwsFields['task_areas']>(sowPwsRows, 'task_areas') || [];
   const serviceAreaDetails = getServiceAreaDetails(sowPwsRows);
   const modernizationGoals = getExtractionField<string[]>(sowPwsRows, 'modernization_goals') || [];
+  const deliverables = getExtractionField<SowPwsFields['deliverables']>(sowPwsRows, 'deliverables') || [];
 
   // ── Technology Requirements from extraction ──
   const techReqRows = extractions.technology_reqs || [];
@@ -603,6 +762,21 @@ function buildTechnicalPrompt(
     ? `\nMODERNIZATION / TRANSFORMATION OBJECTIVES:\n${modernizationGoals.map(g => `  - ${g}`).join('\n')}`
     : '';
 
+  // CDRLs / Deliverables
+  const deliverablesBlock = deliverables.length > 0
+    ? `\nCONTRACT DELIVERABLES (CDRLs) — MUST reference each in relevant task area AND in deliverables table:\n${deliverables.map(d => `  - ${d.name}${d.frequency ? ` (${d.frequency})` : ''}${d.format ? ` — Format: ${d.format}` : ''}`).join('\n')}`
+    : `\nCONTRACT DELIVERABLES (CDRLs) — EXTRACTION FALLBACK:
+CDRL details were not fully extracted from the solicitation documents. Derive the CDRL table from the SOW task areas above. For a typical DoD IT operations SOW, standard CDRLs include:
+  - A001: Monthly Status Report (Monthly, MS Word/PDF)
+  - A002: Quality Control Plan (at contract start + updates, MS Word)
+  - A003: Transition-In Plan (at contract start, MS Word)
+  - A004: Staffing Plan (at contract start + updates, MS Word)
+  - A005: Incident Response Plan (at contract start, MS Word)
+  - A006: Disaster Recovery / Business Continuity Plan (at contract start + annual update, MS Word)
+  - A007: Security Documentation / SSP / POA&M (per RMF schedule, MS Word)
+  - A008: Service Level Agreement Metrics Report (Monthly, MS Excel/PDF)
+Map each CDRL to the relevant SOW task area. Use the frequency and format shown unless the SOW text specifies otherwise. Do NOT use [HUMAN INPUT REQUIRED] for CDRL names — use the derived names above.`;
+
   // Section M factors
   const technicalFactorText = technicalFactors.length > 0
     ? technicalFactors.map(f => {
@@ -633,16 +807,23 @@ function buildTechnicalPrompt(
       }).join('\n')}\n`
     : '';
 
+  // Teaming partners
+  const teamingPartners = (opportunity_details as unknown as Record<string, unknown>)?.teaming_partners as Array<{ name: string; role: string; workshare_percentage?: number; capabilities?: string }> | undefined;
+  const teamingBlock = teamingPartners && teamingPartners.length > 0
+    ? `\nTEAMING ARRANGEMENT:\n- Prime Contractor: ${companyProfile.company_name}\n${teamingPartners.map(tp => `- ${tp.name}: ${tp.role}${tp.workshare_percentage ? ` (${tp.workshare_percentage}% workshare)` : ''}${tp.capabilities ? ` — ${tp.capabilities}` : ''}`).join('\n')}`
+    : '';
+
   // ── Structure instructions based on contract style ──
   let structureInstruction: string;
   switch (contractStyle) {
     case 'it_operations':
       structureInstruction = `Structure this volume as follows:
    Executive Summary → Understanding of Requirements →
+   Teaming and Integration Approach →
    [Per Service Area: address each service area (${serviceAreaIndex.map(a => `${a.code} ${a.name}`).join(' → ')}) with its own subsection] →
    Cross-Cutting Capabilities (Security, Quality, ITIL Framework) →
    Multi-Site Staffing Overview (${sites.map(s => s.name).join(', ')}) →
-   Transition Approach → Risk Management`;
+   Labor Category Matrix → Transition Approach → Risk Management`;
       break;
     case 'software_dev':
       structureInstruction = `Structure this volume as follows:
@@ -662,7 +843,7 @@ function buildTechnicalPrompt(
 
   const spacing = data.pageLimitSpacing || 'single';
 
-  return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response to ${agencyDisplayName}.
+  return `You are writing the ${volumeName} (${deriveVolumeLabel(volumeName, volumeOrder)}) for ${companyProfile.company_name}'s proposal response to ${agencyDisplayName}.
 
 ${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}
 
@@ -673,30 +854,45 @@ COMPANY TECHNICAL CAPABILITIES:
 - Core Services: ${companyProfile.core_services_summary || '[PLACEHOLDER: Core services summary not provided]'}
 - Corporate Overview: ${companyProfile.corporate_overview || '[PLACEHOLDER: Corporate overview not provided]'}
 - Key Differentiators: ${companyProfile.key_differentiators_summary || '[PLACEHOLDER: Key differentiators not provided]'}
-${certSection}${vehicleSection}${keyPersonnelSection}
+${certSection}${vehicleSection}${keyPersonnelSection}${teamingBlock}
 OUR TECHNICAL APPROACH FOR THIS BID:
 - Approach Summary: ${technical_approach?.approach_summary || '[PLACEHOLDER: Technical approach summary not provided in data call]'}
 - Tools and Platforms: ${technical_approach?.tools_and_platforms || '[PLACEHOLDER: Tools and platforms not specified]'}
 - Staffing Model: ${technical_approach?.staffing_model || '[PLACEHOLDER: Staffing model not described]'}
 - Key Assumptions: ${technical_approach?.assumptions || '[PLACEHOLDER: Technical assumptions not documented]'}
 - Risk Mitigations: ${technical_approach?.risks || '[PLACEHOLDER: Risk areas and mitigations not documented]'}
-${serviceAreasBlock}${taskAreaText}${techSelectionsBlock}${siteStaffingBlock}${modernizationBlock}
-
+${serviceAreasBlock}${taskAreaText}${techSelectionsBlock}${siteStaffingBlock}${modernizationBlock}${deliverablesBlock}
+${buildComplianceDataBlock(data.dataCallResponse)}${buildKeyPersonnelRegistryBlock(data.dataCallResponse.key_personnel, data.personnel)}${buildPersonnelDocsBlock(data.dataCallFiles)}
 SECTION M TECHNICAL EVALUATION FACTORS (address each explicitly):
 ${technicalFactorText}
 
 WRITING INSTRUCTIONS:
-1. Open each major section with a win theme callout box (see below).
-2. ${structureInstruction}
-3. Address EVERY technical evaluation subfactor by mirroring the exact language from Section M.
-4. Include a requirements traceability approach — show how your technical approach traces to each SOW task/service area.
-5. Use specific evidence for every capability claim — reference contract experience, tools, or certifications.
-6. Name specific technologies (${requiredPlatforms.slice(0, 5).map(p => p.name).join(', ') || 'as specified in the SOW'}) — do NOT use generic placeholders when technology names are known.
-7. Reference the actual agency name "${agencyDisplayName}" — never use generic "the agency" or "[PLACEHOLDER: Agency name]".
-8. For multi-site contracts, describe how operations will be managed across ${sites.length > 0 ? sites.map(s => s.name).join(', ') : 'all performance sites'}.
-9. Use action verbs and "shall/will" phrasing throughout. Avoid vague language like "we believe" or "we will try."
-10. Every claim must be backed by specific evidence from the company's experience.
+1. Do NOT include a cover letter or transmittal letter. Start directly with the Executive Summary.
+2. Open each major section with a win theme callout box (1-2 sentences max per box).
+3. ${structureInstruction}
+4. SECTION HEADINGS MUST USE EVALUATION FACTOR NAMES: For each evaluation factor/subfactor listed in the SECTION M block above, create a section heading that uses the EXACT factor name verbatim (e.g., if the TOR says "M.1.1 Technical Approach — Technical Merit", use "M.1.1 Technical Merit" as a heading). An evaluator should be able to ctrl+F the factor/subfactor ID and name and find a dedicated section immediately. Do NOT reorganize the document in a way that buries evaluation factors inside other headings.
+5. Include a requirements traceability approach — show how your technical approach traces to each task area.
+6. Use specific evidence for every capability claim — reference contract experience, tools, or certifications.
+7. Name ONLY technologies that appear in the source data above (tools_and_platforms, technology_selections, service_area_approaches, or SOW). Confirmed tools: ${requiredPlatforms.slice(0, 8).map(p => p.name).join(', ') || 'see source data'}. Do NOT name tools not listed in source data — describe the capability approach instead.
+8. Reference the actual agency name "${agencyDisplayName}" — never use generic "the agency."
+9. For multi-site contracts, describe how operations will be managed across ${sites.length > 0 ? sites.map(s => s.name).join(', ') : 'all performance sites'}.
+10. Reference EVERY CDRL by its exact ID in the relevant task area section. Include a consolidated deliverables table.
+11. Cite SPRS score and assessment date in the cybersecurity section (e.g., "SPRS score of [X], assessed [date], per DFARS 252.204-7019").
+12. Include a Disaster Recovery / Business Continuity approach referencing CDRL A006.
+13. In Planning Support, address market research for hardware AND IT process evaluation methodology.
+14. In Infrastructure Monitoring, address critical asset list maintenance.
+15. Include a labor category matrix table: category, minimum qualifications, certifications, estimated annual hours. Use the SAME labor categories and qualifications across all volumes for consistency. For estimated annual hours, use 1,920 hours per year for full-time roles (standard 2,080 minus federal holidays and leave). Do NOT use [HUMAN INPUT REQUIRED] for hours — calculate from the FTE count in the staffing data.
+16. Include a teaming cohesiveness section: how ${companyProfile.company_name} and subcontractors integrate operationally — communication, escalation, workshare.
+17. Reference Key Personnel resumes and LOCs as separate attachments. Reference subcontractor LOCs by company name.
+18. The Risk Management section MUST contain substantive content: identify at least 5 specific risks relevant to this contract (transition, staffing, technology, security, schedule), rate each by likelihood and impact, and describe concrete mitigation strategies. Do NOT leave this section empty or as a heading only.
+19. Do NOT include appendices in this volume. No resume appendix, no past performance appendix, no certifications appendix. This volume is ONLY the technical narrative.
+20. Include a Small Business Participation subsection identifying subcontractor roles, workshare percentages, and small business participation commitments.
+21. In the Customer Training section, explicitly address ALL delivery methods required by the SOW including over-the-shoulder training, just-in-time training, classroom/virtual training, and self-paced materials. Do not omit any required training delivery method.
+22. Include an explicit cross-reference to the separately submitted Performance Work Statement (PWS) by attachment designation (e.g., "as detailed in our separately submitted Performance Work Statement, Attachment X").
+23. In the Cybersecurity section, include explicit compliance statements for BOTH DFARS 252.204-7019 (NIST SP 800-171 assessment) AND DFARS 252.204-7012 (Safeguarding Covered Defense Information). Both are required for DoD contracts.
+24. In service area subsections, ONLY reference tools and technologies that are listed in the source data. If no specific tool is listed for a service area, describe the technical approach and methodology without naming specific commercial products.
 ${winThemeInstructions}
+${buildChecklistEnforcementBlock(data.rfpChecklists)}${buildModernizationEnforcementBlock(modernizationGoals, getExtractionField<string>(sowPwsRows, 'document_type') || 'RFP')}
 ${buildSparseDataInstruction()}`;
 }
 
@@ -833,7 +1029,7 @@ ${siteStaffing.length > 0 ? `\nPROPOSED SITE STAFFING:\n${siteStaffing.map(s =>
 
   const spacing = data.pageLimitSpacing || 'single';
 
-  return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response to ${agencyDisplayName}.
+  return `You are writing the ${volumeName} (${deriveVolumeLabel(volumeName, volumeOrder)}) for ${companyProfile.company_name}'s proposal response to ${agencyDisplayName}.
 
 ${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}
 
@@ -845,19 +1041,40 @@ COMPANY MANAGEMENT APPROACH:
 
 KEY PERSONNEL FOR THIS BID:
 ${personnelText}
-${multiSiteBlock}${clinBlock}${frameworkBlock}${slaBlock}${networkBlock}
+${multiSiteBlock}${clinBlock}${frameworkBlock}${slaBlock}${networkBlock}${buildComplianceDataBlock(data.dataCallResponse)}${buildKeyPersonnelRegistryBlock(data.dataCallResponse.key_personnel, data.personnel)}${buildPersonnelDocsBlock(data.dataCallFiles)}
 
 WRITING INSTRUCTIONS:
-1. Open each major section with a win theme callout box (see below).
-2. ${structureInstruction}
-3. For each key personnel entry, include: role, name, relevant qualifications, years of experience, and how their experience directly supports this contract.
-4. Transition Plan must address: Day 1 readiness, knowledge transfer from ${incumbentContractor || 'incumbent contractor'}, staff retention strategy, and timeline with milestones.${sites.length > 1 ? ` Address phased transition across ${sites.map(s => s.name).join(', ')}.` : ''}
-5. Quality Control Plan must address: QCP methodology, inspection points, corrective action procedures, and continuous improvement process.${allPerformanceMetrics.length > 0 ? ' Tie QCP to the SLA metrics listed above.' : ''}
-6. Use the standard management approach narrative as the foundation — customize it for ${agencyDisplayName}.
-7. Mirror Section M management evaluation factor language throughout.
-8. Reference the actual agency name "${agencyDisplayName}" — never use generic placeholders.
-9. Calibrate staffing numbers to the contract scale (${userCount || '[PLACEHOLDER]'} users, ${sites.length} sites).
+1. Do NOT include a cover letter or transmittal letter. Start directly with the Executive Summary or Organizational Structure.
+2. Open each major section with a win theme callout box (see below).
+3. ${structureInstruction}
+4. For each key personnel entry, include: role, name, relevant qualifications, years of experience, and how their experience directly supports this contract. State "Resumes and Letters of Commitment are provided as separate attachments."
+5. Transition Plan must address: Day 1 readiness, knowledge transfer from ${incumbentContractor || 'incumbent contractor'}, staff retention strategy, and timeline with milestones. Include all three phases (Days 1-10, 11-20, 21-30) and Full Operational Capability (FOC) declaration criteria.${sites.length > 1 ? ` Address phased transition across ${sites.map(s => s.name).join(', ')}.` : ''}
+6. Quality Control Plan must address: QCP methodology, inspection points, corrective action procedures, and continuous improvement process.${allPerformanceMetrics.length > 0 ? ' Tie QCP to the SLA metrics listed above and reference the QASP as a separately submitted volume.' : ''}
+7. Use the standard management approach narrative as the foundation — customize it for ${agencyDisplayName}.
+8. SECTION HEADINGS MUST USE EVALUATION FACTOR NAMES: For each management evaluation factor/subfactor from Section M, create a section heading that uses the EXACT factor name and ID verbatim (e.g., "M.1.2 Management Approach — Key Personnel"). An evaluator must be able to ctrl+F the factor ID and find a dedicated section.
+9. Reference the actual agency name "${agencyDisplayName}" — never use generic placeholders.
+10. Calibrate staffing numbers to the contract scale (${userCount || '[PLACEHOLDER]'} users, ${sites.length} sites). The site staffing table MUST show FTE counts for EVERY site — do not leave any site rows as PLACEHOLDER if the data is provided above.
+11. Include a labor category matrix table showing each category, minimum qualifications, required certifications, and estimated annual hours. Use the SAME labor categories as the Technical volume to ensure cross-volume consistency. For estimated annual hours, use 1,920 hours per year per FTE (standard 2,080 minus federal holidays and leave). Do NOT use [HUMAN INPUT REQUIRED] for hours.
+12. Cite SPRS score and NIST 800-171 assessment date in relevant security/compliance sections. Reference the SSP and POA&M as separately submitted volumes.
+13. Do NOT include appendices. This volume is ONLY the management/personnel narrative.
+14. Include a DEDICATED Recruitment Plan subsection addressing: how you attract cleared IT professionals, local labor market sourcing, veteran hiring pipeline, university partnerships, and use of GSA Schedule labor pools.
+15. Include a DEDICATED Retention Plan subsection addressing: professional development and certification sponsorship, career progression paths, competitive compensation benchmarking, recognition programs, and employee satisfaction tracking.
+16. Include a Small Business Participation Plan subsection identifying subcontractor roles, workshare percentages, and any additional small business participation commitments.
+17. For each key personnel: If their availability is NOT "Immediately Available" (e.g., "2 Weeks Notice"), the transition plan must account for this delay — do NOT imply Day 1 availability for personnel who require a notice period. Include availability status in the personnel bio section.
+
+SECTION WORD BUDGET${data.pageLimit ? ` (${data.pageLimit} pages = ~${targetWordCount} words max)` : ''}:
+- Executive Summary: ~200 words
+- Organizational Structure: ~300 words
+- Key Personnel Bios: ~400 words (brief per person)
+- Staffing Plan + Site Table: ~350 words
+- Transition Plan: ~400 words
+- Quality Control Plan: ~300 words
+- Risk Management: ~250 words
+- Recruitment Plan: ~150 words
+- Retention Plan: ~150 words
+This budget leaves margin for win theme callouts and tables. Adhere closely to prevent page limit overruns.
 ${winThemeInstructions}
+${buildChecklistEnforcementBlock(data.rfpChecklists)}
 ${buildSparseDataInstruction()}`;
 }
 
@@ -872,7 +1089,7 @@ function buildPastPerformancePrompt(
   targetWordCount: number
 ): string {
   const { companyProfile, dataCallResponse, extractions } = data;
-  const { past_performance } = dataCallResponse;
+  const { past_performance, opportunity_details } = dataCallResponse;
 
   // Section M past performance relevance criteria from Phase 7 extraction
   const ppExtraction = extractions.past_performance || [];
@@ -896,7 +1113,7 @@ function buildPastPerformancePrompt(
         let enrichment = '';
         if (tier1Match) {
           const cpars = tier1Match.cpars_rating;
-          const cparsText = cpars ? `Overall: ${cpars.overall}${cpars.quality ? `, Quality: ${cpars.quality}` : ''}${cpars.schedule ? `, Schedule: ${cpars.schedule}` : ''}` : '';
+          const cparsText = cpars ? `Overall: ${cpars.overall}${cpars.quality ? `, Quality: ${cpars.quality}` : ''}${cpars.schedule ? `, Schedule: ${cpars.schedule}` : ''}${cpars.management ? `, Management: ${cpars.management}` : ''}${cpars.cost_control ? `, Cost Control: ${cpars.cost_control}` : ''}` : '';
           const achievements = tier1Match.achievements?.slice(0, 3).map(a => `${a.statement} (${a.metric_value})`).join('; ');
           enrichment =
             (cparsText ? `\n    - CPARS Ratings: ${cparsText}` : '') +
@@ -919,7 +1136,18 @@ function buildPastPerformancePrompt(
 
   const spacing = data.pageLimitSpacing || 'single';
 
-  return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response.
+  // ── Extract TOR format requirements from Section L ──
+  const sectionLRows = extractions.section_l || [];
+  const volumeStructure = sectionLRows.find(r => r.field_name === 'volume_structure');
+  const ppVolumeInstructions = volumeStructure?.field_value as { volumes?: Array<{ name: string; instructions?: string }> } | undefined;
+  const ppVolumeInstr = ppVolumeInstructions?.volumes?.find(v =>
+    v.name.toLowerCase().includes('past perf')
+  );
+
+  // ── Subcontractor/teaming data ──
+  const teamingPartners = (opportunity_details as unknown as Record<string, unknown>)?.teaming_partners as Array<{ name: string; role: string }> | undefined;
+
+  return `You are writing the ${volumeName} (${deriveVolumeLabel(volumeName, volumeOrder)}) for ${companyProfile.company_name}'s proposal response.
 
 ${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}.
 
@@ -927,22 +1155,53 @@ RFP PAST PERFORMANCE REQUIREMENTS:
 - References Required: ${ppFields.recency_requirement ? `Recency: ${ppFields.recency_requirement}` : '[PLACEHOLDER: Recency requirement not extracted]'}
 - Relevance Criteria: ${ppFields.relevance_criteria?.join('; ') || '[PLACEHOLDER: Relevance criteria not extracted from Section M/past performance section]'}
 - References Count Required: ${ppFields.references_required || '[PLACEHOLDER: Number of references required not extracted]'}
+${ppVolumeInstr?.instructions ? `\nTOR/RFP FORMAT INSTRUCTIONS FOR THIS VOLUME:\n${ppVolumeInstr.instructions}` : ''}
 
 PAST PERFORMANCE REFERENCES FROM DATA CALL:
 ${refsText}
 
+TIER 1 PAST PERFORMANCE DATABASE (use for enriching references with detailed achievements, CPARS, tools, task areas):
+${tier1PP.length > 0 ? tier1PP.map((pp, i) => {
+    const cpars = pp.cpars_rating;
+    const cparsText = cpars ? `CPARS: Overall=${cpars.overall}${cpars.quality ? `, Quality=${cpars.quality}` : ''}${cpars.schedule ? `, Schedule=${cpars.schedule}` : ''}${cpars.management ? `, Management=${cpars.management}` : ''}${cpars.cost_control ? `, Cost Control=${cpars.cost_control}` : ''}` : 'CPARS: Not available';
+    return `  ${i + 1}. ${pp.contract_nickname || pp.contract_name} — ${pp.client_agency}
+     Contract: ${pp.contract_number}, Value: $${pp.contract_value?.toLocaleString()}, Period: ${pp.start_date} to ${pp.end_date}
+     Role: ${pp.role}, Team Size: ${pp.team_size}, Place: ${pp.place_of_performance}
+     ${cparsText}
+     Scope: ${pp.description_of_effort?.slice(0, 300) || 'N/A'}
+     Task Areas: ${pp.task_areas?.join(', ') || 'N/A'}
+     Tools: ${pp.tools_used?.join(', ') || 'N/A'}
+     Achievements: ${pp.achievements?.slice(0, 3).map(a => `${a.statement} (${a.metric_value})`).join('; ') || 'N/A'}
+     POC: ${pp.client_poc ? `${(pp.client_poc as unknown as Record<string, string>).name}, ${(pp.client_poc as unknown as Record<string, string>).title}, ${(pp.client_poc as unknown as Record<string, string>).phone}, ${(pp.client_poc as unknown as Record<string, string>).email}` : 'N/A'}`;
+  }).join('\n\n') : '  No Tier 1 past performance records available.'}
+${teamingPartners && teamingPartners.length > 0 ? `\nTEAMING PARTNERS (TOR may allow subcontractor past performance):\n${teamingPartners.map(tp => `  - ${tp.name}: ${tp.role}`).join('\n')}\nIf the solicitation allows subcontractor references, include a section for major subcontractor past performance.` : ''}
+${buildKeyPersonnelRegistryBlock(data.dataCallResponse.key_personnel, data.personnel)}
 WRITING INSTRUCTIONS:
-1. Create one section per past performance reference.
-2. For each reference, structure the section as:
-   a. Contract Overview (agency, contract number, value, period, role)
-   b. Relevance to Current Requirement (mirror the RFP's relevance criteria language exactly)
-   c. Scope Similarity (compare scope, magnitude, and complexity to the current requirement)
-   d. Outcomes and Achievements (specific, measurable results — use numbers when possible)
-   e. Client Reference Information
-3. Use the recency and relevance definitions from Section M as the standard — justify each reference against those criteria.
-4. For each reference, explicitly state why the scope/magnitude/complexity is relevant to this procurement.
-5. Avoid generic language — every claim about performance quality must be specific and verifiable.
-6. If CPARS ratings are available, reference them directly as evidence of performance quality.
+1. Do NOT include a cover letter or transmittal letter. Start directly with the volume content.
+2. If the TOR/RFP specifies a format for past performance references, follow that EXACT format and section numbering — do NOT use a generic format.
+   When the TOR specifies a per-reference structure, each reference MUST include ALL of these fields (use [HUMAN INPUT REQUIRED] for any not available in source data):
+   - Section 1: Contract Description
+     a. Contract name and number
+     b. Contracting agency / activity
+     c. CAGE code
+     d. UEI (Unique Entity Identifier)
+     e. Contracting Officer and COR names with contact info
+     f. Contract type (FFP, CPFF, T&M, etc.)
+     g. Awarded price / value
+     h. Final or projected final price
+     i. Original period of performance (start – end)
+     j. Final or projected completion date
+     k. Role (prime or subcontractor)
+     l. Team size
+   - Section 2: Performance Narrative (scope, achievements with metrics, CPARS ratings)
+   - Section 3: Subcontractor / JV Partners (if applicable)
+   Each section MUST use an explicit numbered heading (e.g., "Section 1 — Contract Description", "Section 2 — Performance Narrative", "Section 3 — Subcontractor Partners"). Do NOT omit these headings — evaluators expect them per the TOR format.
+3. Select the MOST RELEVANT references from the Tier 1 database above. Prioritize contracts that match the current requirement in: scope (IT operations, service desk, infrastructure), magnitude (similar user count, team size, value), complexity (DoD, classified environments, multi-site), and agency (same agency or similar DoD/federal civilian).
+4. Include ALL CPARS rating dimensions from the source data — you MUST output all 5 dimensions (Overall, Quality, Schedule, Management, Cost Control) when available. Do NOT selectively omit dimensions. Do NOT use [PLACEHOLDER] if the data is provided above. Format: "Received CPARS ratings of: Overall — Exceptional, Quality — Exceptional, Schedule — Very Good, Management — Exceptional, Cost Control — Very Good."
+5. For each reference, explicitly map the scope/magnitude/complexity to the current requirement using the evaluation criteria language.
+6. If subcontractor past performance is allowed (e.g., TOR says "major subcontractors" or partners with 10%+ workshare), include a separate section for each qualifying subcontractor with their most relevant reference following the same format. Check the TOR/RFP volume instructions for explicit guidance on subcontractor past performance. If the TOR permits subcontractor references, state that explicitly — do NOT use [HUMAN INPUT REQUIRED] for something answerable from the solicitation data.
+7. Avoid generic language — every claim about performance quality must be traceable to the source data above.
+8. Do NOT include appendices that duplicate the body references. The body content IS the past performance volume.
 ${winThemeInstructions}
 ${buildSparseDataInstruction()}`;
 }
@@ -981,20 +1240,53 @@ function buildCostPricePrompt(
     ? `\nRELEVANT CERTIFICATIONS:\n${certifications.map(c => `  - ${c.certification_type}${c.certifying_agency ? ` (${c.certifying_agency})` : ''}`).join('\n')}\n`
     : '';
 
+  // Operational context for agency name and solicitation number
+  const opCtxRows = extractions.operational_context || [];
+  const agencyName = getExtractionField<string>(opCtxRows, 'agency_name');
+  const agencyAbbr = getExtractionField<string>(opCtxRows, 'agency_abbreviation');
+  const agencyDisplayName = agencyName
+    ? `${agencyName}${agencyAbbr ? ` (${agencyAbbr})` : ''}`
+    : '[PLACEHOLDER: Agency name]';
+  const userCount = getExtractionField<string>(opCtxRows, 'user_count');
+  const estimatedValue = getExtractionField<string | null>(opCtxRows, 'estimated_contract_value');
+
+  // Section M cost/price evaluation factors
+  const sectionMExtraction = extractions.section_m || [];
+  const sectionMFields: SectionMFields = sectionMExtraction.length > 0
+    ? (sectionMExtraction[0].field_value as SectionMFields) || {}
+    : {};
+  const costFactors = (sectionMFields.evaluation_factors || []).filter(f =>
+    f.name.toLowerCase().includes('cost') || f.name.toLowerCase().includes('price')
+  );
+  const costFactorText = costFactors.length > 0
+    ? costFactors.map(f => `  - ${f.name}: ${f.weight_description || 'weight not specified'}${f.subfactors?.map(sf => `\n    - ${sf.name}: ${sf.description || ''}`).join('') || ''}`).join('\n')
+    : '';
+
+  // Site staffing for labor category alignment
+  const siteStaffing = data.siteStaffing || [];
+  const totalFTE = siteStaffing.reduce((sum, s) => sum + (parseInt(String(s.proposed_fte_count)) || 0), 0);
+
   const spacing = data.pageLimitSpacing || 'single';
 
-  return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response.
+  return `You are writing the ${volumeName} (${deriveVolumeLabel(volumeName, volumeOrder)}) for ${companyProfile.company_name}'s proposal response to ${agencyDisplayName}.
 
 ${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}
+
+SOLICITATION CONTEXT:
+- Agency: ${agencyDisplayName}
+- Estimated Contract Value: ${estimatedValue || '[PLACEHOLDER: Contract value not extracted]'}
+- User Population: ${userCount || '[PLACEHOLDER: User count]'}
+- Total Proposed FTEs: ${totalFTE || '[PLACEHOLDER: FTE count]'}
 
 CONTRACT AND PRICING CONTEXT:
 - Contract Type: ${opportunity_details?.contract_type || adminFields.contract_type || '[PLACEHOLDER: Contract type not specified]'}
 - Period of Performance: ${adminFields.period_of_performance || '[PLACEHOLDER: Period of performance not extracted]'}
 - Set-Aside: ${opportunity_details?.set_aside || '[PLACEHOLDER: Set-aside not specified]'}
+${costFactorText ? `\nSECTION M COST/PRICE EVALUATION CRITERIA (use this EXACT language when discussing how costs will be evaluated):\n${costFactorText}` : ''}
 
 CLIN STRUCTURE:
 ${clinText}
-${vehicleSection}${certSection}
+${vehicleSection}${certSection}${buildKeyPersonnelRegistryBlock(data.dataCallResponse.key_personnel, data.personnel)}
 WRITING INSTRUCTIONS:
 1. Write a Price Narrative / Basis of Estimate (BOE) — narrative text explaining the pricing methodology, NOT actual prices.
 2. Structure: Pricing Approach Overview → Basis of Estimate Methodology → Labor Categories and Rates → Other Direct Costs → Fee/Profit Rationale.
@@ -1004,6 +1296,8 @@ WRITING INSTRUCTIONS:
 6. Explain the rationale for the pricing approach without revealing the actual price — explain HOW prices were derived, not WHAT they are.
 7. Reference the contract type (${opportunity_details?.contract_type || adminFields.contract_type || 'specified type'}) and explain how it influences the pricing structure.
 8. Include a section on price reasonableness and how the company ensures competitive, fair pricing.
+9. Reference the actual agency name "${agencyDisplayName}" — never use generic placeholders for the agency name or solicitation number.
+10. Use the SAME labor categories from the Technical Volume's labor category matrix for consistency. If site staffing data is provided, align the labor hour estimates with the proposed FTE counts.
 ${buildSparseDataInstruction()}`;
 }
 
@@ -1042,7 +1336,7 @@ function buildDefaultPrompt(
 
   const spacing = data.pageLimitSpacing || 'single';
 
-  return `You are writing the ${volumeName} (Volume ${volumeOrder}) for ${companyProfile.company_name}'s proposal response.
+  return `You are writing the ${volumeName} (${deriveVolumeLabel(volumeName, volumeOrder)}) for ${companyProfile.company_name}'s proposal response.
 
 ${buildPageLimitInstruction(targetWordCount, data.pageLimit, spacing)}
 
@@ -1052,7 +1346,7 @@ AVAILABLE COMPANY DATA:
 - Corporate Overview: ${companyProfile.corporate_overview || '[PLACEHOLDER: Corporate overview not provided]'}
 - Key Differentiators: ${companyProfile.key_differentiators_summary || '[PLACEHOLDER: Key differentiators not provided]'}
 - Standard Management Approach: ${companyProfile.standard_management_approach || '[PLACEHOLDER: Management approach not provided]'}
-${naicsSection}${capabilitySummary}
+${naicsSection}${capabilitySummary}${buildComplianceDataBlock(data.dataCallResponse)}${buildKeyPersonnelRegistryBlock(data.dataCallResponse.key_personnel, data.personnel)}${buildPersonnelDocsBlock(data.dataCallFiles)}
 BID CONTEXT:
 - Contract Type: ${opportunity_details?.contract_type || '[PLACEHOLDER: Contract type not specified]'}
 - Set-Aside: ${opportunity_details?.set_aside || '[PLACEHOLDER: Set-aside not specified]'}
@@ -1060,16 +1354,41 @@ BID CONTEXT:
 - Technical Approach Summary: ${technical_approach?.approach_summary || '[PLACEHOLDER: Technical approach not provided]'}
 
 WRITING INSTRUCTIONS:
-1. Treat "${volumeName}" as the primary subject of this volume.
-2. Follow all Section L instructions for this volume — address any explicit requirements verbatim.
-3. Structure the content to directly address the RFP's requirements for this volume.
-4. Apply formal government proposal writing style throughout.
-5. Open each major section with a win theme callout box.
+1. Do NOT include a cover letter or transmittal letter. Start directly with the volume content.
+2. Treat "${volumeName}" as the primary subject of this volume.
+3. Follow all solicitation instructions for this volume — address any explicit requirements verbatim.
+4. Structure the content to directly address the solicitation's requirements for this volume.
+5. Apply formal government proposal writing style throughout.
+6. Open each major section with a win theme callout box.
+7. Do NOT include appendices unless this volume specifically requires them. Keep the content focused and within the page limit.
+8. This document is part of a multi-volume proposal. Use the volume designation from the opening line (e.g., "Volume III") as the document header — do NOT use a raw sequential number. For sub-volumes (like a PWS within Volume I), use the document name as the title, not an independent volume number.
+9. Use key_personnel names from the data call for all personnel references — do NOT substitute names from resume documents if they differ.
 ${winThemeInstructions}
+${buildChecklistEnforcementBlock(data.rfpChecklists)}
 ${buildSparseDataInstruction()}`;
 }
 
 // ===== MAIN EXPORTED FUNCTIONS =====
+
+const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+
+/**
+ * Derive a human-readable volume label from the volume name and type.
+ * TOR-style proposals use Roman numerals (Volume I, II, III, IV).
+ * Maps known volume types to their canonical TOR positions; falls back
+ * to the volume name itself for sub-volumes (PWS, QASP, SSP, etc.).
+ */
+function deriveVolumeLabel(volumeName: string, volumeOrder: number): string {
+  const name = volumeName.toLowerCase();
+
+  if (name.includes('technical') || name.includes('approach')) return 'Volume I';
+  if (name.includes('management') || name.includes('staffing') || name.includes('transition')) return 'Volume II';
+  if (name.includes('past perf') || name.includes('past performance')) return 'Volume III';
+  if (name.includes('cost') || name.includes('price')) return 'Volume IV';
+
+  if (volumeOrder <= ROMAN_NUMERALS.length) return `Volume ${ROMAN_NUMERALS[volumeOrder - 1]}`;
+  return volumeName;
+}
 
 /**
  * Assemble a structured AI prompt for a single proposal volume.
@@ -1100,12 +1419,63 @@ export function assembleVolumePrompt(
 Your proposals are indistinguishable from those written by top-tier government proposal shops. You understand the Federal Acquisition Regulation (FAR), color team reviews, and the SHIPLEY proposal development methodology. Your writing is persuasive, compliance-focused, and evaluator-friendly — structured so that a government Source Selection Board can easily score your proposal against the evaluation criteria.
 
 Key rules:
-1. Never fabricate specific facts — use [PLACEHOLDER: description] for any missing data
-2. Mirror Section M evaluation factor language throughout the volume
-3. Use active voice and action verbs at the start of sentences
-4. Quantify claims whenever possible (percentages, years, dollar values, counts)
-5. Structure content so evaluators can quickly find evidence for each criterion
-6. NEVER exceed page limits — government evaluators strictly enforce page limits. Content beyond the limit may be discarded without evaluation.
+1. Never fabricate specific facts — use [PLACEHOLDER: description] or [HUMAN INPUT REQUIRED: description] for any missing data.
+2. Mirror the evaluation criteria language throughout the volume. Use the EXACT terminology from the solicitation's evaluation factors. Copy the factor/subfactor names VERBATIM and use them as section headings or opening phrases.
+3. Use active voice and action verbs at the start of sentences.
+4. Structure content so evaluators can quickly find evidence for each criterion.
+5. NEVER exceed page limits — government evaluators strictly enforce page limits. Content beyond the limit may be discarded without evaluation.
+6. Match your technical approach to the SPECIFIC scope of the SOW/PWS/SOO. If the contract is for IT operations/service desk/infrastructure management, write about those capabilities — do not default to cloud migration or modernization unless the SOW specifically calls for them.
+7. Create a dedicated subsection for EVERY SOW/PWS/SOO task area. Do not skip or combine task areas.
+8. Include a complete deliverables summary table listing ALL CDRLs with their EXACT ID (A001, A002, etc.), name, frequency, format, and responsible party.
+9. Before writing, plan your section allocation: divide the word count across ALL required sections proportionally. Do NOT exhaust the page budget on early sections leaving later sections incomplete.
+10. NEVER duplicate content. Each section heading must appear EXACTLY ONCE. Do NOT produce a second pass, revision, or appendix that repeats earlier sections. Output ONE complete document with sequential section numbering — no duplicates, no appendices that restate main body content.
+11. Use the exact user count from the solicitation/SOO consistently throughout. Do not use different numbers in different sections.
+12. Do NOT generate inline content for separate evaluated volumes or attachments. Cross-reference them instead.
+13. Do NOT include a cover letter, transmittal letter, or letter of transmittal. Start directly with the volume content (executive summary or first section). Cover letters waste pages against the page limit and are not scored.
+14. Do NOT include appendices within this volume unless explicitly instructed. No resume appendix, no past performance appendix, no certifications appendix, no compliance matrix appendix. Each of these is a separate proposal volume.
+
+VOLUME SEPARATION (CRITICAL — violating this can disqualify a proposal):
+- This volume MUST contain ONLY the content specified for this volume type. Do NOT include content that belongs in other volumes.
+- NEVER include past performance narratives, contract references, or CPARS ratings in a Technical Volume. Past performance is ALWAYS a separate volume.
+- NEVER include full resumes or curriculum vitae in a Technical Volume. Resumes are separate attachments. You may summarize key personnel qualifications in 2-3 sentences per person, then reference "see separately submitted resume for [Name]."
+- NEVER include a certifications appendix, SDVOSB certificates, NAICS codes list, or contract vehicle list as an appendix to the Technical Volume. These belong in the Certifications/Representations volume.
+- NEVER include a compliance matrix as an appendix within the Technical Volume. The compliance matrix is a separate volume.
+- The ONLY content in this volume should be the technical/management narrative addressing the evaluation factors and SOW requirements.
+
+SOLICITATION TERMINOLOGY:
+- Use the actual terminology from this solicitation. If the solicitation is a Task Order Request (TOR), say "per TOR requirements" — do NOT say "per Section L requirements."
+- If the solicitation uses SOO (Statement of Objectives), reference "the SOO" not "the SOW" or "the PWS."
+- If the solicitation sections are numbered (e.g., "TOR Section 3"), use those section numbers — do NOT default to UCF section references (Section L, Section M) unless the solicitation actually uses UCF format.
+
+NO FABRICATED METRICS OR COMMITMENTS:
+- Do NOT fabricate SLA thresholds (e.g., "99.99% uptime", "99.995% availability") unless those exact numbers appear in the solicitation, QASP, or source data. If SLA values are not provided, use [HUMAN INPUT REQUIRED: insert SLA threshold from solicitation/QASP].
+- Do NOT fabricate percentage improvement claims (e.g., "reduces attack surface by 80%", "reduces tickets by 60%"). These are unverifiable and evaluators will flag them as unsupported. Instead, describe the capability qualitatively or cite a specific past performance metric.
+- Quantify ONLY when you have source data to back the number (contract values, team sizes, years of experience, CPARS ratings). For everything else, describe the benefit without making up a number.
+
+SEPARATE VOLUME CROSS-REFERENCES (MANDATORY):
+- If the solicitation requires a separate PWS volume, add at least one cross-reference: "as detailed in our separately submitted PWS volume."
+- If the solicitation requires a separate QASP, reference it when discussing SLAs: "per our Quality Assurance Surveillance Plan (submitted as a separate volume)."
+- If the solicitation requires a separate SSP, reference it in cybersecurity sections: "as documented in our separately submitted System Security Plan."
+- If the solicitation requires a separate POA&M, reference it and acknowledge open items: "our Plan of Action and Milestones (submitted separately) addresses [N] open items."
+- Reference Key Personnel resumes and Letters of Commitment: "Resumes and Letters of Commitment for all key personnel are provided as separate attachments."
+- Reference Major Subcontractor LOCs: "Letters of Commitment from [subcontractor names] are included as separate attachments."
+- Reference Facility Clearance Letter: "Our Facility Clearance verification (CAGE [code]) is provided per solicitation requirements."
+
+KEY PERSONNEL NAME AUTHORITY (CROSS-VOLUME CONSISTENCY):
+- The "AUTHORITATIVE KEY PERSONNEL REGISTRY" block in the user prompt is the SINGLE SOURCE OF TRUTH for key personnel names. Use ONLY those names for lead roles (Program Manager, Lead Systems Engineer, Cybersecurity Lead, etc.) throughout this volume.
+- Do NOT use names from the "personnel" database, resume documents, or any other source if they differ from the registry. The registry names must be identical across all proposal volumes.
+- If a resume's header says "John Smith" but the registry lists "Jane Doe" for that role, use "Jane Doe" in the narrative.
+- The "personnel" table contains the broader company workforce. These people may be referenced as team members, but NEVER as key personnel leads unless they appear in the registry.
+- This rule exists because evaluators read all volumes as a single package. Different names for the same role across volumes is a compliance failure that raises questions about which team is actually being proposed.
+
+ATTRIBUTION AND CONSISTENCY:
+- When citing team size or certified staff counts, clearly attribute numbers to the correct entity. If the prime has 4 certified staff and a subcontractor has 50+, do NOT claim the prime "has 54 certified practitioners." State each entity's count separately.
+- All numbers (user counts, FTE totals, site counts, network enclaves) must be internally consistent. If you list 6 networks in one section, do not say "five networks" in another.
+- When referencing certifications, check the expiration date. Do NOT cite a certification as current if its expiration date is before the anticipated contract start. Flag expired certs with [HUMAN INPUT REQUIRED: certification may be expired].
+
+COMPANY IDENTITY:
+- The offeror is ${companyProfile.company_name}. All proposal content, key personnel, and commitments are made on behalf of ${companyProfile.company_name}.
+- If resume or LOC documents reference a different company name, use ${companyProfile.company_name} in the proposal narrative. Do NOT propagate a different company name from source documents.
 ${complianceInstructions}
 ${buildBlockquoteInstruction()}`;
 

@@ -204,6 +204,30 @@ export async function POST(
       );
     }
 
+    // Extract text from PDFs via Python PDF service
+    let extractedText: string | null = null;
+    if (file.type === 'application/pdf') {
+      try {
+        const pdfServiceUrl = process.env.PDF_SERVICE_URL || 'http://localhost:8000';
+        const pdfFormData = new FormData();
+        pdfFormData.append('file', new Blob([fileBuffer], { type: file.type }), sanitizedFilename);
+
+        const pdfResponse = await fetch(`${pdfServiceUrl}/extract-text`, {
+          method: 'POST',
+          body: pdfFormData,
+        });
+
+        if (pdfResponse.ok) {
+          const pdfResult = await pdfResponse.json() as { text?: string };
+          extractedText = pdfResult.text || null;
+        } else {
+          console.warn(`PDF extraction failed for ${sanitizedFilename}: ${pdfResponse.status}`);
+        }
+      } catch (pdfErr) {
+        console.warn(`PDF extraction service unavailable for ${sanitizedFilename}:`, pdfErr);
+      }
+    }
+
     // Create the data_call_files database record
     const { data: fileRecord, error: insertError } = await supabase
       .from('data_call_files')
@@ -215,6 +239,7 @@ export async function POST(
         file_path:             storagePath,
         file_size:             file.size,
         mime_type:             file.type,
+        extracted_text:        extractedText,
       })
       .select('*')
       .single();

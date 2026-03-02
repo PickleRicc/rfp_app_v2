@@ -85,6 +85,7 @@ export interface PipelineLogsResponse {
  * Used in the Logs tab UI for display.
  */
 export const PIPELINE_STAGE_LABELS: Record<string, string> = {
+  // Document extraction stages
   'classify-document':          'Document Classification',
   'reconcile-amendments':       'Amendment Reconciliation',
   'detect-templates':           'Template Detection',
@@ -100,9 +101,28 @@ export const PIPELINE_STAGE_LABELS: Record<string, string> = {
   'extract-security-reqs':      'Security Requirements Extraction',
   'extract-operational-context': 'Operational Context Extraction',
   'extract-technology-reqs':    'Technology Requirements Extraction',
+
+  // Draft generation stages
   'fetch-all-data':             'Draft Data Assembly',
   'generate-volume':            'Volume Generation',
   'generate-compliance-matrix': 'Compliance Matrix Generation',
   'finalize':                   'Pipeline Finalization',
   'draft-generator':            'Draft Generator',
+
+  // Post-generation validation stages (Layer 1)
+  'content-validation':         'Content Validation (Anti-Hallucination)',
+  'auto-fill':                  'Placeholder Auto-Fill',
+  'cert-validation':            'Certification Expiry Check',
+
+  // Touchup scoring stages
+  'touchup-score-volume':       'Touchup Score Volume',
+  'touchup-scorer-fetch':       'Touchup Scorer Data Fetch',
+  'scorer-validation':          'Scorer Output Validation (Anti-Hallucination)',
+  'touchup-score-package':      'Package Consistency Score',
+
+  // Touchup rewrite stages
+  'touchup-rewrite-volume':     'Touchup Rewrite Volume',
+  'touchup-rewriter-fetch':     'Touchup Rewriter Data Fetch',
+  'rewrite-validation':         'Post-Rewrite Validation (Anti-Hallucination)',
+  'regression-guard':           'Regression Guard',
 };

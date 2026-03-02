@@ -5,10 +5,13 @@ import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
 import { validateWordCount, type WordCountResult } from '@/lib/validation/tier1-validators';
 
+type FetchFn = (url: string, options?: RequestInit) => Promise<Response>;
+
 interface CapabilitiesPositioningTabProps {
   companyId: string;
   initialProfileData: Partial<CompanyProfile>;
   onSaved: () => void;
+  fetchFn?: FetchFn;
 }
 
 // ---- Word count indicator component ----
@@ -44,8 +47,10 @@ export function CapabilitiesPositioningTab({
   companyId,
   initialProfileData,
   onSaved,
+  fetchFn,
 }: CapabilitiesPositioningTabProps) {
   const { fetchWithCompany } = useFetchWithCompany();
+  const doFetch: FetchFn = fetchFn || fetchWithCompany;
 
   // ---- Form state ----
   const [corporateOverview, setCorporateOverview] = useState('');
@@ -160,7 +165,7 @@ export function CapabilitiesPositioningTab({
         core_values: coreValues,
       };
 
-      const response = await fetchWithCompany('/api/company/profile', {
+      const response = await doFetch('/api/company/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

@@ -46,6 +46,10 @@ import {
   validateComplianceLanguage,
 } from '@/lib/generation/content/compliance-language';
 import { buildColorPalette } from '@/lib/generation/docx/colors';
+import { autoFillPlaceholders } from '@/lib/generation/pipeline/auto-fill-pass';
+import { generateCostPriceWorkbook, extractLaborCategories } from '@/lib/generation/excel/cost-price-workbook';
+import { runPostGenerationValidation } from '@/lib/generation/pipeline/cert-validator';
+import { validateGeneratedContent, type ContentValidationData } from '@/lib/generation/pipeline/content-validator';
 import {
   generateVolumeDiagrams,
   findDiagramInsertionPoint,
@@ -59,6 +63,7 @@ import type {
 } from '@/lib/supabase/compliance-types';
 import type { DraftVolume } from '@/lib/supabase/draft-types';
 import { logPipelineEvent } from '@/lib/logging/pipeline-logger';
+import { buildRfpChecklists, filterChecklistForVolume } from '@/lib/generation/pipeline/soo-checklist-builder';
 
 // ===== CONSTANTS =====
 
@@ -211,6 +216,7 @@ export const proposalDraftGenerator = inngest.createFunction(
     const {
       companyProfile, dataCallResponse, extractions, draftVolumes,
       solicitation, certifications, personnel, pastPerformance, naicsCodes, contractVehicles,
+      dataCallFiles,
     } = await step.run(
       'fetch-all-data',
       async () => {
@@ -302,12 +308,17 @@ export const proposalDraftGenerator = inngest.createFunction(
           { data: pastPerformance },
           { data: naicsCodes },
           { data: contractVehicles },
+          { data: dataCallFiles },
         ] = await Promise.all([
           supabase.from('certifications').select('*').eq('company_id', companyId),
           supabase.from('personnel').select('*').eq('company_id', companyId),
           supabase.from('past_performance').select('*').eq('company_id', companyId),
           supabase.from('naics_codes').select('*').eq('company_id', companyId),
           supabase.from('contract_vehicles').select('*').eq('company_id', companyId),
+          supabase.from('data_call_files')
+            .select('id, section, field_key, filename, extracted_text')
+            .eq('data_call_response_id', (dataCall as DataCallResponse).id)
+            .not('extracted_text', 'is', null),
         ]);
 
         // Fetch draft_volumes ordered by volume_order
@@ -355,9 +366,13 @@ export const proposalDraftGenerator = inngest.createFunction(
           pastPerformance: pastPerformance || [],
           naicsCodes: naicsCodes || [],
           contractVehicles: contractVehicles || [],
+          dataCallFiles: dataCallFiles || [],
         };
       }
     );
+
+    // ─── Build RFP checklists once for all volumes ────────────────────────────
+    const rfpChecklists = buildRfpChecklists(extractions);
 
     // ─── Build color palette once for all volumes ──────────────────────────────
     const colorPalette = buildColorPalette(
@@ -389,6 +404,16 @@ export const proposalDraftGenerator = inngest.createFunction(
             })
             .eq('id', volume.id);
 
+          await logPipelineEvent(solicitationId, 'generate-volume', 'started', {
+            volume_name: volume.volume_name,
+            volume_order: volume.volume_order,
+            page_limit: volume.page_limit,
+          });
+
+          // Derive volume type for checklist filtering
+          const volumeTypeStr = deriveVolumeTypeForGenerator(volume.volume_name);
+          const volumeChecklists = filterChecklistForVolume(rfpChecklists, volumeTypeStr, extractions);
+
           // Build the prompt data bundle with Tier 1 + Tier 2 v2 collections for richer prompts
           const promptData: VolumePromptData = {
             companyProfile,
@@ -401,10 +426,11 @@ export const proposalDraftGenerator = inngest.createFunction(
             certifications: certifications || [],
             contractVehicles: contractVehicles || [],
             naicsCodes: naicsCodes || [],
-            // Tier 2 v2: enriched sections from data call
             serviceAreaApproaches: dataCallResponse.service_area_approaches || [],
             siteStaffing: dataCallResponse.site_staffing || [],
             technologySelections: dataCallResponse.technology_selections || [],
+            dataCallFiles: dataCallFiles || [],
+            rfpChecklists: volumeChecklists,
           };
 
           // Assemble volume-specific AI prompts
@@ -414,25 +440,52 @@ export const proposalDraftGenerator = inngest.createFunction(
             promptData
           );
 
-          // Call Claude to generate content
-          const claudeResponse = await anthropic.messages.create({
-            model: MODEL,
-            max_tokens: 8192,
-            temperature: 0.3,
-            system: systemPrompt,
-            messages: [
-              {
-                role: 'user',
-                content: userPrompt,
-              },
-            ],
-          });
+          // Scale max_tokens to page limit: ~1.5 tokens/word with 15% markdown overhead
+          const maxTokens = volume.page_limit
+            ? Math.min(16384, Math.max(8192, Math.round(volume.page_limit * 250 * 1.7)))
+            : 16384;
+
+          // Call Claude to generate content (streaming to avoid SDK timeout)
+          const claudeResponse = await anthropic.messages
+            .stream({
+              model: MODEL,
+              max_tokens: maxTokens,
+              temperature: 0.3,
+              system: systemPrompt,
+              messages: [
+                {
+                  role: 'user',
+                  content: userPrompt,
+                },
+              ],
+            })
+            .finalMessage();
 
           // Extract markdown content from Claude response
-          const contentMarkdown = claudeResponse.content
+          const rawMarkdown = claudeResponse.content
             .filter(block => block.type === 'text')
             .map(block => (block as { type: 'text'; text: string }).text)
             .join('\n');
+
+          // Post-generation auto-fill: replace [PLACEHOLDER: ...] with available data
+          const autoFillResult = autoFillPlaceholders(rawMarkdown, {
+            companyProfile,
+            dataCallResponse,
+            extractions,
+            certifications: certifications || [],
+            pastPerformance: pastPerformance || [],
+          });
+          const contentMarkdown = autoFillResult.filledMarkdown;
+          if (autoFillResult.fillCount > 0) {
+            console.log(
+              `[draft-generator] Auto-filled ${autoFillResult.fillCount} placeholders in "${volume.volume_name}" (${autoFillResult.remainingPlaceholders} remaining)`
+            );
+            await logPipelineEvent(solicitationId, 'auto-fill', 'completed', {
+              volume_name: volume.volume_name,
+              placeholders_filled: autoFillResult.fillCount,
+              placeholders_remaining: autoFillResult.remainingPlaceholders,
+            });
+          }
 
           // Calculate word count and page estimate
           const wordCount = contentMarkdown.split(/\s+/).filter(w => w.length > 0).length;
@@ -457,8 +510,104 @@ export const proposalDraftGenerator = inngest.createFunction(
             console.warn(`[draft-generator] Compliance issues in "${volume.volume_name}":`, complianceCheck.issues);
           }
 
+          // Post-generation: cert expiry + availability validation
+          const postGenValidation = runPostGenerationValidation(
+            (personnel || []) as { full_name: string; availability?: string; certifications?: { name: string; expiration_date?: string | null }[]; proposed_roles?: { role_title: string; is_key_personnel?: boolean }[] }[],
+            (certifications || []) as { certification_type: string; expiration_date?: string | null }[]
+          );
+          if (postGenValidation.certWarnings.length > 0 || postGenValidation.availabilityWarnings.length > 0) {
+            console.warn(`[draft-generator] Cert expiry warnings for "${volume.volume_name}":`,
+              postGenValidation.certWarnings.map(w => `${w.holder}: ${w.certName} ${w.severity} (${w.expirationDate})`));
+            if (postGenValidation.availabilityWarnings.length > 0) {
+              console.warn(`[draft-generator] Availability warnings for "${volume.volume_name}":`,
+                postGenValidation.availabilityWarnings.map(w => w.warning));
+            }
+            await logPipelineEvent(
+              solicitationId,
+              'cert-validation',
+              postGenValidation.hasBlockingIssues ? 'warning' : 'completed',
+              {
+                volume_name: volume.volume_name,
+                has_blocking_issues: postGenValidation.hasBlockingIssues,
+                cert_warnings: postGenValidation.certWarnings.map(w => ({
+                  holder: w.holder,
+                  cert: w.certName,
+                  severity: w.severity,
+                  expiration: w.expirationDate,
+                  days_until_expiry: w.daysUntilExpiry,
+                })),
+                availability_warnings: postGenValidation.availabilityWarnings.map(w => w.warning),
+              }
+            );
+          }
+
+          // Layer 1: Post-generation content validation (anti-hallucination hard checks)
+          const cvData: ContentValidationData = {
+            keyPersonnel: (dataCallResponse.key_personnel || []) as { name: string; role: string }[],
+            personnel: (personnel || []) as ContentValidationData['personnel'],
+            pastPerformance: (pastPerformance || []) as ContentValidationData['pastPerformance'],
+            complianceVerification: dataCallResponse.compliance_verification as unknown as Record<string, unknown> | null,
+            technologySelections: (dataCallResponse.technology_selections || []) as ContentValidationData['technologySelections'],
+            serviceAreaApproaches: (dataCallResponse.service_area_approaches || []) as ContentValidationData['serviceAreaApproaches'],
+            dataCallResponse,
+            rfpChecklists: volumeChecklists,
+            volumeType: volumeTypeStr,
+          };
+          const contentValidation = validateGeneratedContent(contentMarkdown, cvData);
+          let validatedMarkdown = contentValidation.correctedMarkdown;
+
+          // Merge cert-validator blocking status into content validation warnings
+          if (postGenValidation.hasBlockingIssues) {
+            for (const cw of postGenValidation.certWarnings.filter(c => c.severity === 'expired')) {
+              contentValidation.warnings.push({
+                check: 'expired_cert',
+                severity: 'error',
+                message: `[cert-validator] ${cw.holder}: ${cw.certName} expired ${cw.expirationDate}`,
+              });
+            }
+          }
+
+          if (contentValidation.warnings.length > 0) {
+            console.warn(`[draft-generator] Content validation for "${volume.volume_name}": ${contentValidation.warnings.length} warnings, ${contentValidation.autoCorrections} auto-corrections`);
+            for (const w of contentValidation.warnings.filter(w => w.severity === 'error')) {
+              console.warn(`  [${w.check}] ${w.message}`);
+            }
+            await logPipelineEvent(
+              solicitationId,
+              'content-validation',
+              contentValidation.warnings.some(w => w.severity === 'error') ? 'warning' : 'completed',
+              {
+                volume_name: volume.volume_name,
+                total_warnings: contentValidation.warnings.length,
+                auto_corrections: contentValidation.autoCorrections,
+                warnings_by_type: contentValidation.warnings.reduce((acc, w) => {
+                  acc[w.check] = (acc[w.check] || 0) + 1;
+                  return acc;
+                }, {} as Record<string, number>),
+                error_details: contentValidation.warnings
+                  .filter(w => w.severity === 'error')
+                  .map(w => `[${w.check}] ${w.message}`),
+                warning_details: contentValidation.warnings
+                  .filter(w => w.severity === 'warning')
+                  .map(w => `[${w.check}] ${w.message}`),
+              }
+            );
+          } else {
+            await logPipelineEvent(solicitationId, 'content-validation', 'completed', {
+              volume_name: volume.volume_name,
+              result: 'All content validated — no issues detected',
+              auto_corrections: 0,
+            });
+          }
+
+          // Recalculate word count if auto-corrections were applied
+          if (contentValidation.autoCorrections > 0) {
+            const updatedWordCount = validatedMarkdown.split(/\s+/).filter(w => w.length > 0).length;
+            console.log(`[draft-generator] Content validator applied ${contentValidation.autoCorrections} auto-corrections to "${volume.volume_name}" (words: ${wordCount} → ${updatedWordCount})`);
+          }
+
           // Parse markdown into styled DOCX elements (headings, bullets, tables, callouts)
-          const contentStructure = parseMarkdownToDocx(contentMarkdown, colorPalette);
+          const contentStructure = parseMarkdownToDocx(validatedMarkdown, colorPalette);
 
           // Derive volume type for the DOCX generator
           const volumeType = deriveVolumeTypeForGenerator(volume.volume_name);
@@ -549,7 +698,8 @@ export const proposalDraftGenerator = inngest.createFunction(
             documentContext, // Real solicitation number + agency
             requirements,    // Section M evaluation factors for compliance matrix
             sectionMappings, // Content sections mapped to requirements
-            colorPalette     // Company-branded color palette
+            colorPalette,    // Company-branded color palette
+            volume.volume_name // Actual volume name for cover page and header
           );
 
           // Save to buffer
@@ -573,6 +723,48 @@ export const proposalDraftGenerator = inngest.createFunction(
 
           const filePath = uploadError ? null : storagePath;
 
+          // Generate Cost/Price Excel workbook for cost_price volumes
+          let excelFilePath: string | null = null;
+          if (volumeType === 'price') {
+            try {
+              const siteStaffing = dataCallResponse.site_staffing || [];
+              const laborCategories = extractLaborCategories(personnel || []);
+              const opCtxRows = extractions.operational_context || [];
+              const agencyNameExtracted = opCtxRows.find(r => r.field_name === 'agency_name')?.field_value as string || '';
+              const adminRows = extractions.admin_data || [];
+              const solNumber = adminRows.find(r => r.field_name === 'solicitation_number')?.field_value as string || '';
+              const opDetails = (dataCallResponse.opportunity_details || {}) as Record<string, unknown>;
+
+              const excelBuffer = await generateCostPriceWorkbook({
+                companyName: companyProfile.company_name,
+                solicitationNumber: solNumber,
+                agencyName: agencyNameExtracted,
+                contractType: (opDetails.contract_type as string) || 'TBD',
+                periodOfPerformance: '1 Base Year + 4 Option Years',
+                siteStaffing: siteStaffing as { site_name: string; proposed_fte_count: string | number }[],
+                laborCategories,
+                clinStructure: [],
+              });
+
+              const excelPath = `drafts/${companyId}/${solicitationId}/${volume.volume_order}_${sanitizedName}.xlsx`;
+              const { error: xlUploadError } = await supabase.storage
+                .from('proposal-drafts')
+                .upload(excelPath, excelBuffer, {
+                  contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                  upsert: true,
+                });
+
+              if (!xlUploadError) {
+                excelFilePath = excelPath;
+                console.log(`[draft-generator] Excel workbook generated for "${volume.volume_name}"`);
+              } else {
+                console.warn(`[draft-generator] Excel upload failed for "${volume.volume_name}":`, xlUploadError.message);
+              }
+            } catch (xlErr) {
+              console.warn(`[draft-generator] Excel generation failed for "${volume.volume_name}":`, xlErr);
+            }
+          }
+
           // Update draft_volumes with all results
           await supabase
             .from('draft_volumes')
@@ -582,7 +774,11 @@ export const proposalDraftGenerator = inngest.createFunction(
               page_estimate: pageEstimate,
               page_limit_status: pageLimitStatus,
               file_path: filePath,
-              content_markdown: contentMarkdown,
+              excel_file_path: excelFilePath,
+              content_markdown: validatedMarkdown,
+              validation_warnings: contentValidation.warnings.length > 0
+                ? contentValidation.warnings as unknown as Record<string, unknown>[]
+                : null,
               generation_completed_at: new Date().toISOString(),
               error_message: uploadError ? `DOCX upload failed: ${uploadError.message}` : null,
               updated_at: new Date().toISOString(),
@@ -590,6 +786,25 @@ export const proposalDraftGenerator = inngest.createFunction(
             .eq('id', volume.id);
 
           console.log(`[draft-generator] Volume "${volume.volume_name}" completed: ${wordCount} words, ${pageEstimate} pages, status=${pageLimitStatus}`);
+
+          await logPipelineEvent(solicitationId, 'generate-volume', 'completed', {
+            volume_name: volume.volume_name,
+            volume_order: volume.volume_order,
+            word_count: wordCount,
+            page_estimate: pageEstimate,
+            page_limit: volume.page_limit,
+            page_limit_status: pageLimitStatus,
+            auto_fill: {
+              filled: autoFillResult.fillCount,
+              remaining: autoFillResult.remainingPlaceholders,
+            },
+            content_validation: {
+              warnings: contentValidation.warnings.length,
+              auto_corrections: contentValidation.autoCorrections,
+              errors: contentValidation.warnings.filter(w => w.severity === 'error').length,
+            },
+            docx_uploaded: !!filePath,
+          });
 
           return {
             volumeId: volume.id,
@@ -604,6 +819,13 @@ export const proposalDraftGenerator = inngest.createFunction(
           // Error isolation: volume failure does NOT propagate to kill other steps
           const errMsg = err instanceof Error ? err.message : String(err);
           console.error(`[draft-generator] Volume "${volume.volume_name}" failed:`, errMsg);
+
+          await logPipelineEvent(solicitationId, 'generate-volume', 'failed', {
+            volume_name: volume.volume_name,
+            volume_order: volume.volume_order,
+            error: errMsg,
+            error_type: err instanceof Error ? err.constructor.name : 'Unknown',
+          });
 
           await supabase
             .from('draft_volumes')

@@ -14,7 +14,8 @@ import {
 } from 'docx';
 import { PROPOSAL_STYLES, buildProposalStyles } from './styles';
 import { type ProposalColorPalette } from './colors';
-import { generateCoverLetter } from '../templates/cover-letter';
+// Cover letter removed from DOCX generation — pages count against limit
+// import { generateCoverLetter } from '../templates/cover-letter';
 import { HEADING_NUMBERING, NUMBERED_LIST_NUMBERING, TABLE_BULLET_NUMBERING, getHeadingNumbering, shouldOmitNumbering } from './numbering';
 import { fetchLogoAsBuffer, COVER_LOGO_SIZE } from './images';
 import {
@@ -24,7 +25,8 @@ import {
   createEmptyFooter,
 } from './headers-footers';
 import { generateTOCSection, TOCSectionChild } from './toc';
-import { generateComplianceMatrix } from '../volumes/compliance-matrix';
+// Compliance matrix is now a separate volume, not an in-volume appendix
+// import { generateComplianceMatrix } from '../volumes/compliance-matrix';
 
 /**
  * Generate a professional proposal volume in Word format
@@ -39,9 +41,10 @@ export async function generateProposalVolume(
   document?: any,
   requirements?: any[],
   sectionMappings?: any[],
-  colorPalette?: ProposalColorPalette
+  colorPalette?: ProposalColorPalette,
+  displayTitle?: string
 ): Promise<Document> {
-  const volumeTitle = formatVolumeTitle(volumeType);
+  const volumeTitle = displayTitle || formatVolumeTitle(volumeType);
 
   // Fetch company logo for cover page and headers
   const logoUrl = companyProfile?.logo_url;
@@ -94,19 +97,12 @@ export async function generateProposalVolume(
           ...generateCoverPage(volumeTitle, companyProfile, logoBuffer, colorPalette),
           new Paragraph({ children: [new PageBreak()] }),
 
-          // Cover Letter (Part 1.1)
-          ...(await generateCoverLetterSection(document, companyProfile, companyData)),
-          new Paragraph({ children: [new PageBreak()] }),
-
           // Table of Contents with dynamic field codes (Part 1.1)
           // Includes main TOC (3 levels) and Table of Exhibits
           ...(generateTOCSection() as Paragraph[]),
 
           // Content sections
           ...generateSections(content),
-
-          // Appendices (actual content)
-          ...generateAppendices(companyData, requirements, sectionMappings, volumeType, content?.sections),
         ],
       },
     ],
@@ -237,40 +233,7 @@ function generateCoverPage(
   return paragraphs;
 }
 
-/**
- * Generate Cover Letter Section
- * Extracts discriminators from company data and generates cover letter
- */
-async function generateCoverLetterSection(
-  document: any,
-  companyProfile: any,
-  companyData: any
-): Promise<Paragraph[]> {
-  if (!document || !companyProfile) {
-    return [];
-  }
-
-  const paragraphs: Paragraph[] = [];
-
-  // Cover Letter heading (unnumbered per Framework Part 1.1)
-  paragraphs.push(
-    new Paragraph({
-      text: 'COVER LETTER',
-      style: 'Heading1Unnumbered',
-      spacing: { after: 480 },
-    })
-  );
-
-  // Extract discriminators from value propositions
-  const discriminators = companyData?.valuePropositions
-    ?.slice(0, 3)
-    .map((vp: any) => vp.statement) || [];
-
-  const coverLetterContent = await generateCoverLetter(document, companyProfile, discriminators);
-  paragraphs.push(...coverLetterContent);
-
-  return paragraphs;
-}
+// generateCoverLetterSection removed — cover letters waste pages against page limits
 
 /**
  * Generate content sections from structured content.
@@ -337,121 +300,9 @@ function generateSections(content: any): (Paragraph | Table)[] {
   return elements;
 }
 
-/**
- * Generate appendices with actual content
- * Includes Compliance Matrix (Framework Part 2.3)
- */
-function generateAppendices(
-  companyData?: any,
-  requirements?: any[],
-  sectionMappings?: any[],
-  volumeType?: string,
-  sections?: any[]
-): (Paragraph | Table)[] {
-  const elements: (Paragraph | Table)[] = [];
-
-  // Page break before appendices
-  elements.push(new Paragraph({ children: [new PageBreak()] }));
-
-  // Main appendices heading
-  elements.push(
-    new Paragraph({
-      text: 'APPENDICES',
-      heading: HeadingLevel.HEADING_1,
-      spacing: { after: 480 },
-    })
-  );
-
-  // Only generate appendices if company data is provided
-  if (!companyData) {
-    elements.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: 'Appendices will be included when company data is available.',
-            italics: true,
-            size: 20,
-          }),
-        ],
-        spacing: { before: 240 },
-      })
-    );
-    return elements;
-  }
-
-  try {
-    // Import appendix generators dynamically to avoid circular dependencies
-    const { generateResumesAppendix } = require('../templates/appendix-resumes');
-    const { generateCertificationsAppendix } = require('../templates/appendix-certifications');
-    const { generateDetailedPastPerformanceAppendix } = require('../templates/appendix-past-performance-detail');
-
-    // Appendix A: Key Personnel Resumes
-    if (companyData.personnel && companyData.personnel.length > 0) {
-      const keyPersonnel = companyData.personnel.filter((p: any) =>
-        p.proposed_roles?.some((r: any) => r.is_key_personnel)
-      );
-
-      if (keyPersonnel.length > 0) {
-        elements.push(new Paragraph({ children: [new PageBreak()] }));
-        const resumeAppendix = generateResumesAppendix(companyData.personnel);
-        elements.push(...resumeAppendix);
-      }
-    }
-
-    // Appendix B: Company Certifications
-    if (companyData.certifications && companyData.certifications.length > 0) {
-      elements.push(new Paragraph({ children: [new PageBreak()] }));
-      const certsAppendix = generateCertificationsAppendix(
-        companyData.certifications,
-        companyData.naicsCodes,
-        companyData.contractVehicles
-      );
-      elements.push(...certsAppendix);
-    }
-
-    // Appendix C: Detailed Past Performance
-    if (companyData.pastPerformance && companyData.pastPerformance.length > 0) {
-      elements.push(new Paragraph({ children: [new PageBreak()] }));
-      const ppAppendix = generateDetailedPastPerformanceAppendix(companyData.pastPerformance);
-      elements.push(...ppAppendix);
-    }
-
-    // Appendix D: Compliance Matrix (Framework Part 2.3)
-    if (requirements && requirements.length > 0 && sectionMappings && sectionMappings.length > 0) {
-      elements.push(new Paragraph({ children: [new PageBreak()] }));
-
-      // Generate compliance matrix with page estimation
-      const { paragraphs: matrixParagraphs, table: matrixTable } = generateComplianceMatrix(
-        requirements,
-        sectionMappings,
-        volumeType || 'technical',
-        sections // Pass sections for page number calculation
-      );
-
-      // Add intro paragraphs
-      elements.push(...matrixParagraphs);
-      // Add the compliance matrix table
-      elements.push(matrixTable);
-    }
-  } catch (error) {
-    console.error('Error generating appendices:', error);
-    elements.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: 'Error generating appendices. Please contact support.',
-            italics: true,
-            size: 20,
-            color: 'ef4444',
-          }),
-        ],
-        spacing: { before: 240 },
-      })
-    );
-  }
-
-  return elements;
-}
+// generateAppendices removed — appendices are now separate proposal volumes,
+// not injected into every volume. Resumes, certifications, past performance,
+// and compliance matrix each get their own volume in the proposal structure.
 
 /**
  * Format volume type into proper title
