@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
 import { validateWordCount, type WordCountResult } from '@/lib/validation/tier1-validators';
@@ -35,12 +35,12 @@ function WordCountIndicator({ result, min, max }: WordCountIndicatorProps) {
   const isUnderMin = result.wordCount > 0 && result.wordCount < min;
 
   const colorClass = isOver
-    ? 'text-red-600'
+    ? 'text-destructive'
     : isApproachingMax
-    ? 'text-yellow-600'
+    ? 'text-warning-foreground'
     : isUnderMin
-    ? 'text-yellow-500'
-    : 'text-gray-400';
+    ? 'text-warning-foreground'
+    : 'text-muted-foreground';
 
   return (
     <p className={`text-xs mt-1 ${colorClass}`}>
@@ -81,6 +81,22 @@ export function CapabilitiesPositioningTab({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // ---- Unsaved-changes guard ----
+  const [isDirty, setIsDirty] = useState(false);
+  const hydratedRef = useRef(false);
+
+  const markDirty = useCallback(() => {
+    if (hydratedRef.current) setIsDirty(true);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
 
   // ---- AI generation state ----
   const [generatingField, setGeneratingField] = useState<GeneratableField | null>(null);
@@ -167,6 +183,8 @@ export function CapabilitiesPositioningTab({
     setMissionStatement(initialProfileData.mission_statement || '');
     setVisionStatement(initialProfileData.vision_statement || '');
     setCoreValues(initialProfileData.core_values || []);
+    setIsDirty(false);
+    requestAnimationFrame(() => { hydratedRef.current = true; });
   }, [initialProfileData]);
 
   // ---- Word count results (live) ----
@@ -257,6 +275,7 @@ export function CapabilitiesPositioningTab({
       }
 
       setSaveSuccess(true);
+      setIsDirty(false);
       onSaved();
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
@@ -267,34 +286,34 @@ export function CapabilitiesPositioningTab({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onChange={markDirty}>
       {/* Success / Error banners */}
       {saveSuccess && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-green-800 font-medium">Capabilities & Positioning saved successfully.</p>
+        <div className="bg-success/10 border border-success/20 rounded-lg p-4">
+          <p className="text-success font-medium">Capabilities & Positioning saved successfully.</p>
         </div>
       )}
       {saveError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{saveError}</p>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+          <p className="text-destructive">{saveError}</p>
         </div>
       )}
 
       {genError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800 text-sm">{genError}</p>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+          <p className="text-destructive text-sm">{genError}</p>
         </div>
       )}
 
       {/* Corporate Overview */}
-      <div className="bg-white shadow-md rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Corporate Overview</h2>
+          <h2 className="text-xl font-semibold text-foreground">Corporate Overview</h2>
           <GenerateButton field="corporate_overview" generating={generatingField} onGenerate={handleGenerate} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Corporate Overview</label>
-          <p className="text-xs text-gray-500 mb-2">
+          <label className="block text-sm font-medium text-foreground mb-1">Corporate Overview</label>
+          <p className="text-xs text-muted-foreground mb-2">
             Detailed corporate overview used in proposal executive summaries. Describe your company&apos;s mission, history, and core competencies.
           </p>
           <textarea
@@ -302,8 +321,8 @@ export function CapabilitiesPositioningTab({
             maxLength={3000}
             value={corporateOverview}
             onChange={(e) => setCorporateOverview(e.target.value)}
-            className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y ${
-              fieldErrors.corporate_overview ? 'border-red-400 bg-red-50' : 'border-gray-300'
+            className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent resize-y bg-background ${
+              fieldErrors.corporate_overview ? 'border-destructive bg-destructive/10' : 'border-input'
             }`}
             placeholder="Provide a comprehensive overview of your company — history, mission, core competencies, and value delivered to federal clients..."
           />
@@ -315,14 +334,14 @@ export function CapabilitiesPositioningTab({
       </div>
 
       {/* Core Services */}
-      <div className="bg-white shadow-md rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Core Services</h2>
+          <h2 className="text-xl font-semibold text-foreground">Core Services</h2>
           <GenerateButton field="core_services_summary" generating={generatingField} onGenerate={handleGenerate} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Core Services Summary</label>
-          <p className="text-xs text-gray-500 mb-2">
+          <label className="block text-sm font-medium text-foreground mb-1">Core Services Summary</label>
+          <p className="text-xs text-muted-foreground mb-2">
             Summarize your primary service offerings. This feeds into proposal Technical Approach sections.
           </p>
           <textarea
@@ -330,8 +349,8 @@ export function CapabilitiesPositioningTab({
             maxLength={2000}
             value={coreServicesSummary}
             onChange={(e) => setCoreServicesSummary(e.target.value)}
-            className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y ${
-              fieldErrors.core_services ? 'border-red-400 bg-red-50' : 'border-gray-300'
+            className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent resize-y bg-background ${
+              fieldErrors.core_services ? 'border-destructive bg-destructive/10' : 'border-input'
             }`}
             placeholder="Describe your primary service offerings and areas of expertise..."
           />
@@ -343,18 +362,18 @@ export function CapabilitiesPositioningTab({
       </div>
 
       {/* Enterprise Win Themes */}
-      <div className="bg-white shadow-md rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Enterprise Win Themes</h2>
+          <h2 className="text-xl font-semibold text-foreground">Enterprise Win Themes</h2>
           <GenerateButton field="enterprise_win_themes" generating={generatingField} onGenerate={handleGenerate} />
         </div>
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-xs text-muted-foreground mb-3">
           Reusable win themes that highlight your competitive advantages. Example: &ldquo;Proven transition methodology with zero disruption to operations&rdquo;
         </p>
 
         {winThemes.length < 3 && (
-          <div className="mb-3 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md">
-            <p className="text-xs text-yellow-700">
+          <div className="mb-3 px-3 py-2 bg-warning/10 border border-warning/30 rounded-md">
+            <p className="text-xs text-warning-foreground">
               Recommended: at least 3 win themes ({winThemes.length}/3 added)
             </p>
           </div>
@@ -384,39 +403,39 @@ export function CapabilitiesPositioningTab({
             Add
           </button>
         </div>
-        <p className="text-xs text-gray-400 mb-3">Max 100 characters per theme</p>
+        <p className="text-xs text-muted-foreground mb-3">Max 100 characters per theme</p>
 
         <div className="space-y-2">
           {winThemes.map((theme, idx) => (
             <div
               key={idx}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg"
+              className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/20 rounded-lg"
             >
-              <span className="flex-1 text-sm text-blue-900">{theme}</span>
+              <span className="flex-1 text-sm text-foreground">{theme}</span>
               <button
                 type="button"
                 onClick={() => removeWinTheme(idx)}
-                className="text-blue-400 hover:text-blue-700 text-lg leading-none"
+                className="text-muted-foreground hover:text-foreground text-lg leading-none"
               >
                 &times;
               </button>
             </div>
           ))}
           {winThemes.length === 0 && (
-            <p className="text-gray-400 text-sm">No win themes added yet.</p>
+            <p className="text-muted-foreground text-sm">No win themes added yet.</p>
           )}
         </div>
       </div>
 
       {/* Key Differentiators */}
-      <div className="bg-white shadow-md rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Key Differentiators</h2>
+          <h2 className="text-xl font-semibold text-foreground">Key Differentiators</h2>
           <GenerateButton field="key_differentiators_summary" generating={generatingField} onGenerate={handleGenerate} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Key Differentiators Summary</label>
-          <p className="text-xs text-gray-500 mb-2">
+          <label className="block text-sm font-medium text-foreground mb-1">Key Differentiators Summary</label>
+          <p className="text-xs text-muted-foreground mb-2">
             Describe what sets you apart from competitors. This content is used across proposal sections to reinforce your value.
           </p>
           <textarea
@@ -424,8 +443,8 @@ export function CapabilitiesPositioningTab({
             maxLength={2000}
             value={keyDifferentiatorsSummary}
             onChange={(e) => setKeyDifferentiatorsSummary(e.target.value)}
-            className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y ${
-              fieldErrors.differentiators ? 'border-red-400 bg-red-50' : 'border-gray-300'
+            className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent resize-y bg-background ${
+              fieldErrors.differentiators ? 'border-destructive bg-destructive/10' : 'border-input'
             }`}
             placeholder="Describe your unique competitive advantages and proof points..."
           />
@@ -437,14 +456,14 @@ export function CapabilitiesPositioningTab({
       </div>
 
       {/* Standard Management Approach */}
-      <div className="bg-white shadow-md rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Standard Management Approach</h2>
+          <h2 className="text-xl font-semibold text-foreground">Standard Management Approach</h2>
           <GenerateButton field="standard_management_approach" generating={generatingField} onGenerate={handleGenerate} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Standard Management Approach</label>
-          <p className="text-xs text-gray-500 mb-2">
+          <label className="block text-sm font-medium text-foreground mb-1">Standard Management Approach</label>
+          <p className="text-xs text-muted-foreground mb-2">
             Your standard approach to program management, quality assurance, and risk management. Used as the foundation for Management Volume content.
           </p>
           <textarea
@@ -452,8 +471,8 @@ export function CapabilitiesPositioningTab({
             maxLength={3000}
             value={standardManagementApproach}
             onChange={(e) => setStandardManagementApproach(e.target.value)}
-            className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y ${
-              fieldErrors.management ? 'border-red-400 bg-red-50' : 'border-gray-300'
+            className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent resize-y bg-background ${
+              fieldErrors.management ? 'border-destructive bg-destructive/10' : 'border-input'
             }`}
             placeholder="Describe your approach to program management, quality assurance, risk management, and continuous improvement..."
           />
@@ -465,18 +484,18 @@ export function CapabilitiesPositioningTab({
       </div>
 
       {/* Elevator Pitch & Descriptions (migrated from old profile page) */}
-      <div className="bg-white shadow-md rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Elevator Pitch & Company Descriptions</h2>
+          <h2 className="text-xl font-semibold text-foreground">Elevator Pitch & Company Descriptions</h2>
           <GenerateButton field="elevator_pitch_and_descriptions" generating={generatingField} onGenerate={handleGenerate} />
         </div>
         <div className="space-y-4">
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Elevator Pitch <span className="text-red-500">*</span>
             </label>
-            <p className="text-xs text-gray-500 mb-2">
+            <p className="text-xs text-muted-foreground mb-2">
               Describe your company in 2-3 sentences. Used in proposal cover letters and brief company overviews.
             </p>
             <textarea
@@ -484,53 +503,53 @@ export function CapabilitiesPositioningTab({
               maxLength={500}
               value={elevatorPitch}
               onChange={(e) => setElevatorPitch(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+              className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent resize-y"
               placeholder="Acme Federal Solutions is a veteran-owned IT services firm specializing in enterprise program management and agile transformation for federal agencies..."
             />
-            <p className="text-xs text-gray-400 mt-1">{elevatorPitch.length} / 500 characters</p>
+            <p className="text-xs text-muted-foreground mt-1">{elevatorPitch.length} / 500 characters</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Description</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Full Description</label>
             <textarea
               rows={5}
               maxLength={2000}
               value={fullDescription}
               onChange={(e) => setFullDescription(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+              className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent resize-y"
               placeholder="Extended company description..."
             />
-            <p className="text-xs text-gray-400 mt-1">{fullDescription.length} / 2000 characters</p>
+            <p className="text-xs text-muted-foreground mt-1">{fullDescription.length} / 2000 characters</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mission Statement</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Mission Statement</label>
               <textarea
                 rows={2}
                 maxLength={300}
                 value={missionStatement}
                 onChange={(e) => setMissionStatement(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent resize-y"
               />
-              <p className="text-xs text-gray-400 mt-1">{missionStatement.length} / 300 characters</p>
+              <p className="text-xs text-muted-foreground mt-1">{missionStatement.length} / 300 characters</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Vision Statement</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Vision Statement</label>
               <textarea
                 rows={2}
                 maxLength={300}
                 value={visionStatement}
                 onChange={(e) => setVisionStatement(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent resize-y"
               />
-              <p className="text-xs text-gray-400 mt-1">{visionStatement.length} / 300 characters</p>
+              <p className="text-xs text-muted-foreground mt-1">{visionStatement.length} / 300 characters</p>
             </div>
           </div>
 
           {/* Core Values */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Core Values</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Core Values</label>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
@@ -557,13 +576,13 @@ export function CapabilitiesPositioningTab({
               {coreValues.map((value, idx) => (
                 <span
                   key={idx}
-                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm flex items-center gap-2"
+                  className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm flex items-center gap-2"
                 >
                   {value}
                   <button
                     type="button"
                     onClick={() => removeCoreValue(idx)}
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-primary hover:text-primary/80"
                   >
                     &times;
                   </button>
@@ -580,7 +599,7 @@ export function CapabilitiesPositioningTab({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="bg-blue-600 text-white px-8 py-3 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
+          className="bg-primary text-primary-foreground px-8 py-3 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
         >
           {saving ? 'Saving...' : 'Save Capabilities & Positioning'}
         </button>
@@ -606,7 +625,7 @@ function GenerateButton({
       type="button"
       disabled={anyGenerating}
       onClick={() => onGenerate(field)}
-      className="inline-flex items-center gap-1.5 rounded-md border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
     >
       {isGenerating ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />

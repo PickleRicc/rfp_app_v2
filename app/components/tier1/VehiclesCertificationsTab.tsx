@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 import type { CompanyProfile, ContractVehicle, Certification, ISOCMMIStatus, DCAAApprovedSystems } from '@/lib/supabase/company-types';
 
@@ -123,6 +123,22 @@ export function VehiclesCertificationsTab({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [certDataLoading, setCertDataLoading] = useState(true);
 
+  // ---- Unsaved-changes guard ----
+  const [isDirty, setIsDirty] = useState(false);
+  const hydratedRef = useRef(false);
+
+  const markDirty = useCallback(() => {
+    if (hydratedRef.current) setIsDirty(true);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
   // Initialize JSONB fields from initialProfileData
   useEffect(() => {
     if (initialProfileData.iso_cmmi_status) {
@@ -131,6 +147,8 @@ export function VehiclesCertificationsTab({
     if (initialProfileData.dcaa_approved_systems) {
       setDcaaSystems({ ...DEFAULT_DCAA, ...initialProfileData.dcaa_approved_systems });
     }
+    setIsDirty(false);
+    requestAnimationFrame(() => { hydratedRef.current = true; });
   }, [initialProfileData]);
 
   // Fetch relational certification data on mount
@@ -262,6 +280,7 @@ export function VehiclesCertificationsTab({
         throw new Error(data.error || 'Failed to save');
       }
       setSaveSuccess(true);
+      setIsDirty(false);
       onSaved();
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
@@ -274,54 +293,57 @@ export function VehiclesCertificationsTab({
   // ---- Toggle helpers ----
   const toggleISO = (key: keyof Pick<ISOCMMIStatus, 'iso_9001' | 'iso_27001' | 'iso_20000' | 'itil_certified'>) => {
     setIsoCmmi((prev) => ({ ...prev, [key]: !prev[key] }));
+    markDirty();
   };
   const setCMMILevel = (key: 'cmmi_dev_level' | 'cmmi_svc_level', val: string) => {
     setIsoCmmi((prev) => ({ ...prev, [key]: val ? parseInt(val, 10) : null }));
+    markDirty();
   };
   const toggleDCAA = (key: keyof DCAAApprovedSystems) => {
     setDcaaSystems((prev) => ({ ...prev, [key]: !prev[key] }));
+    markDirty();
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onChange={markDirty}>
       {/* Success / Error banners */}
       {saveSuccess && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-green-800 font-medium">Vehicles & Certifications saved successfully.</p>
+        <div className="bg-success/10 border border-success/20 rounded-lg p-4">
+          <p className="text-success font-medium">Vehicles & Certifications saved successfully.</p>
         </div>
       )}
       {saveError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{saveError}</p>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+          <p className="text-destructive">{saveError}</p>
         </div>
       )}
 
       {/* Contract Vehicles */}
-      <div className="bg-white shadow-md rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Contract Vehicles</h2>
+          <h2 className="text-xl font-semibold text-foreground">Contract Vehicles</h2>
           <button
             type="button"
             onClick={() => setShowVehicleForm(!showVehicleForm)}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+            className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90"
           >
             {showVehicleForm ? 'Cancel' : '+ Add Vehicle'}
           </button>
         </div>
 
         {certDataLoading ? (
-          <p className="text-gray-400 text-sm">Loading vehicles...</p>
+          <p className="text-muted-foreground text-sm">Loading vehicles...</p>
         ) : vehicles.length === 0 && !showVehicleForm ? (
-          <p className="text-gray-400 text-sm">No contract vehicles added yet.</p>
+          <p className="text-muted-foreground text-sm">No contract vehicles added yet.</p>
         ) : null}
 
         {/* Vehicle cards */}
         <div className="space-y-3 mb-4">
           {vehicles.map((v) => (
-            <div key={v.id} className="border border-gray-200 rounded-lg p-4 flex items-start justify-between">
+            <div key={v.id} className="border border-border rounded-lg p-4 flex items-start justify-between">
               <div>
-                <p className="font-medium text-gray-900">{v.vehicle_name}</p>
-                <p className="text-sm text-gray-500">
+                <p className="font-medium text-foreground">{v.vehicle_name}</p>
+                <p className="text-sm text-muted-foreground">
                   {v.vehicle_type}
                   {v.contract_number && ` — ${v.contract_number}`}
                   {v.ordering_period_end && ` — Expires: ${v.ordering_period_end}`}
@@ -334,23 +356,23 @@ export function VehiclesCertificationsTab({
 
         {/* Inline add form */}
         {showVehicleForm && (
-          <div className="border border-blue-200 bg-blue-50 rounded-lg p-4 space-y-3">
-            <h3 className="font-medium text-gray-800">Add Contract Vehicle</h3>
+          <div className="border border-primary/20 bg-primary/5 rounded-lg p-4 space-y-3">
+            <h3 className="font-medium text-foreground">Add Contract Vehicle</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Vehicle Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={vehicleForm.vehicle_name}
                   onChange={(e) => setVehicleForm({ ...vehicleForm, vehicle_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
                   placeholder="e.g., CIO-SP3"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Vehicle Type <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -361,7 +383,7 @@ export function VehiclesCertificationsTab({
                       vehicle_type: e.target.value as ContractVehicle['vehicle_type'] | '',
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
                 >
                   <option value="">Select type...</option>
                   <option value="GWAC">GWAC</option>
@@ -372,30 +394,30 @@ export function VehiclesCertificationsTab({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Contract Number</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Contract Number</label>
                 <input
                   type="text"
                   value={vehicleForm.contract_number}
                   onChange={(e) =>
                     setVehicleForm({ ...vehicleForm, contract_number: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
                   placeholder="e.g., 75N98119D00xxx"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Ordering Period End</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Ordering Period End</label>
                 <input
                   type="date"
                   value={vehicleForm.ordering_period_end}
                   onChange={(e) =>
                     setVehicleForm({ ...vehicleForm, ordering_period_end: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Ceiling Value ($)</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Ceiling Value ($)</label>
                 <input
                   type="number"
                   min={0}
@@ -403,7 +425,7 @@ export function VehiclesCertificationsTab({
                   onChange={(e) =>
                     setVehicleForm({ ...vehicleForm, ceiling_value: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
                   placeholder="0"
                 />
               </div>
@@ -420,7 +442,7 @@ export function VehiclesCertificationsTab({
                 type="button"
                 onClick={addVehicle}
                 disabled={!vehicleForm.vehicle_name || !vehicleForm.vehicle_type}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Vehicle
               </button>
@@ -430,9 +452,9 @@ export function VehiclesCertificationsTab({
       </div>
 
       {/* Quality & Compliance Certifications (ISO/CMMI/ITIL) */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Quality & Compliance Certifications</h2>
-        <p className="text-sm text-gray-500 mb-4">
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-foreground mb-4">Quality & Compliance Certifications</h2>
+        <p className="text-sm text-muted-foreground mb-4">
           ISO, CMMI, and ITIL status. These appear in proposal quality management sections.
         </p>
 
@@ -450,8 +472,8 @@ export function VehiclesCertificationsTab({
               key={key}
               className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
                 isoCmmi[key]
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:bg-gray-50'
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border hover:bg-muted'
               }`}
             >
               <button
@@ -469,17 +491,17 @@ export function VehiclesCertificationsTab({
                   }`}
                 />
               </button>
-              <span className="text-sm font-medium text-gray-700">{label}</span>
+              <span className="text-sm font-medium text-foreground">{label}</span>
             </label>
           ))}
 
           {/* CMMI-DEV Level */}
           <div className="p-3 border border-gray-200 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-2">CMMI-DEV Level</label>
+            <label className="block text-sm font-medium text-foreground mb-2">CMMI-DEV Level</label>
             <select
               value={isoCmmi.cmmi_dev_level?.toString() || ''}
               onChange={(e) => setCMMILevel('cmmi_dev_level', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
             >
               {CMMI_LEVELS.map((l) => (
                 <option key={l.value} value={l.value}>
@@ -491,11 +513,11 @@ export function VehiclesCertificationsTab({
 
           {/* CMMI-SVC Level */}
           <div className="p-3 border border-gray-200 rounded-lg">
-            <label className="block text-sm font-medium text-gray-700 mb-2">CMMI-SVC Level</label>
+            <label className="block text-sm font-medium text-foreground mb-2">CMMI-SVC Level</label>
             <select
               value={isoCmmi.cmmi_svc_level?.toString() || ''}
               onChange={(e) => setCMMILevel('cmmi_svc_level', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
             >
               {CMMI_LEVELS.map((l) => (
                 <option key={l.value} value={l.value}>
@@ -508,9 +530,9 @@ export function VehiclesCertificationsTab({
       </div>
 
       {/* DCAA-Approved Systems */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">DCAA-Approved Systems</h2>
-        <p className="text-sm text-gray-500 mb-4">
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-foreground mb-4">DCAA-Approved Systems</h2>
+        <p className="text-sm text-muted-foreground mb-4">
           Toggle each system that has received DCAA approval. Referenced in cost proposal sections.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -528,8 +550,8 @@ export function VehiclesCertificationsTab({
               key={key}
               className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
                 dcaaSystems[key]
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-gray-200 hover:bg-gray-50'
+                  ? 'border-success bg-success/10'
+                  : 'border-border hover:bg-muted'
               }`}
             >
               <button
@@ -538,7 +560,7 @@ export function VehiclesCertificationsTab({
                 aria-checked={dcaaSystems[key]}
                 onClick={() => toggleDCAA(key)}
                 className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                  dcaaSystems[key] ? 'bg-green-600' : 'bg-gray-200'
+                  dcaaSystems[key] ? 'bg-success' : 'bg-muted'
                 }`}
               >
                 <span
@@ -547,15 +569,15 @@ export function VehiclesCertificationsTab({
                   }`}
                 />
               </button>
-              <span className="text-sm font-medium text-gray-700">{label}</span>
+              <span className="text-sm font-medium text-foreground">{label}</span>
             </label>
           ))}
         </div>
       </div>
 
       {/* Facility Clearance */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Facility Clearance</h2>
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-foreground mb-4">Facility Clearance</h2>
 
         <label className="flex items-center gap-3 cursor-pointer mb-4">
           <button
@@ -578,19 +600,19 @@ export function VehiclesCertificationsTab({
               }`}
             />
           </button>
-          <span className="text-sm font-medium text-gray-700">Company has facility clearance</span>
+          <span className="text-sm font-medium text-foreground">Company has facility clearance</span>
         </label>
 
         {facilityClearance.has_facility_clearance && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Clearance Level</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Clearance Level</label>
               <select
                 value={facilityClearance.clearance_level}
                 onChange={(e) =>
                   setFacilityClearance({ ...facilityClearance, clearance_level: e.target.value })
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50"
               >
                 <option value="">Select level...</option>
                 <option value="Confidential">Confidential</option>
@@ -600,26 +622,26 @@ export function VehiclesCertificationsTab({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sponsoring Agency</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Sponsoring Agency</label>
               <input
                 type="text"
                 value={facilityClearance.sponsoring_agency}
                 onChange={(e) =>
                   setFacilityClearance({ ...facilityClearance, sponsoring_agency: e.target.value })
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50"
                 placeholder="DoD, DHS, etc."
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CAGE Code (Cleared)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">CAGE Code (Cleared)</label>
               <input
                 type="text"
                 value={facilityClearance.cage_code_cleared}
                 onChange={(e) =>
                   setFacilityClearance({ ...facilityClearance, cage_code_cleared: e.target.value })
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50"
                 placeholder="5-character CAGE code"
               />
             </div>
@@ -628,42 +650,42 @@ export function VehiclesCertificationsTab({
       </div>
 
       {/* Socioeconomic Certifications (formal relational records) */}
-      <div className="bg-white shadow-md rounded-lg p-6">
+      <div className="bg-card border border-border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Socioeconomic Certifications</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="text-xl font-semibold text-foreground">Socioeconomic Certifications</h2>
+            <p className="text-sm text-muted-foreground mt-1">
               Formal certification records with certifying agency and dates. Selected designations on the Corporate Identity tab for quick set-aside filtering.
             </p>
           </div>
           <button
             type="button"
             onClick={() => setShowCertForm(!showCertForm)}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+            className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90"
           >
             {showCertForm ? 'Cancel' : '+ Add Certification'}
           </button>
         </div>
 
         {certDataLoading ? (
-          <p className="text-gray-400 text-sm">Loading certifications...</p>
+          <p className="text-muted-foreground text-sm">Loading certifications...</p>
         ) : certifications.length === 0 && !showCertForm ? (
-          <p className="text-gray-400 text-sm">No certification records added yet.</p>
+          <p className="text-muted-foreground text-sm">No certification records added yet.</p>
         ) : null}
 
         {/* Certification cards */}
         <div className="space-y-3 mb-4">
           {certifications.map((c) => (
-            <div key={c.id} className="border border-gray-200 rounded-lg p-4">
+            <div key={c.id} className="border border-border rounded-lg p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="font-medium text-gray-900">{c.certification_type}</p>
-                  <p className="text-sm text-gray-500">
+                  <p className="font-medium text-foreground">{c.certification_type}</p>
+                  <p className="text-sm text-muted-foreground">
                     {c.certifying_agency && `Agency: ${c.certifying_agency}`}
                     {c.certification_number && ` — #${c.certification_number}`}
                   </p>
                   {(c.effective_date || c.expiration_date) && (
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {c.effective_date && `Effective: ${c.effective_date}`}
                       {c.effective_date && c.expiration_date && ' — '}
                       {c.expiration_date && `Expires: ${c.expiration_date}`}
@@ -677,11 +699,11 @@ export function VehiclesCertificationsTab({
 
         {/* Inline add form */}
         {showCertForm && (
-          <div className="border border-blue-200 bg-blue-50 rounded-lg p-4 space-y-3">
-            <h3 className="font-medium text-gray-800">Add Certification Record</h3>
+          <div className="border border-primary/20 bg-primary/5 rounded-lg p-4 space-y-3">
+            <h3 className="font-medium text-foreground">Add Certification Record</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Certification Type <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -689,7 +711,7 @@ export function VehiclesCertificationsTab({
                   onChange={(e) =>
                     setCertForm({ ...certForm, certification_type: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
                 >
                   <option value="">Select type...</option>
                   {COMMON_CERT_TYPES.map((t) => (
@@ -700,45 +722,45 @@ export function VehiclesCertificationsTab({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Certifying Agency</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Certifying Agency</label>
                 <input
                   type="text"
                   value={certForm.certifying_agency}
                   onChange={(e) => setCertForm({ ...certForm, certifying_agency: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
                   placeholder="SBA, DVA, etc."
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Certification Number</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Certification Number</label>
                 <input
                   type="text"
                   value={certForm.certification_number}
                   onChange={(e) =>
                     setCertForm({ ...certForm, certification_number: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Effective Date</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Effective Date</label>
                   <input
                     type="date"
                     value={certForm.effective_date}
                     onChange={(e) => setCertForm({ ...certForm, effective_date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Expiration Date</label>
                   <input
                     type="date"
                     value={certForm.expiration_date}
                     onChange={(e) =>
                       setCertForm({ ...certForm, expiration_date: e.target.value })
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
               </div>
@@ -755,7 +777,7 @@ export function VehiclesCertificationsTab({
                 type="button"
                 onClick={addCertification}
                 disabled={!certForm.certification_type}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Add Certification
               </button>
@@ -770,7 +792,7 @@ export function VehiclesCertificationsTab({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="bg-blue-600 text-white px-8 py-3 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
+          className="bg-primary text-primary-foreground px-8 py-3 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
         >
           {saving ? 'Saving...' : 'Save Vehicles & Certifications'}
         </button>

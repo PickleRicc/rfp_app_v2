@@ -21,21 +21,21 @@ interface StatusResponse {
 
 /** Return Tailwind color classes based on score range. */
 function getBarColor(score: number): string {
-  if (score >= 80) return 'bg-green-500';
-  if (score >= 40) return 'bg-yellow-400';
-  return 'bg-red-500';
+  if (score >= 80) return 'bg-success';
+  if (score >= 40) return 'bg-warning';
+  return 'bg-destructive';
 }
 
 function getTextColor(score: number): string {
-  if (score >= 80) return 'text-green-700';
-  if (score >= 40) return 'text-yellow-700';
-  return 'text-red-700';
+  if (score >= 80) return 'text-success';
+  if (score >= 40) return 'text-warning-foreground';
+  return 'text-destructive';
 }
 
 function getBorderColor(score: number): string {
-  if (score >= 80) return 'border-green-200 bg-green-50';
-  if (score >= 40) return 'border-yellow-200 bg-yellow-50';
-  return 'border-red-200 bg-red-50';
+  if (score >= 80) return 'border-success/30 bg-success/10';
+  if (score >= 40) return 'border-warning/30 bg-warning/10';
+  return 'border-destructive/30 bg-destructive/10';
 }
 
 /**
@@ -85,17 +85,17 @@ export function Tier1CompletenessBar({ companyId, onRefreshRef, fetchFn }: Tier1
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 mb-6 animate-pulse">
-        <div className="h-4 bg-gray-200 rounded w-1/3 mb-3"></div>
-        <div className="h-3 bg-gray-200 rounded w-full"></div>
+      <div className="rounded-lg border border-border bg-card p-4 mb-6 animate-pulse">
+        <div className="h-4 bg-muted rounded w-1/3 mb-3"></div>
+        <div className="h-3 bg-muted rounded w-full"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 mb-6">
-        <p className="text-sm text-gray-500">Could not load completeness status: {error}</p>
+      <div className="rounded-lg border border-border bg-card p-4 mb-6">
+        <p className="text-sm text-muted-foreground">Could not load completeness status: {error}</p>
       </div>
     );
   }
@@ -110,23 +110,23 @@ export function Tier1CompletenessBar({ companyId, onRefreshRef, fetchFn }: Tier1
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-sm font-semibold text-gray-800">
+          <h2 className="text-sm font-semibold text-foreground">
             Tier 1 Enterprise Intake Completeness
           </h2>
           {isComplete && (
-            <p className="text-xs text-green-700 mt-0.5">
+            <p className="text-xs text-success mt-0.5">
               Tier 1 is complete — you can upload RFP documents.
             </p>
           )}
           {!isComplete && (
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Complete your profile to unlock RFP uploads.
             </p>
           )}
         </div>
         <div className="flex items-center gap-2">
           {isComplete ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
+            <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
               <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                 <path
                   fillRule="evenodd"
@@ -143,7 +143,7 @@ export function Tier1CompletenessBar({ companyId, onRefreshRef, fetchFn }: Tier1
       </div>
 
       {/* Progress bar */}
-      <div className="h-3 w-full rounded-full bg-gray-200 overflow-hidden mb-4">
+      <div className="h-3 w-full rounded-full bg-muted overflow-hidden mb-4">
         <div
           className={`h-full rounded-full transition-all duration-500 ${getBarColor(score)}`}
           style={{ width: `${score}%` }}
@@ -157,11 +157,11 @@ export function Tier1CompletenessBar({ companyId, onRefreshRef, fetchFn }: Tier1
             const sectionPct = Math.round((section.score / section.maxScore) * 100);
             return (
               <div key={section.name} className="text-center">
-                <div className="text-xs text-gray-500 mb-1 leading-tight">{section.name}</div>
-                <div className="text-sm font-semibold text-gray-800">
+                <div className="text-xs text-muted-foreground mb-1 leading-tight">{section.name}</div>
+                <div className="text-sm font-semibold text-foreground">
                   {section.score}/{section.maxScore}
                 </div>
-                <div className="h-1.5 w-full rounded-full bg-gray-200 overflow-hidden mt-1">
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden mt-1">
                   <div
                     className={`h-full rounded-full ${getBarColor(sectionPct)}`}
                     style={{ width: `${sectionPct}%` }}
@@ -176,12 +176,12 @@ export function Tier1CompletenessBar({ companyId, onRefreshRef, fetchFn }: Tier1
       {/* Missing fields list */}
       {!isComplete && missingFields.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-gray-700 mb-2">
+          <p className="text-xs font-medium text-foreground mb-2">
             To complete Tier 1, address the following:
           </p>
           <ul className="space-y-1">
             {missingFields.map((field, idx) => (
-              <li key={idx} className="text-xs text-gray-600 flex items-start gap-1.5">
+              <li key={idx} className="text-xs text-muted-foreground flex items-start gap-1.5">
                 <span className="mt-0.5 text-red-400 flex-shrink-0">&#x25CF;</span>
                 <span>{field}</span>
               </li>

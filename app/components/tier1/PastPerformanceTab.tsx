@@ -76,6 +76,19 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ---- Unsaved-changes guard ----
+  const [isDirty, setIsDirty] = useState(false);
+
+  const markDirty = useCallback(() => setIsDirty(true), []);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
   const [tagInput, setTagInput] = useState('');
   const [taskInput, setTaskInput] = useState('');
   const [toolInput, setToolInput] = useState('');
@@ -162,6 +175,7 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
       const data = await res.json();
       setContracts((prev) => prev.map((c) => (c.id === editingId ? data.contract : c)));
       setEditingId(null);
+      setIsDirty(false);
       onSaved();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Update failed');
@@ -189,6 +203,7 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
       setManualForm({ ...EMPTY_FORM });
       setShowManualForm(false);
       setSaveSuccess(true);
+      setIsDirty(false);
       setTimeout(() => setSaveSuccess(false), 3000);
       onSaved();
     } catch (err) {
@@ -252,9 +267,9 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
 
   return (
-    <div className="space-y-6 py-6">
+    <div className="space-y-6 py-6" onChange={markDirty}>
       {saveSuccess && (
-        <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <div className="flex items-center gap-2 rounded-lg border border-success/20 bg-success/10 p-3 text-sm text-success">
           <CheckCircle2 className="h-4 w-4" />
           Past performance record saved successfully.
         </div>
@@ -270,7 +285,7 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
 
         <div
           className={`relative rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
-            uploading ? 'border-blue-300 bg-blue-50/50' : 'border-border hover:border-primary/50 hover:bg-muted/30'
+            uploading ? 'border-primary/30 bg-primary/5' : 'border-border hover:border-primary/50 hover:bg-muted/30'
           }`}
           onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
           onDrop={(e) => {
@@ -312,13 +327,13 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
         </div>
 
         {uploadStatus && !uploading && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-green-700">
+          <div className="mt-3 flex items-center gap-2 text-sm text-success">
             <CheckCircle2 className="h-4 w-4" />
             {uploadStatus}
           </div>
         )}
         {uploadError && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-amber-700">
+          <div className="mt-3 flex items-center gap-2 text-sm text-warning-foreground">
             <AlertTriangle className="h-4 w-4" />
             {uploadError}
           </div>
@@ -386,7 +401,7 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleDelete(contract.id); }}
-                      className="p-1.5 rounded hover:bg-red-50"
+                      className="p-1.5 rounded hover:bg-destructive/10"
                       title="Delete"
                     >
                       <Trash2 className="h-4 w-4 text-red-500" />
@@ -494,7 +509,7 @@ function ContractDetails({ contract }: { contract: PastPerformance }) {
           <p className="text-xs font-medium text-muted-foreground mb-1">Relevance Tags</p>
           <div className="flex flex-wrap gap-1">
             {contract.relevance_tags.map((t, i) => (
-              <span key={i} className="rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 text-xs">{t}</span>
+              <span key={i} className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs">{t}</span>
             ))}
           </div>
         </div>
@@ -565,7 +580,7 @@ function ContractForm({
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div>
+        <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
       )}
 
       {/* Contract Identification */}
@@ -782,7 +797,7 @@ function ContractForm({
               </div>
               {form.achievements.length > 1 && (
                 <button type="button" onClick={() => setForm({ ...form, achievements: form.achievements.filter((_, j) => j !== i) })}
-                  className="self-end p-2 rounded hover:bg-red-50 text-red-500">
+                  className="self-end p-2 rounded hover:bg-destructive/10 text-destructive">
                   <Trash2 className="h-4 w-4" />
                 </button>
               )}
@@ -809,7 +824,7 @@ function ContractForm({
         </div>
         <div className="flex flex-wrap gap-1">
           {form.relevance_tags.map((t, i) => (
-            <span key={i} className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 px-2.5 py-1 text-xs">
+            <span key={i} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-1 text-xs">
               {t}
               <button type="button" onClick={() => removeFromList('relevance_tags', i)} className="hover:text-red-500">
                 <X className="h-3 w-3" />

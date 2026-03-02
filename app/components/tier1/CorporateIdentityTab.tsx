@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
 import {
@@ -105,6 +105,22 @@ export function CorporateIdentityTab({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // ---- Unsaved-changes guard ----
+  const [isDirty, setIsDirty] = useState(false);
+  const hydratedRef = useRef(false);
+
+  const markDirty = useCallback(() => {
+    if (hydratedRef.current) setIsDirty(true);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
   // ---- Initialize from initialData ----
   useEffect(() => {
     if (!initialData) return;
@@ -160,6 +176,8 @@ export function CorporateIdentityTab({
         email: initialData.authorized_signer.email || '',
       });
     }
+    setIsDirty(false);
+    requestAnimationFrame(() => { hydratedRef.current = true; });
   }, [initialData]);
 
   // ---- DBA helpers ----
@@ -167,10 +185,12 @@ export function CorporateIdentityTab({
     if (dbaInput.trim()) {
       setDbaNames([...dbaNames, dbaInput.trim()]);
       setDbaInput('');
+      markDirty();
     }
   };
   const removeDbaName = (idx: number) => {
     setDbaNames(dbaNames.filter((_, i) => i !== idx));
+    markDirty();
   };
 
   // ---- Socioeconomic cert helpers ----
@@ -178,6 +198,7 @@ export function CorporateIdentityTab({
     setSocioCerts((prev) =>
       prev.includes(cert) ? prev.filter((c) => c !== cert) : [...prev, cert]
     );
+    markDirty();
   };
 
   // ---- UEI blur validation + SAM check ----
@@ -289,6 +310,7 @@ export function CorporateIdentityTab({
       }
 
       setSaveSuccess(true);
+      setIsDirty(false);
       onSaved();
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
@@ -303,10 +325,10 @@ export function CorporateIdentityTab({
     if (!samStatusResult) return null;
     const colorClass =
       samStatusResult.status === 'Active'
-        ? 'bg-green-100 text-green-800 border-green-200'
+        ? 'bg-success/10 text-success border-success/30'
         : samStatusResult.status === 'Not Found'
-        ? 'bg-red-100 text-red-800 border-red-200'
-        : 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        ? 'bg-destructive/10 text-destructive border-destructive/30'
+        : 'bg-warning/10 text-warning-foreground border-warning/30';
     return (
       <span
         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${colorClass} ml-2`}
@@ -318,27 +340,27 @@ export function CorporateIdentityTab({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onChange={markDirty}>
       {/* Success / Error banners */}
       {saveSuccess && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-green-800 font-medium">Corporate Identity saved successfully.</p>
+        <div className="bg-success/10 border border-success/20 rounded-lg p-4">
+          <p className="text-success font-medium">Corporate Identity saved successfully.</p>
         </div>
       )}
       {saveError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{saveError}</p>
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+          <p className="text-destructive">{saveError}</p>
         </div>
       )}
 
       {/* Company Identity */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Company Identity</h2>
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-foreground mb-4">Company Identity</h2>
         <div className="space-y-4">
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Legal Entity Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -346,12 +368,12 @@ export function CorporateIdentityTab({
                 required
                 value={legalName}
                 onChange={(e) => setLegalName(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
                 placeholder="Acme Federal Solutions, LLC"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Company Name / DBA <span className="text-red-500">*</span>
               </label>
               <input
@@ -359,7 +381,7 @@ export function CorporateIdentityTab({
                 required
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
                 placeholder="Acme Federal"
               />
             </div>
@@ -367,17 +389,17 @@ export function CorporateIdentityTab({
 
           {/* Logo URL */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Company Logo URL</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Company Logo URL</label>
             <input
               type="url"
               value={logoUrl}
               onChange={(e) => setLogoUrl(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
               placeholder="https://example.com/logo.png"
             />
-            <p className="text-xs text-gray-500 mt-1">URL to your company logo. Used on proposal cover pages and headers.</p>
+            <p className="text-xs text-muted-foreground mt-1">URL to your company logo. Used on proposal cover pages and headers.</p>
             {logoUrl && (
-              <div className="mt-2 p-2 bg-gray-50 rounded-md inline-block">
+              <div className="mt-2 p-2 bg-muted/50 rounded-md inline-block">
                 <img
                   src={logoUrl}
                   alt="Logo preview"
@@ -392,13 +414,13 @@ export function CorporateIdentityTab({
 
           {/* Brand Colors */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Brand Colors</label>
-            <p className="text-xs text-gray-500 mb-3">
+            <label className="block text-sm font-medium text-foreground mb-1">Brand Colors</label>
+            <p className="text-xs text-muted-foreground mb-3">
               Used for proposal headings, table headers, callout boxes, and cover pages. Leave blank for default blue.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Primary Color</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Primary Color</label>
                 <div className="flex items-center gap-3">
                   <input
                     type="color"
@@ -410,20 +432,20 @@ export function CorporateIdentityTab({
                     type="text"
                     value={primaryColor}
                     onChange={(e) => setPrimaryColor(e.target.value.replace('#', ''))}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                    className="flex-1 px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent font-mono"
                     placeholder="2563eb"
                     maxLength={6}
                   />
                   {primaryColor && (
                     <div
-                      className="w-10 h-10 rounded border border-gray-200"
+                      className="w-10 h-10 rounded border border-border"
                       style={{ backgroundColor: `#${primaryColor}` }}
                     />
                   )}
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Secondary Color</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Secondary Color</label>
                 <div className="flex items-center gap-3">
                   <input
                     type="color"
@@ -435,13 +457,13 @@ export function CorporateIdentityTab({
                     type="text"
                     value={secondaryColor}
                     onChange={(e) => setSecondaryColor(e.target.value.replace('#', ''))}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                    className="flex-1 px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent font-mono"
                     placeholder="1e40af"
                     maxLength={6}
                   />
                   {secondaryColor && (
                     <div
-                      className="w-10 h-10 rounded border border-gray-200"
+                      className="w-10 h-10 rounded border border-border"
                       style={{ backgroundColor: `#${secondaryColor}` }}
                     />
                   )}
@@ -452,7 +474,7 @@ export function CorporateIdentityTab({
 
           {/* DBA Names */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">DBA Names (Doing Business As)</label>
+            <label className="block text-sm font-medium text-foreground mb-1">DBA Names (Doing Business As)</label>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
@@ -464,13 +486,13 @@ export function CorporateIdentityTab({
                     addDbaName();
                   }
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50"
                 placeholder="Enter a DBA name"
               />
               <button
                 type="button"
                 onClick={addDbaName}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
               >
                 Add
               </button>
@@ -479,13 +501,13 @@ export function CorporateIdentityTab({
               {dbaNames.map((name, idx) => (
                 <span
                   key={idx}
-                  className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm flex items-center gap-2"
+                  className="px-3 py-1 bg-muted text-foreground rounded-full text-sm flex items-center gap-2"
                 >
                   {name}
                   <button
                     type="button"
                     onClick={() => removeDbaName(idx)}
-                    className="text-gray-500 hover:text-gray-800"
+                    className="text-muted-foreground hover:text-foreground"
                   >
                     &times;
                   </button>
@@ -497,13 +519,13 @@ export function CorporateIdentityTab({
       </div>
 
       {/* Government Registration */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Government Registration</h2>
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-foreground mb-4">Government Registration</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
           {/* UEI */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               UEI Number <span className="text-red-500">*</span>
               {renderSamBadge()}
             </label>
@@ -515,19 +537,19 @@ export function CorporateIdentityTab({
               onChange={(e) => setUeiNumber(e.target.value.toUpperCase())}
               onBlur={handleUeiBlur}
               className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.uei_number ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                errors.uei_number ? 'border-destructive bg-destructive/10' : 'border-input bg-background'
               }`}
               placeholder="A1B2C3D4E5F6"
             />
-            <p className="text-xs text-gray-500 mt-1">12 alphanumeric characters — replaced DUNS in 2022. No letters O or I.</p>
+            <p className="text-xs text-muted-foreground mt-1">12 alphanumeric characters — replaced DUNS in 2022. No letters O or I.</p>
             {errors.uei_number && (
-              <p className="text-xs text-red-600 mt-1">{errors.uei_number}</p>
+              <p className="text-xs text-destructive mt-1">{errors.uei_number}</p>
             )}
           </div>
 
           {/* CAGE */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               CAGE Code <span className="text-red-500">*</span>
             </label>
             <input
@@ -538,23 +560,23 @@ export function CorporateIdentityTab({
               onChange={(e) => setCageCode(e.target.value.toUpperCase())}
               onBlur={handleCageBlur}
               className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.cage_code ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                errors.cage_code ? 'border-destructive bg-destructive/10' : 'border-input bg-background'
               }`}
               placeholder="1ABC2"
             />
-            <p className="text-xs text-gray-500 mt-1">5 alphanumeric characters</p>
+            <p className="text-xs text-muted-foreground mt-1">5 alphanumeric characters</p>
             {errors.cage_code && (
-              <p className="text-xs text-red-600 mt-1">{errors.cage_code}</p>
+              <p className="text-xs text-destructive mt-1">{errors.cage_code}</p>
             )}
           </div>
 
           {/* SAM Status */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">SAM Status</label>
+            <label className="block text-sm font-medium text-foreground mb-1">SAM Status</label>
             <select
               value={samStatus}
               onChange={(e) => setSamStatus(e.target.value as CompanyProfile['sam_status'])}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
             >
               <option value="Active">Active</option>
               <option value="Pending">Pending</option>
@@ -565,25 +587,25 @@ export function CorporateIdentityTab({
 
           {/* SAM Expiration */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">SAM Expiration Date</label>
+            <label className="block text-sm font-medium text-foreground mb-1">SAM Expiration Date</label>
             <input
               type="date"
               value={samExpiration}
               onChange={(e) => setSamExpiration(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
             />
           </div>
         </div>
       </div>
 
       {/* Business Classification */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Business Classification</h2>
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-foreground mb-4">Business Classification</h2>
         <div className="space-y-4">
 
           {/* Primary NAICS */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Primary NAICS Code <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-3">
@@ -595,7 +617,7 @@ export function CorporateIdentityTab({
                   onChange={(e) => setPrimaryNaics(e.target.value)}
                   onBlur={handleNaicsBlur}
                   className={`w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    errors.primary_naics ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                    errors.primary_naics ? 'border-destructive bg-destructive/10' : 'border-input bg-background'
                   }`}
                   placeholder="541511"
                 />
@@ -605,26 +627,26 @@ export function CorporateIdentityTab({
                   type="text"
                   value={primaryNaicsTitle}
                   onChange={(e) => setPrimaryNaicsTitle(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
                   placeholder="Custom Computer Programming Services"
                 />
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Primary 6-digit NAICS code. Additional NAICS codes can be added in Vehicles & Certifications.</p>
+            <p className="text-xs text-muted-foreground mt-1">Primary 6-digit NAICS code. Additional NAICS codes can be added in Vehicles & Certifications.</p>
             {errors.primary_naics && (
-              <p className="text-xs text-red-600 mt-1">{errors.primary_naics}</p>
+              <p className="text-xs text-destructive mt-1">{errors.primary_naics}</p>
             )}
           </div>
 
           {/* Business Size */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Business Size</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Business Size</label>
             <select
               value={businessSize || ''}
               onChange={(e) =>
                 setBusinessSize((e.target.value as CompanyProfile['business_size']) || undefined)
               }
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
             >
               <option value="">Select size...</option>
               <option value="Small">Small</option>
@@ -635,10 +657,10 @@ export function CorporateIdentityTab({
 
           {/* Socioeconomic Certifications */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <            label className="block text-sm font-medium text-foreground mb-2">
               Socioeconomic Certifications
             </label>
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-muted-foreground mb-3">
               Select all designations that apply. These drive set-aside eligibility filtering.
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -649,8 +671,8 @@ export function CorporateIdentityTab({
                     key={cert}
                     className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-colors ${
                       isChecked
-                        ? 'border-blue-500 bg-blue-50 text-blue-800'
-                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border bg-card text-foreground hover:bg-muted'
                     }`}
                   >
                     <input
@@ -661,7 +683,7 @@ export function CorporateIdentityTab({
                     />
                     <span
                       className={`w-4 h-4 flex-shrink-0 rounded border-2 flex items-center justify-center ${
-                        isChecked ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                        isChecked ? 'border-primary bg-primary' : 'border-border'
                       }`}
                     >
                       {isChecked && (
@@ -680,12 +702,12 @@ export function CorporateIdentityTab({
       </div>
 
       {/* Company Details */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Company Details</h2>
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-foreground mb-4">Company Details</h2>
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Year Founded <span className="text-red-500">*</span>
               </label>
               <input
@@ -695,11 +717,11 @@ export function CorporateIdentityTab({
                 max={new Date().getFullYear()}
                 value={yearFounded}
                 onChange={(e) => setYearFounded(parseInt(e.target.value, 10))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Employee Count <span className="text-red-500">*</span>
               </label>
               <input
@@ -708,47 +730,47 @@ export function CorporateIdentityTab({
                 min={1}
                 value={employeeCount}
                 onChange={(e) => setEmployeeCount(parseInt(e.target.value, 10))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Annual Revenue</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Annual Revenue</label>
               <input
                 type="number"
                 min={0}
                 step={0.01}
                 value={annualRevenue}
                 onChange={(e) => setAnnualRevenue(parseFloat(e.target.value))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
                 placeholder="Most recent fiscal year"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fiscal Year End</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Fiscal Year End</label>
               <input
                 type="text"
                 value={fiscalYearEnd}
                 onChange={(e) => setFiscalYearEnd(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
                 placeholder="December 31"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Website</label>
             <input
               type="url"
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
               placeholder="https://www.acmefederal.com"
             />
           </div>
 
           {/* Headquarters Address */}
           <div>
-            <h3 className="font-medium text-gray-800 mb-3">Headquarters Address</h3>
+            <h3 className="font-medium text-foreground mb-3">Headquarters Address</h3>
             <div className="space-y-3">
               <input
                 type="text"
@@ -757,7 +779,7 @@ export function CorporateIdentityTab({
                 onChange={(e) =>
                   setHeadquartersAddress({ ...headquartersAddress, street: e.target.value })
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
               />
               <input
                 type="text"
@@ -766,7 +788,7 @@ export function CorporateIdentityTab({
                 onChange={(e) =>
                   setHeadquartersAddress({ ...headquartersAddress, suite: e.target.value })
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input bg-background rounded-md focus:ring-2 focus:ring-primary/50 focus:border-transparent"
               />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <input
@@ -807,12 +829,12 @@ export function CorporateIdentityTab({
       </div>
 
       {/* Primary Contacts */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Primary Contacts</h2>
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-xl font-semibold text-foreground mb-4">Primary Contacts</h2>
 
         {/* Proposal POC */}
         <div className="mb-6">
-          <h3 className="font-medium text-gray-800 mb-3">Proposal Point of Contact</h3>
+          <h3 className="font-medium text-foreground mb-3">Proposal Point of Contact</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="text"
@@ -847,7 +869,7 @@ export function CorporateIdentityTab({
 
         {/* Contracts POC */}
         <div className="mb-6">
-          <h3 className="font-medium text-gray-800 mb-3">Contracts Point of Contact (Optional)</h3>
+          <h3 className="font-medium text-foreground mb-3">Contracts Point of Contact (Optional)</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="text"
@@ -882,8 +904,8 @@ export function CorporateIdentityTab({
 
         {/* Authorized Signer */}
         <div>
-          <h3 className="font-medium text-gray-800 mb-1">Authorized Signer</h3>
-          <p className="text-sm text-gray-500 mb-3">Person authorized to bind company to contracts</p>
+          <h3 className="font-medium text-foreground mb-1">Authorized Signer</h3>
+          <p className="text-sm text-muted-foreground mb-3">Person authorized to bind company to contracts</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <input
               type="text"
@@ -922,7 +944,7 @@ export function CorporateIdentityTab({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="bg-blue-600 text-white px-8 py-3 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
+          className="bg-primary text-primary-foreground px-8 py-3 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
         >
           {saving ? 'Saving...' : 'Save Corporate Identity'}
         </button>
