@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
+import Image from 'next/image';
 import { Tier1TabLayout, type Tab } from '@/app/components/tier1/Tier1TabLayout';
 import { CorporateIdentityTab } from '@/app/components/tier1/CorporateIdentityTab';
 import { VehiclesCertificationsTab } from '@/app/components/tier1/VehiclesCertificationsTab';
@@ -9,7 +10,7 @@ import { CapabilitiesPositioningTab } from '@/app/components/tier1/CapabilitiesP
 import { PastPerformanceTab } from '@/app/components/tier1/PastPerformanceTab';
 import { Tier1CompletenessBar } from '@/app/components/tier1/Tier1CompletenessBar';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
-import { FileText, Shield, CheckCircle2 } from 'lucide-react';
+import { Shield, CheckCircle2 } from 'lucide-react';
 
 const TABS: Tab[] = [
   { id: 'corporate-identity', label: 'Corporate Identity' },
@@ -79,10 +80,10 @@ export default function PublicIntakePage() {
 
   if (state === 'loading') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-2 border-blue-600 border-t-transparent mx-auto mb-4" />
-          <p className="text-slate-500">Loading your intake form...</p>
+          <div className="h-12 w-12 animate-spin rounded-full border-2 border-primary border-t-transparent mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading your intake form...</p>
         </div>
       </div>
     );
@@ -90,15 +91,15 @@ export default function PublicIntakePage() {
 
   if (state === 'error') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full">
-          <div className="rounded-xl border border-red-200 bg-white shadow-lg p-8 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 mx-auto mb-4">
-              <Shield className="h-8 w-8 text-red-600" />
+          <div className="rounded-xl border border-destructive/30 bg-card shadow-lg p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10 mx-auto mb-4">
+              <Shield className="h-8 w-8 text-destructive" />
             </div>
-            <h1 className="text-xl font-bold text-slate-900 mb-2">Unable to Access Form</h1>
-            <p className="text-slate-600 mb-6">{error}</p>
-            <p className="text-sm text-slate-400">
+            <h1 className="text-xl font-bold text-foreground mb-2">Unable to Access Form</h1>
+            <p className="text-muted-foreground mb-6">{error}</p>
+            <p className="text-sm text-muted-foreground/60">
               If you believe this is an error, please contact the person who sent you this link.
             </p>
           </div>
@@ -108,20 +109,25 @@ export default function PublicIntakePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md">
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-card/80 backdrop-blur-md">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
-                <FileText className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Enterprise Profile Intake</p>
-                <p className="text-xs text-slate-500">{companyName}</p>
+          <div className="flex h-32 items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Image
+                src="/ClicklessAI.png"
+                alt="ClicklessAI"
+                width={520}
+                height={130}
+                className="h-32 w-auto"
+                priority
+              />
+              <div className="hidden sm:block border-l border-border pl-4">
+                <p className="text-sm font-semibold text-foreground">Enterprise Profile Intake</p>
+                <p className="text-xs text-muted-foreground">{companyName}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Shield className="h-3.5 w-3.5" />
               Secure link
             </div>
@@ -131,25 +137,25 @@ export default function PublicIntakePage() {
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
             Enterprise Profile
           </h1>
-          <p className="text-slate-500 text-sm">
+          <p className="text-muted-foreground text-sm">
             Please complete the sections below. Your data is saved automatically when you click Save on each section.
             You can return to this link at any time to update your information.
           </p>
         </div>
 
-        <div className="mb-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
-            <div className="flex gap-3">
-            <CheckCircle2 className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm text-blue-800">
+        <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <div className="flex gap-3">
+            <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-foreground">
               <p className="font-medium mb-1">Four sections to complete:</p>
-              <ol className="list-decimal list-inside space-y-0.5 text-blue-700">
-                <li><strong>Corporate Identity</strong> — Company name, registration, contacts, and classification</li>
-                <li><strong>Vehicles & Certifications</strong> — Contract vehicles, ISO/CMMI, DCAA, and clearances</li>
-                <li><strong>Past Performance</strong> — Upload documents or manually enter contract history</li>
-                <li><strong>Capabilities & Positioning</strong> — Corporate overview, services, win themes, and differentiators (AI-assisted)</li>
+              <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
+                <li><strong className="text-foreground">Corporate Identity</strong> — Company name, registration, contacts, and classification</li>
+                <li><strong className="text-foreground">Vehicles & Certifications</strong> — Contract vehicles, ISO/CMMI, DCAA, and clearances</li>
+                <li><strong className="text-foreground">Past Performance</strong> — Upload documents or manually enter contract history</li>
+                <li><strong className="text-foreground">Capabilities & Positioning</strong> — Corporate overview, services, win themes, and differentiators (AI-assisted)</li>
               </ol>
             </div>
           </div>
@@ -199,7 +205,7 @@ export default function PublicIntakePage() {
           </Tier1TabLayout>
         )}
 
-        <div className="mt-12 border-t border-slate-200 pt-6 text-center text-xs text-slate-400">
+        <div className="mt-12 border-t border-border pt-6 text-center text-xs text-muted-foreground">
           <p>This is a secure intake form. Your data is encrypted in transit and at rest.</p>
           <p className="mt-1">If you have questions, please contact your proposal representative.</p>
         </div>

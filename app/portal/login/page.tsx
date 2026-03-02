@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { FileText } from "lucide-react";
 
 export default function PortalLoginPage() {
   const router = useRouter();
@@ -37,12 +37,19 @@ export default function PortalLoginPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-8">
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <FileText className="h-7 w-7 text-primary-foreground" />
+        <div className="flex flex-col items-center gap-4">
+          <Image
+            src="/ClicklessAI.png"
+            alt="ClicklessAI"
+            width={520}
+            height={130}
+            className="h-32 w-auto"
+            priority
+          />
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-foreground">Client portal sign in</h1>
+            <p className="text-sm text-muted-foreground">View proposal status and complete onboarding</p>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Client portal sign in</h1>
-          <p className="text-sm text-muted-foreground">View proposal status and complete onboarding</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
