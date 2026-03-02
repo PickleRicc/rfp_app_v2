@@ -59,6 +59,10 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
   const { fetchWithCompany } = useFetchWithCompany();
   const doFetch: FetchFn = fetchFn || fetchWithCompany;
 
+  // Stable ref so fetchContracts never changes identity when doFetch re-creates
+  const doFetchRef = useRef(doFetch);
+  useEffect(() => { doFetchRef.current = doFetch; }, [doFetch]);
+
   const [contracts, setContracts] = useState<PastPerformance[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -99,7 +103,7 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
   const fetchContracts = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await doFetch('/api/company/past-performance');
+      const res = await doFetchRef.current('/api/company/past-performance');
       const data = await res.json();
       setContracts(data.contracts || []);
     } catch (err) {
@@ -107,7 +111,7 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
     } finally {
       setLoading(false);
     }
-  }, [doFetch]);
+  }, []);
 
   useEffect(() => {
     if (companyId) fetchContracts();
@@ -116,7 +120,7 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this past performance record?')) return;
     try {
-      await doFetch(`/api/company/past-performance/${id}`, { method: 'DELETE' });
+      await doFetchRef.current(`/api/company/past-performance/${id}`, { method: 'DELETE' });
       setContracts((prev) => prev.filter((c) => c.id !== id));
       onSaved();
     } catch (err) {
@@ -166,7 +170,7 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await doFetch(`/api/company/past-performance/${editingId}`, {
+      const res = await doFetchRef.current(`/api/company/past-performance/${editingId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm),
@@ -189,7 +193,7 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await doFetch('/api/company/past-performance', {
+      const res = await doFetchRef.current('/api/company/past-performance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(manualForm),
@@ -231,7 +235,7 @@ export function PastPerformanceTab({ companyId, onSaved, fetchFn }: PastPerforma
         ? '/api/company/past-performance/upload'
         : '/api/company/past-performance/upload';
 
-      const res = await doFetch(uploadUrl, {
+      const res = await doFetchRef.current(uploadUrl, {
         method: 'POST',
         body: fd,
       });
