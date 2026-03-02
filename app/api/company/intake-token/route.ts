@@ -85,25 +85,8 @@ export async function POST(request: NextRequest) {
         .from("company_profiles")
         .insert({
           company_name: trimmedName,
-          legal_name: trimmedName,
-          dba_names: [],
-          cage_code: null,
-          uei_number: null,
-          sam_status: "Not Registered",
-          sam_expiration: null,
-          year_founded: new Date().getFullYear(),
-          headquarters_address: { street: "", city: "", state: "", zip: "", country: "USA" },
-          additional_offices: [],
-          website: null,
-          employee_count: 1,
-          annual_revenue: null,
-          fiscal_year_end: null,
-          proposal_poc: { name: "", title: "", email: "", phone: "" },
-          authorized_signer: { name: "", title: "", email: "" },
-          elevator_pitch: null,
-          core_values: [],
-          completeness_score: 0,
           tier1_complete: false,
+          completeness_score: 0,
         })
         .select()
         .single();
