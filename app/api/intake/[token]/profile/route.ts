@@ -4,6 +4,25 @@ import { validateIntakeToken } from "@/lib/intake/validate-token";
 import { validateUEI, validateCAGE } from "@/lib/validation/tier1-validators";
 import { isTier1Complete } from "@/lib/validation/tier1-completeness";
 
+/** Fields that external clients are allowed to update via the public intake form. */
+const ALLOWED_PROFILE_FIELDS = new Set([
+  // Corporate Identity
+  'legal_name', 'company_name', 'dba_names', 'logo_url',
+  'primary_color', 'secondary_color',
+  'uei_number', 'cage_code', 'sam_status', 'sam_expiration',
+  'primary_naics', 'primary_naics_title', 'business_size', 'socioeconomic_certs',
+  'year_founded', 'employee_count', 'annual_revenue', 'fiscal_year_end',
+  'website', 'headquarters_address',
+  'proposal_poc', 'contracts_poc', 'authorized_signer',
+  // Vehicles & Certifications (JSONB fields saved to profile)
+  'iso_cmmi_status', 'dcaa_approved_systems',
+  // Capabilities & Positioning
+  'corporate_overview', 'core_services_summary', 'enterprise_win_themes',
+  'key_differentiators_summary', 'standard_management_approach',
+  'elevator_pitch', 'full_description',
+  'mission_statement', 'vision_statement', 'core_values',
+]);
+
 /**
  * GET /api/intake/[token]/profile
  * Public. Load company profile via intake token.
@@ -57,9 +76,17 @@ export async function PUT(
   }
 
   try {
-    const body = await request.json();
+    const rawBody = await request.json();
     const supabase = getServerClient();
     const companyId = result.companyId;
+
+    // Strip any fields not in the allowlist to prevent mass assignment
+    const body: Record<string, unknown> = {};
+    for (const key of Object.keys(rawBody)) {
+      if (ALLOWED_PROFILE_FIELDS.has(key)) {
+        body[key] = rawBody[key];
+      }
+    }
 
     const DATE_FIELDS = [
       'sam_expiration', 'fiscal_year_end', 'ordering_period_end',

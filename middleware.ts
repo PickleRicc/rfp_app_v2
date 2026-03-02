@@ -9,10 +9,15 @@ const PORTAL_LOGIN = "/portal/login";
 const LOGIN = "/login";
 const AUTH_CALLBACK = "/auth/callback";
 const INNGEST_PATH = "/api/inngest";
+const INTAKE_API_PREFIX = "/api/intake/";
 
-/** Routes that must not require user auth (e.g. webhooks with their own auth). */
+/** Routes that must not require user auth (e.g. webhooks with their own auth, token-based intake). */
 function isExcludedApiPath(pathname: string): boolean {
-  return pathname === INNGEST_PATH || pathname.startsWith(`${INNGEST_PATH}/`);
+  return (
+    pathname === INNGEST_PATH ||
+    pathname.startsWith(`${INNGEST_PATH}/`) ||
+    pathname.startsWith(INTAKE_API_PREFIX)
+  );
 }
 
 function isStaffPath(pathname: string): boolean {
