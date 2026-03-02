@@ -276,7 +276,7 @@ export function CorporateIdentityTab({
         uei_number: ueiNumber,
         cage_code: cageCode,
         sam_status: samStatus,
-        sam_expiration: samExpiration,
+        sam_expiration: samExpiration || null,
 
         // Business Classification
         primary_naics: primaryNaics,
@@ -288,7 +288,7 @@ export function CorporateIdentityTab({
         year_founded: yearFounded,
         employee_count: employeeCount,
         annual_revenue: annualRevenue,
-        fiscal_year_end: fiscalYearEnd,
+        fiscal_year_end: fiscalYearEnd || null,
         website: website,
         headquarters_address: headquartersAddress,
 

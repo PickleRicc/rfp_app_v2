@@ -61,6 +61,15 @@ export async function PUT(
     const supabase = getServerClient();
     const companyId = result.companyId;
 
+    const DATE_FIELDS = [
+      'sam_expiration', 'fiscal_year_end', 'ordering_period_end',
+      'start_date', 'end_date', 'effective_date', 'expiration_date',
+      'investigation_date', 'resume_last_updated',
+    ];
+    for (const f of DATE_FIELDS) {
+      if (f in body && body[f] === '') body[f] = null;
+    }
+
     if (body.uei_number !== undefined) {
       const ueiResult = validateUEI(body.uei_number);
       if (!ueiResult.valid) {

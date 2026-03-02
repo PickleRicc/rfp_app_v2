@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         cage_code: body.cage_code,
         uei_number: body.uei_number,
         sam_status: body.sam_status,
-        sam_expiration: body.sam_expiration,
+        sam_expiration: body.sam_expiration || null,
         year_founded: body.year_founded,
         headquarters_address: body.headquarters_address,
         additional_offices: body.additional_offices || [],
@@ -142,6 +142,15 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
     const supabase = getServerClient();
+
+    const DATE_FIELDS = [
+      'sam_expiration', 'fiscal_year_end', 'ordering_period_end',
+      'start_date', 'end_date', 'effective_date', 'expiration_date',
+      'investigation_date', 'resume_last_updated',
+    ];
+    for (const f of DATE_FIELDS) {
+      if (f in body && body[f] === '') body[f] = null;
+    }
 
     // === SERVER-SIDE VALIDATION FOR TIER 1 REGISTRATION FIELDS ===
     // Validate UEI format if present in the update body
