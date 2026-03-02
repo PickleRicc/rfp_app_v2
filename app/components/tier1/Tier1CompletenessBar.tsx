@@ -102,7 +102,7 @@ export function Tier1CompletenessBar({ companyId, onRefreshRef, fetchFn }: Tier1
 
   if (!status) return null;
 
-  const { completeness, missingFields, isComplete } = status;
+  const { completeness, isComplete } = status;
   const { score, sections } = completeness;
 
   return (
@@ -173,22 +173,6 @@ export function Tier1CompletenessBar({ companyId, onRefreshRef, fetchFn }: Tier1
         </div>
       )}
 
-      {/* Missing fields list */}
-      {!isComplete && missingFields.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-foreground mb-2">
-            To complete Tier 1, address the following:
-          </p>
-          <ul className="space-y-1">
-            {missingFields.map((field, idx) => (
-              <li key={idx} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                <span className="mt-0.5 text-red-400 flex-shrink-0">&#x25CF;</span>
-                <span>{field}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
