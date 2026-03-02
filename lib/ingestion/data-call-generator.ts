@@ -26,6 +26,34 @@ import type {
   DataCallSection,
   DataCallFormField,
 } from '@/lib/supabase/tier2-types';
+import type { ISOCMMIStatus } from '@/lib/supabase/company-types';
+
+// ===== COMPANY INTAKE DATA =====
+
+/**
+ * Subset of Tier 1 company profile data relevant to data call pre-filling.
+ * Fetched once when companyId is provided, then passed to section builders
+ * so they can pre-fill fields from company intake data.
+ */
+interface CompanyIntakeData {
+  // Facility clearance
+  has_facility_clearance?: boolean | null;
+  clearance_level?: string | null;
+  sponsoring_agency?: string | null;
+  cage_code_cleared?: string | null;
+
+  // Registration & NAICS
+  primary_naics?: string | null;
+  primary_naics_title?: string | null;
+  cage_code?: string | null;
+
+  // Certifications
+  iso_cmmi_status?: ISOCMMIStatus | null;
+
+  // Socioeconomic
+  socioeconomic_certs?: string[] | null;
+  business_size?: string | null;
+}
 
 // ===== HELPERS =====
 
@@ -89,10 +117,12 @@ function buildCitation(
 
 /**
  * Section 1: Opportunity Details
- * Static fields pre-filled from admin_data extraction results.
+ * Static fields pre-filled from admin_data extraction results
+ * and Tier 1 company intake data (NAICS, socioeconomic certs).
  */
 function buildOpportunityDetailsSection(
-  extractions: ComplianceExtraction[]
+  extractions: ComplianceExtraction[],
+  companyData?: CompanyIntakeData | null
 ): DataCallSection {
   const naicsValue = getExtractionValue<string>(extractions, 'admin_data', 'naics_code');
   const sizeValue = getExtractionValue<string>(extractions, 'admin_data', 'size_standard');
@@ -132,8 +162,10 @@ function buildOpportunityDetailsSection(
       type:          'text',
       required:      true,
       rfp_citation:  buildCitation(extractions, 'admin_data', 'naics_code'),
-      default_value: naicsValue ?? undefined,
-      placeholder:   'e.g., 541330',
+      default_value: naicsValue ?? companyData?.primary_naics ?? undefined,
+      placeholder:   companyData?.primary_naics
+        ? `Company NAICS: ${companyData.primary_naics}${companyData.primary_naics_title ? ` (${companyData.primary_naics_title})` : ''}`
+        : 'e.g., 541330',
     },
     {
       key:           'size_standard',
@@ -142,7 +174,9 @@ function buildOpportunityDetailsSection(
       required:      false,
       rfp_citation:  buildCitation(extractions, 'admin_data', 'size_standard'),
       default_value: sizeValue ?? undefined,
-      placeholder:   'e.g., $47M',
+      placeholder:   companyData?.business_size
+        ? `Company size: ${companyData.business_size}`
+        : 'e.g., $47M',
     },
     {
       key:           'set_aside',
@@ -150,8 +184,12 @@ function buildOpportunityDetailsSection(
       type:          'text',
       required:      false,
       rfp_citation:  buildCitation(extractions, 'admin_data', 'set_aside_designation'),
-      default_value: setAsideValue ?? undefined,
-      placeholder:   'e.g., SDVOSB, 8(a), Full & Open',
+      default_value: setAsideValue ?? (companyData?.socioeconomic_certs && companyData.socioeconomic_certs.length > 0
+        ? companyData.socioeconomic_certs[0]
+        : undefined),
+      placeholder:   companyData?.socioeconomic_certs && companyData.socioeconomic_certs.length > 0
+        ? `Company certs: ${companyData.socioeconomic_certs.join(', ')}`
+        : 'e.g., SDVOSB, 8(a), Full & Open',
     },
   ];
 
@@ -487,12 +525,14 @@ function buildTechnicalApproachSection(
 
 /**
  * Section 5: Compliance Verification
- * Driven by security_reqs and section_l extractions.
+ * Driven by security_reqs and section_l extractions, enriched with
+ * Tier 1 company intake data (facility clearance, ISO/CMMI certs).
  * Generates boolean toggles for org certs, clearance confirmation,
  * NIST score field, and file slots for required attachments.
  */
 function buildComplianceVerificationSection(
-  extractions: ComplianceExtraction[]
+  extractions: ComplianceExtraction[],
+  companyData?: CompanyIntakeData | null
 ): DataCallSection {
   // Security requirements
   const dd254Required = getExtractionValue<boolean | string>(
@@ -538,10 +578,23 @@ function buildComplianceVerificationSection(
   const fields: DataCallFormField[] = [];
 
   // Organizational certifications — boolean toggles per cert found
+  // Pre-fill from Tier 1 company intake ISO/CMMI status
   const certOptions: string[] = [];
   if (cmmcLevel) certOptions.push(`CMMC Level ${cmmcLevel}`);
   if (cmmcLevel && parseInt(cmmcLevel, 10) >= 3) certOptions.push('ISO 27001');
   certOptions.push('ISO 9001', 'CMMI Level 3');
+
+  // Build pre-fill hints from Tier 1 company intake
+  const companyHeldCerts: string[] = [];
+  if (companyData?.iso_cmmi_status) {
+    const iso = companyData.iso_cmmi_status;
+    if (iso.iso_9001) companyHeldCerts.push('ISO 9001');
+    if (iso.iso_27001) companyHeldCerts.push('ISO 27001');
+    if (iso.iso_20000) companyHeldCerts.push('ISO 20000');
+    if (iso.cmmi_dev_level && iso.cmmi_dev_level >= 3) companyHeldCerts.push(`CMMI DEV Level ${iso.cmmi_dev_level}`);
+    if (iso.cmmi_svc_level && iso.cmmi_svc_level >= 3) companyHeldCerts.push(`CMMI SVC Level ${iso.cmmi_svc_level}`);
+    if (iso.itil_certified) companyHeldCerts.push('ITIL Certified');
+  }
 
   fields.push({
     key:          'org_certifications',
@@ -550,7 +603,9 @@ function buildComplianceVerificationSection(
     required:     false,
     rfp_citation: buildCitation(extractions, 'security_reqs', 'cmmc_level'),
     options:      certOptions,
-    placeholder:  'Check all certifications your organization currently holds',
+    placeholder:  companyHeldCerts.length > 0
+      ? `Company intake: ${companyHeldCerts.join(', ')}. Check all that apply.`
+      : 'Check all certifications your organization currently holds',
   });
 
   fields.push({
@@ -562,18 +617,59 @@ function buildComplianceVerificationSection(
     placeholder:  'List certifications held by proposed personnel (e.g., CISSP, PMP, AWS SA Pro)',
   });
 
-  // Facility clearance — required when DD254 is required
-  const clearanceRequired = dd254Required === true || dd254Required === 'true' || dd254Required === 'yes';
+  // Facility clearance — required when DD254 is required or clearance levels specified
+  const clearanceRequired = dd254Required === true || dd254Required === 'true' || dd254Required === 'yes'
+    || (clearanceLevels && clearanceLevels.length > 0);
+
+  // Pre-fill from Tier 1 company intake: if company has confirmed clearance in intake,
+  // auto-set the confirmation toggle and show their clearance level
+  const companyHasClearance = companyData?.has_facility_clearance === true;
+  const companyClearanceLevel = companyData?.clearance_level ?? null;
+
   fields.push({
-    key:          'facility_clearance_confirmed',
-    label:        'Facility Clearance Confirmed',
-    type:         'boolean',
-    required:     clearanceRequired,
-    rfp_citation: buildCitation(extractions, 'security_reqs', 'dd254_required'),
-    placeholder:  clearanceLevels && clearanceLevels.length > 0
-      ? `Confirm facility clearance at ${clearanceLevels[0]} level or above`
-      : 'Confirm facility clearance status',
+    key:           'facility_clearance_confirmed',
+    label:         'Facility Clearance Confirmed',
+    type:          'boolean',
+    required:      !!clearanceRequired,
+    rfp_citation:  buildCitation(extractions, 'security_reqs', 'dd254_required'),
+    default_value: companyHasClearance ? true : undefined,
+    placeholder:   companyHasClearance && companyClearanceLevel
+      ? `Company intake: ${companyClearanceLevel} clearance confirmed${clearanceLevels && clearanceLevels.length > 0 ? ` — RFP requires ${clearanceLevels[0]}` : ''}`
+      : clearanceLevels && clearanceLevels.length > 0
+        ? `Confirm facility clearance at ${clearanceLevels[0]} level or above`
+        : 'Confirm facility clearance status',
   });
+
+  // Facility clearance level — pre-filled from Tier 1 intake, required when RFP specifies clearance
+  if (clearanceRequired || companyHasClearance) {
+    fields.push({
+      key:           'facility_clearance_level',
+      label:         'Facility Clearance Level',
+      type:          'select',
+      required:      !!clearanceRequired,
+      rfp_citation:  buildCitation(extractions, 'security_reqs', 'clearance_levels'),
+      options:       ['Confidential', 'Secret', 'Top Secret', 'Top Secret/SCI'],
+      default_value: companyClearanceLevel ?? undefined,
+      placeholder:   companyClearanceLevel
+        ? `Company intake: ${companyClearanceLevel}${clearanceLevels && clearanceLevels.length > 0 ? ` — RFP requires: ${clearanceLevels.join(', ')}` : ''}`
+        : clearanceLevels && clearanceLevels.length > 0
+          ? `RFP requires: ${clearanceLevels.join(', ')}. Select your current level.`
+          : 'Select your current facility clearance level',
+    });
+  }
+
+  // Sponsoring agency — pre-filled from Tier 1 intake when clearance exists
+  if ((clearanceRequired || companyHasClearance) && companyData?.sponsoring_agency) {
+    fields.push({
+      key:           'facility_clearance_sponsoring_agency',
+      label:         'Sponsoring Agency',
+      type:          'text',
+      required:      false,
+      rfp_citation:  null,
+      default_value: companyData.sponsoring_agency,
+      placeholder:   `Company intake: ${companyData.sponsoring_agency}`,
+    });
+  }
 
   // NIST 800-171 score — required when nist_800_171_required
   const nistIsRequired = nistRequired === true || nistRequired === 'true' || nistRequired === 'yes';
@@ -910,14 +1006,20 @@ function buildTechnologySelectionSection(
  * then builds a 5-section schema with RFP-specific field counts, pre-filled values,
  * and source citations.
  *
+ * When companyId is provided, also fetches Tier 1 company intake data to pre-fill
+ * fields like facility clearance level, NAICS code, certifications, and socioeconomic
+ * designations — bridging the gap between Tier 1 intake and Tier 2 data call.
+ *
  * Returns a best-effort schema using sensible defaults when extractions are
  * absent or incomplete. Never throws — errors are caught and logged.
  *
  * @param solicitationId  UUID of the solicitation to generate the schema for
+ * @param companyId       Optional UUID of the company for Tier 1 pre-fill
  * @returns               DataCallFormSchema ready to be returned to the UI and cached
  */
 export async function generateDataCallSchema(
-  solicitationId: string
+  solicitationId: string,
+  companyId?: string
 ): Promise<DataCallFormSchema> {
   const supabase = getServerClient();
 
@@ -937,13 +1039,36 @@ export async function generateDataCallSchema(
 
   const rows: ComplianceExtraction[] = extractions ?? [];
 
+  // Fetch Tier 1 company intake data for pre-filling when companyId is available
+  let companyData: CompanyIntakeData | null = null;
+  if (companyId) {
+    const { data: profile, error: profileError } = await supabase
+      .from('company_profiles')
+      .select(
+        'has_facility_clearance, clearance_level, sponsoring_agency, cage_code_cleared, ' +
+        'primary_naics, primary_naics_title, cage_code, ' +
+        'iso_cmmi_status, socioeconomic_certs, business_size'
+      )
+      .eq('id', companyId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('[data-call-generator] Failed to fetch company profile:', profileError);
+    }
+
+    if (profile) {
+      companyData = profile as CompanyIntakeData;
+    }
+  }
+
   // Build the core 5 sections + optional new sections
+  // Pass company intake data to sections that benefit from Tier 1 pre-fill
   const sections: DataCallSection[] = [
-    buildOpportunityDetailsSection(rows),
+    buildOpportunityDetailsSection(rows, companyData),
     buildPastPerformanceSection(rows),
     buildKeyPersonnelSection(rows),
     buildTechnicalApproachSection(rows),
-    buildComplianceVerificationSection(rows),
+    buildComplianceVerificationSection(rows, companyData),
   ];
 
   // Append new v2 sections when extraction data exists

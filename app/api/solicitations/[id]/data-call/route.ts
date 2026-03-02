@@ -77,7 +77,8 @@ export async function GET(
     }
 
     // Generate the RFP-specific form schema from compliance extractions
-    const schema = await generateDataCallSchema(solicitationId);
+    // Pass companyId to enable Tier 1 company intake pre-fill (facility clearance, certs, NAICS)
+    const schema = await generateDataCallSchema(solicitationId, companyId);
 
     // Fetch any existing saved data call response for this solicitation + company
     const { data: response, error: responseError } = await supabase
