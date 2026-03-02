@@ -114,7 +114,7 @@ export function Header() {
               <Button
                 variant="outline"
                 className="hidden gap-2 sm:flex"
-                onClick={() => router.push("/company/profile/new")}
+                onClick={() => router.push("/company?newIntake=1")}
               >
                 <Plus className="h-4 w-4" />
                 Add Company
@@ -171,7 +171,7 @@ export function Header() {
                     Manage companies
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => router.push("/company/profile/new")}
+                    onClick={() => router.push("/company?newIntake=1")}
                   >
                     + New Company
                   </DropdownMenuItem>

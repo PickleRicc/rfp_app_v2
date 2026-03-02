@@ -52,7 +52,7 @@ export default function CompanySelector() {
           <span className="text-sm text-yellow-800">No companies yet</span>
         </div>
         <button
-          onClick={() => router.push('/company/profile/new')}
+          onClick={() => router.push('/company?newIntake=1')}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
         >
           + Create First Company
@@ -167,7 +167,7 @@ export default function CompanySelector() {
               </button>
               <button
                 onClick={() => {
-                  router.push('/company/profile/new');
+                  router.push('/company?newIntake=1');
                   setIsOpen(false);
                 }}
                 className="flex-1 px-3 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700"

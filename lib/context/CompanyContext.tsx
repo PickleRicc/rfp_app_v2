@@ -106,10 +106,19 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   );
 }
 
+const NOOP_CONTEXT: CompanyContextType = {
+  selectedCompanyId: null,
+  selectedCompany: null,
+  companies: [],
+  selectCompany: () => {},
+  refreshCompanies: async () => {},
+  loading: false,
+};
+
 export function useCompany() {
   const context = useContext(CompanyContext);
   if (context === undefined) {
-    throw new Error('useCompany must be used within a CompanyProvider');
+    return NOOP_CONTEXT;
   }
   return context;
 }

@@ -38,7 +38,7 @@ export default function CompaniesListPage() {
               Manage and switch between your registered companies
             </p>
           </div>
-          <Button className="gap-2" onClick={() => router.push("/company/profile/new")}>
+          <Button className="gap-2" onClick={() => router.push("/company?newIntake=1")}>
             <Plus className="h-4 w-4" />
             Add Company
           </Button>
@@ -70,7 +70,7 @@ export default function CompaniesListPage() {
                 : "Try adjusting your search criteria"}
             </p>
             {companies.length === 0 && (
-              <Button onClick={() => router.push("/company/profile/new")} className="gap-2">
+              <Button onClick={() => router.push("/company?newIntake=1")} className="gap-2">
                 <Plus className="h-4 w-4" />
                 Create First Company
               </Button>

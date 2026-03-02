@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   Building2,
@@ -36,9 +36,18 @@ interface CompletenessScore {
   total: number;
 }
 
-export default function CompanyDashboard() {
+export default function CompanyDashboardPage() {
+  return (
+    <Suspense>
+      <CompanyDashboard />
+    </Suspense>
+  );
+}
+
+function CompanyDashboard() {
   const router = useRouter();
-  const { selectedCompany, selectedCompanyId } = useCompany();
+  const searchParams = useSearchParams();
+  const { selectedCompany, selectedCompanyId, refreshCompanies } = useCompany();
   const { fetchWithCompany } = useFetchWithCompany();
   const [loading, setLoading] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
@@ -56,6 +65,13 @@ export default function CompanyDashboard() {
   } | null>(null);
 
   const [intakeLinkOpen, setIntakeLinkOpen] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('newIntake') === '1') {
+      setIntakeLinkOpen(true);
+      router.replace('/company', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (selectedCompanyId) {
@@ -106,16 +122,16 @@ export default function CompanyDashboard() {
               </h1>
               <p className="text-muted-foreground">Manage company information for proposal generation</p>
             </div>
-            {selectedCompany && hasProfile && (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => setIntakeLinkOpen(true)}
-                >
-                  <Link2 className="h-4 w-4" />
-                  Share intake link
-                </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => setIntakeLinkOpen(true)}
+              >
+                <Link2 className="h-4 w-4" />
+                Share intake link
+              </Button>
+              {selectedCompany && hasProfile && (
                 <Button
                   variant="outline"
                   className="gap-2"
@@ -130,16 +146,17 @@ export default function CompanyDashboard() {
                   <UserPlus className="h-4 w-4" />
                   Invite client
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
-        {intakeLinkOpen && selectedCompanyId && (
+        {intakeLinkOpen && (
           <IntakeLinkModal
             companyId={selectedCompanyId}
             companyName={selectedCompany?.company_name ?? ''}
             onClose={() => setIntakeLinkOpen(false)}
+            onCompanyCreated={() => refreshCompanies()}
           />
         )}
 
@@ -168,13 +185,14 @@ export default function CompanyDashboard() {
               <div>
                 <h3 className="font-semibold text-foreground mb-1">No Company Selected</h3>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Please select a company from the header above to view and manage its data.
+                  Select a company from the header above, or generate a remote intake link to onboard a new client.
                 </p>
                 <button
-                  onClick={() => router.push("/company/profile/new")}
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  onClick={() => setIntakeLinkOpen(true)}
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2"
                 >
-                  Create New Company
+                  <Link2 className="h-4 w-4" />
+                  Create New Company via Intake Link
                 </button>
               </div>
             </div>
@@ -185,27 +203,24 @@ export default function CompanyDashboard() {
           <div className="rounded-xl border border-border bg-card p-8">
             <h2 className="text-2xl font-bold text-foreground mb-4">Get Started</h2>
             <p className="text-muted-foreground mb-6">
-              Welcome! To generate winning proposals, we need to collect your company information.
-              This is a one-time setup that will enable rapid proposal generation for all future opportunities.
+              This company profile is empty. Generate a remote intake link and send it to your client so they can fill in their Enterprise Profile directly.
             </p>
 
             <div className="rounded-xl border border-callout-border bg-callout p-6 mb-6">
-              <h3 className="font-semibold text-foreground mb-3">Progressive Intake Process</h3>
+              <h3 className="font-semibold text-foreground mb-3">What the client will complete</h3>
               <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-                <li><strong className="text-foreground">Company Basics</strong> (5-10 min) - Essential information to get started</li>
-                <li><strong className="text-foreground">Certifications</strong> (5-10 min) - Set-asides and registrations</li>
-                <li><strong className="text-foreground">Capabilities</strong> (10-15 min) - What you do and how you do it</li>
-                <li><strong className="text-foreground">Past Performance</strong> (15-30 min per contract) - Your track record</li>
-                <li><strong className="text-foreground">Personnel</strong> (10-20 min per person) - Key team members</li>
-                <li><strong className="text-foreground">Differentiators</strong> (15-20 min) - Why you win</li>
+                <li><strong className="text-foreground">Corporate Identity</strong> — Name, registration, contacts, classification</li>
+                <li><strong className="text-foreground">Vehicles & Certifications</strong> — Contract vehicles, ISO/CMMI, DCAA, clearances</li>
+                <li><strong className="text-foreground">Capabilities & Positioning</strong> — Overview, services, win themes, differentiators</li>
               </ol>
             </div>
 
             <button
-              onClick={() => router.push("/company/profile/new")}
-              className="rounded-md bg-primary px-8 py-3 text-lg font-semibold text-primary-foreground hover:bg-primary/90"
+              onClick={() => setIntakeLinkOpen(true)}
+              className="rounded-md bg-primary px-8 py-3 text-lg font-semibold text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2"
             >
-              Start Company Profile
+              <Link2 className="h-5 w-5" />
+              Generate Intake Link
             </button>
           </div>
       ) : selectedCompany && hasProfile ? (
@@ -591,25 +606,31 @@ function IntakeLinkModal({
   companyId,
   companyName,
   onClose,
+  onCompanyCreated,
 }: {
-  companyId: string;
+  companyId: string | null;
   companyName: string;
   onClose: () => void;
+  onCompanyCreated?: () => void;
 }) {
+  const [mode, setMode] = useState<'existing' | 'new'>(companyId ? 'existing' : 'new');
+  const [newCompanyName, setNewCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tokens, setTokens] = useState<IntakeTokenDisplay[]>([]);
   const [newUrl, setNewUrl] = useState<string | null>(null);
+  const [generatedCompanyName, setGeneratedCompanyName] = useState('');
   const [label, setLabel] = useState('');
   const [expiresInDays, setExpiresInDays] = useState(30);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetchTokens();
-  }, []);
+    if (companyId) fetchTokens();
+  }, [companyId]);
 
   const fetchTokens = async () => {
+    if (!companyId) return;
     setLoading(true);
     try {
       const res = await fetch('/api/company/intake-token', {
@@ -627,17 +648,29 @@ function IntakeLinkModal({
   };
 
   const generateLink = async () => {
+    if (mode === 'new' && !newCompanyName.trim()) {
+      setError('Company name is required');
+      return;
+    }
+
     setGenerating(true);
     setError(null);
     try {
+      const payload: Record<string, unknown> = {
+        label: label.trim() || null,
+        expiresInDays,
+      };
+
+      if (mode === 'existing' && companyId) {
+        payload.companyId = companyId;
+      } else {
+        payload.newCompanyName = newCompanyName.trim();
+      }
+
       const res = await fetch('/api/company/intake-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          label: label.trim() || null,
-          expiresInDays,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -645,8 +678,13 @@ function IntakeLinkModal({
         return;
       }
       setNewUrl(data.intakeUrl);
+      setGeneratedCompanyName(data.companyName || newCompanyName.trim());
       setLabel('');
-      await fetchTokens();
+      setNewCompanyName('');
+      if (mode === 'new' && onCompanyCreated) {
+        onCompanyCreated();
+      }
+      if (companyId) await fetchTokens();
     } catch {
       setError('Failed to generate link');
     } finally {
@@ -689,14 +727,16 @@ function IntakeLinkModal({
           </button>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Generate a secure link for <strong>{companyName}</strong> to fill in their Enterprise Profile remotely.
-          No login required — the link provides direct access to the intake form.
+          Generate a secure link for a client to fill in their Enterprise Profile remotely.
+          No login required — the link provides direct access to the full intake form.
         </p>
 
         {newUrl ? (
           <div className="space-y-4 mb-6">
             <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-              <p className="text-sm font-medium text-green-800 mb-2">Link generated successfully!</p>
+              <p className="text-sm font-medium text-green-800 mb-2">
+                Link generated for <strong>{generatedCompanyName}</strong>!
+              </p>
               <div className="flex gap-2">
                 <Input readOnly value={newUrl} className="font-mono text-xs" />
                 <Button
@@ -719,7 +759,7 @@ function IntakeLinkModal({
                 </Button>
               </div>
               <p className="text-xs text-green-700 mt-2">
-                Send this link to your client. They can open it in any browser to fill in their profile.
+                Send this link to your client. They can open it in any browser to fill in their full profile.
               </p>
             </div>
             <Button
@@ -733,6 +773,54 @@ function IntakeLinkModal({
           </div>
         ) : (
           <div className="space-y-4 mb-6">
+            {companyId && (
+              <div className="flex rounded-lg border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setMode('existing')}
+                  className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
+                    mode === 'existing'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted/30 text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Current company
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('new')}
+                  className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
+                    mode === 'new'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted/30 text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  New company
+                </button>
+              </div>
+            )}
+
+            {mode === 'existing' && companyId ? (
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-sm text-foreground">
+                  Generating link for <strong>{companyName}</strong>
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Company name *</label>
+                <Input
+                  required
+                  value={newCompanyName}
+                  onChange={(e) => setNewCompanyName(e.target.value)}
+                  placeholder="e.g., Acme Federal Solutions"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  A new company will be created in your database. The client will fill in all details.
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Label (optional)</label>
               <Input
@@ -758,11 +846,11 @@ function IntakeLinkModal({
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button
               onClick={generateLink}
-              disabled={generating}
+              disabled={generating || (mode === 'new' && !newCompanyName.trim())}
               className="w-full gap-2"
             >
               <Link2 className="h-4 w-4" />
-              {generating ? 'Generating...' : 'Generate intake link'}
+              {generating ? 'Generating...' : mode === 'new' ? 'Create company & generate link' : 'Generate intake link'}
             </Button>
           </div>
         )}
