@@ -105,6 +105,13 @@ function scoreCorporateIdentity(
   return { name: 'Corporate Identity', score, maxScore: 35, missingFields };
 }
 
+function hasNonDefaultValues(obj: unknown): boolean {
+  if (!obj || typeof obj !== 'object') return false;
+  return Object.values(obj as Record<string, unknown>).some(
+    (v) => v !== false && v !== null && v !== undefined && v !== '' && v !== 0
+  );
+}
+
 function scoreVehiclesCertifications(
   profile: Partial<CompanyProfile>,
   extra: Tier1ExtraCounts
@@ -112,18 +119,27 @@ function scoreVehiclesCertifications(
   let score = 0;
   const missingFields: string[] = [];
 
-  // iso_cmmi_status: informational — always award (5 pts)
-  score += 5;
+  // iso_cmmi_status: award when user has set at least one value (5 pts)
+  if (hasNonDefaultValues(profile.iso_cmmi_status)) {
+    score += 5;
+  } else {
+    missingFields.push('Review ISO/CMMI status (Vehicles & Certifications tab)');
+  }
 
-  // dcaa_approved_systems: informational — always award (5 pts)
-  score += 5;
+  // dcaa_approved_systems: award when user has set at least one value (5 pts)
+  if (hasNonDefaultValues(profile.dcaa_approved_systems)) {
+    score += 5;
+  } else {
+    missingFields.push('Review DCAA approved systems (Vehicles & Certifications tab)');
+  }
 
-  // Facility clearance explicitly set (true or false) (5 pts)
-  // We detect this through the certifications table or infer from the JSONB.
-  // Since the profile doesn't have has_facility_clearance directly, we treat the
-  // dcaa_approved_systems presence as a proxy that the section was visited.
-  // Award if dcaa_approved_systems is non-null (meaning the tab was saved at least once).
-  if (profile.dcaa_approved_systems !== undefined && profile.dcaa_approved_systems !== null) {
+  // Facility clearance section visited — the tab save writes facility_clearances
+  // relational data or at least toggles dcaa/iso. We use the combined presence of
+  // any non-default value in either JSONB as a signal the section was visited. (5 pts)
+  const tabVisited =
+    hasNonDefaultValues(profile.iso_cmmi_status) ||
+    hasNonDefaultValues(profile.dcaa_approved_systems);
+  if (tabVisited) {
     score += 5;
   } else {
     missingFields.push('Complete Vehicles & Certifications tab (facility clearance section)');

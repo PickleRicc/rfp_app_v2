@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "@/lib/supabase/client";
 import { validateIntakeToken } from "@/lib/intake/validate-token";
 import { extractPastPerformanceFromText } from "@/lib/ingestion/past-performance-file-extractor";
+import { PDFParse } from "pdf-parse";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -98,25 +99,34 @@ export async function POST(
 
     let extractedText: string | null = null;
     if (file.type === "application/pdf") {
-      try {
-        const pdfServiceUrl =
-          process.env.PDF_SERVICE_URL || "http://localhost:8000";
-        const pdfFormData = new FormData();
-        pdfFormData.append(
-          "file",
-          new Blob([fileBuffer], { type: file.type }),
-          sanitizedFilename
-        );
-        const pdfRes = await fetch(`${pdfServiceUrl}/extract-text`, {
-          method: "POST",
-          body: pdfFormData,
-        });
-        if (pdfRes.ok) {
-          const pdfResult = (await pdfRes.json()) as { text?: string };
-          extractedText = pdfResult.text || null;
+      if (process.env.PDF_SERVICE_URL) {
+        try {
+          const pdfFormData = new FormData();
+          pdfFormData.append(
+            "file",
+            new Blob([fileBuffer], { type: file.type }),
+            sanitizedFilename
+          );
+          const pdfRes = await fetch(
+            `${process.env.PDF_SERVICE_URL}/extract-text`,
+            { method: "POST", body: pdfFormData }
+          );
+          if (pdfRes.ok) {
+            const pdfResult = (await pdfRes.json()) as { text?: string };
+            extractedText = pdfResult.text || null;
+          }
+        } catch (err) {
+          console.warn("PDF extraction service error, falling back to pdf-parse:", err);
         }
-      } catch (err) {
-        console.warn("PDF extraction service unavailable:", err);
+      }
+      if (!extractedText) {
+        try {
+          const parser = new PDFParse({ data: Buffer.from(fileBuffer) });
+          const result = await parser.getText();
+          extractedText = result.text || null;
+        } catch (err) {
+          console.warn("pdf-parse extraction failed:", err);
+        }
       }
     } else {
       try {

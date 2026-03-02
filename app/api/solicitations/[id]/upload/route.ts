@@ -3,9 +3,7 @@ import { getServerClient } from '@/lib/supabase/client';
 import { inngest } from '@/lib/inngest/client';
 import { requireStaffOrResponse } from '@/lib/auth';
 import ExcelJS from 'exceljs';
-
-// PDF service URL - configurable via environment variable
-const PDF_SERVICE_URL = process.env.PDF_SERVICE_URL || 'http://localhost:8000';
+import { PDFParse } from 'pdf-parse';
 
 // Allowed MIME types and extensions for solicitation document uploads
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.xlsx', '.xls', '.txt'];
@@ -79,29 +77,32 @@ async function extractTextFromFile(file: File): Promise<string> {
 
   // --- PDF files ---
   if (ext === '.pdf' || file.type === 'application/pdf') {
-    // Use Python microservice for PDF extraction
-    try {
-      const pdfFormData = new FormData();
-      pdfFormData.append('file', file);
-
-      const response = await fetch(`${PDF_SERVICE_URL}/extract-text`, {
-        method: 'POST',
-        body: pdfFormData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: response.statusText }));
-        throw new Error(`PDF service error: ${error.detail || response.statusText}`);
+    if (process.env.PDF_SERVICE_URL) {
+      try {
+        const pdfFormData = new FormData();
+        pdfFormData.append('file', file);
+        const response = await fetch(`${process.env.PDF_SERVICE_URL}/extract-text`, {
+          method: 'POST',
+          body: pdfFormData,
+        });
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`[pdf-extract] ${file.name}: ${result.pages} pages, ${result.character_count} chars`);
+          return result.text;
+        }
+      } catch (err) {
+        console.warn(`[pdf-extract] Service error for ${file.name}, falling back to pdf-parse:`, err instanceof Error ? err.message : err);
       }
-
-      const result = await response.json();
-      console.log(`[pdf-extract] ${file.name}: ${result.pages} pages, ${result.character_count} chars`);
+    }
+    try {
+      const buf = Buffer.from(await file.arrayBuffer());
+      const parser = new PDFParse({ data: buf });
+      const result = await parser.getText();
+      console.log(`[pdf-parse] ${file.name}: ${result.text.length} chars`);
       return result.text;
-    } catch (pdfError) {
-      console.error(`[pdf-extract] Service unavailable for ${file.name}:`, pdfError instanceof Error ? pdfError.message : pdfError);
-      console.error(`[pdf-extract] ⚠️  Start the PDF service: cd pdf-service && python main.py`);
-      // Return a marker so the classifier knows extraction failed (instead of binary garbage)
-      return `[PDF text extraction failed – PDF service not available. Filename: ${file.name}]`;
+    } catch (parseErr) {
+      console.error(`[pdf-parse] Failed for ${file.name}:`, parseErr instanceof Error ? parseErr.message : parseErr);
+      return `[PDF text extraction failed. Filename: ${file.name}]`;
     }
   }
 

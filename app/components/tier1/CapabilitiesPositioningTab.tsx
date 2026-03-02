@@ -373,7 +373,7 @@ export function CapabilitiesPositioningTab({
 
         {winThemes.length < 3 && (
           <div className="mb-3 px-3 py-2 bg-warning/10 border border-warning/30 rounded-md">
-            <p className="text-xs text-warning-foreground">
+            <p className="text-xs text-white">
               Recommended: at least 3 win themes ({winThemes.length}/3 added)
             </p>
           </div>
