@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { requireClient } from "@/lib/auth";
-import { FileText, LayoutDashboard, ClipboardList } from "lucide-react";
+import { LayoutDashboard, ClipboardList } from "lucide-react";
 import { PortalLogout } from "../PortalLogout";
 
 export default async function PortalDashboardLayout({
@@ -19,11 +20,16 @@ export default async function PortalDashboardLayout({
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 w-full border-b border-border bg-card/80 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
+          <div className="flex h-20 items-center justify-between">
             <Link href="/portal" className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-                <FileText className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <Image
+                src="/ClicklessAI.png"
+                alt="ClicklessAI"
+                width={240}
+                height={60}
+                className="h-14 w-auto"
+                priority
+              />
               <div className="hidden sm:block">
                 <p className="text-sm font-semibold text-foreground">Client Portal</p>
                 <p className="text-xs text-muted-foreground">Proposal status & onboarding</p>

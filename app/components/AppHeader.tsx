@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FileText } from 'lucide-react';
+import Image from 'next/image';
 import CompanySelector from './CompanySelector';
 
 export default function AppHeader() {
@@ -10,12 +10,15 @@ export default function AppHeader() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2">
-              <FileText className="h-8 w-8 text-primary" />
-              <div>
-                <h1 className="text-lg font-bold text-foreground">RFP Response Tool</h1>
-                <p className="text-xs text-muted-foreground">Multi-Company Management</p>
-              </div>
+            <Link href="/" className="flex items-center">
+              <Image
+                src="/ClicklessAI.png"
+                alt="ClicklessAI"
+                width={240}
+                height={60}
+                className="h-14 w-auto"
+                priority
+              />
             </Link>
           </div>
 

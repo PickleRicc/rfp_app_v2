@@ -1,28 +1,43 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useCompany } from '@/lib/context/CompanyContext';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
+import { useSearchParams } from 'next/navigation';
 import { Tier1TabLayout, type Tab } from '@/app/components/tier1/Tier1TabLayout';
 import { CorporateIdentityTab } from '@/app/components/tier1/CorporateIdentityTab';
 import { VehiclesCertificationsTab } from '@/app/components/tier1/VehiclesCertificationsTab';
 import { CapabilitiesPositioningTab } from '@/app/components/tier1/CapabilitiesPositioningTab';
+import { PastPerformanceTab } from '@/app/components/tier1/PastPerformanceTab';
 import { Tier1CompletenessBar } from '@/app/components/tier1/Tier1CompletenessBar';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
 
 const TABS: Tab[] = [
   { id: 'corporate-identity', label: 'Corporate Identity' },
   { id: 'vehicles-certifications', label: 'Vehicles & Certifications' },
+  { id: 'past-performance', label: 'Past Performance' },
   { id: 'capabilities-positioning', label: 'Capabilities & Positioning' },
 ];
 
-export default function CompanyProfilePage() {
+export default function CompanyProfilePageWrapper() {
+  return (
+    <Suspense>
+      <CompanyProfilePage />
+    </Suspense>
+  );
+}
+
+function CompanyProfilePage() {
   const { selectedCompany, selectedCompanyId } = useCompany();
   const { fetchWithCompany } = useFetchWithCompany();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab');
 
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState<Partial<CompanyProfile>>({});
-  const [activeTab, setActiveTab] = useState('corporate-identity');
+  const [activeTab, setActiveTab] = useState(
+    initialTab && TABS.some((t) => t.id === initialTab) ? initialTab : 'corporate-identity'
+  );
 
   // Ref to the Tier1CompletenessBar's refresh function so tabs can trigger re-fetch
   const refreshCompletenessRef = useRef<(() => void) | null>(null);
@@ -113,6 +128,12 @@ export default function CompanyProfilePage() {
           <CapabilitiesPositioningTab
             companyId={selectedCompanyId || ''}
             initialProfileData={profileData}
+            onSaved={fetchProfile}
+          />
+        )}
+        {activeTab === 'past-performance' && (
+          <PastPerformanceTab
+            companyId={selectedCompanyId || ''}
             onSaved={fetchProfile}
           />
         )}

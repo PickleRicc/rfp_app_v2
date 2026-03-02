@@ -4,8 +4,16 @@ import { useState, useEffect } from 'react';
 import { useFetchWithCompany } from '@/lib/hooks/useFetchWithCompany';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
 import { validateWordCount, type WordCountResult } from '@/lib/validation/tier1-validators';
+import { Sparkles, Loader2 } from 'lucide-react';
 
 type FetchFn = (url: string, options?: RequestInit) => Promise<Response>;
+type GeneratableField =
+  | 'corporate_overview'
+  | 'core_services_summary'
+  | 'enterprise_win_themes'
+  | 'key_differentiators_summary'
+  | 'standard_management_approach'
+  | 'elevator_pitch_and_descriptions';
 
 interface CapabilitiesPositioningTabProps {
   companyId: string;
@@ -73,6 +81,78 @@ export function CapabilitiesPositioningTab({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // ---- AI generation state ----
+  const [generatingField, setGeneratingField] = useState<GeneratableField | null>(null);
+  const [genError, setGenError] = useState<string | null>(null);
+
+  const handleGenerate = async (field: GeneratableField) => {
+    const hasContent = {
+      corporate_overview: !!corporateOverview.trim(),
+      core_services_summary: !!coreServicesSummary.trim(),
+      enterprise_win_themes: winThemes.length > 0,
+      key_differentiators_summary: !!keyDifferentiatorsSummary.trim(),
+      standard_management_approach: !!standardManagementApproach.trim(),
+      elevator_pitch_and_descriptions: !!(elevatorPitch.trim() || fullDescription.trim() || missionStatement.trim() || visionStatement.trim()),
+    }[field];
+
+    if (hasContent && !confirm('This will replace your current content with AI-generated text. Continue?')) {
+      return;
+    }
+
+    setGeneratingField(field);
+    setGenError(null);
+
+    try {
+      const res = await doFetch('/api/company/capabilities/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Generation failed');
+
+      const result = data.result;
+
+      switch (field) {
+        case 'corporate_overview':
+          setCorporateOverview(result as string);
+          break;
+        case 'core_services_summary':
+          setCoreServicesSummary(result as string);
+          break;
+        case 'enterprise_win_themes':
+          setWinThemes(result as string[]);
+          break;
+        case 'key_differentiators_summary':
+          setKeyDifferentiatorsSummary(result as string);
+          break;
+        case 'standard_management_approach':
+          setStandardManagementApproach(result as string);
+          break;
+        case 'elevator_pitch_and_descriptions': {
+          const bundle = result as {
+            elevator_pitch: string;
+            full_description: string;
+            mission_statement: string;
+            vision_statement: string;
+            core_values: string[];
+          };
+          setElevatorPitch(bundle.elevator_pitch || '');
+          setFullDescription(bundle.full_description || '');
+          setMissionStatement(bundle.mission_statement || '');
+          setVisionStatement(bundle.vision_statement || '');
+          if (bundle.core_values?.length) setCoreValues(bundle.core_values);
+          break;
+        }
+      }
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : 'AI generation failed');
+    } finally {
+      setGeneratingField(null);
+    }
+  };
 
   // ---- Initialize from initialProfileData ----
   useEffect(() => {
@@ -200,9 +280,18 @@ export function CapabilitiesPositioningTab({
         </div>
       )}
 
+      {genError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800 text-sm">{genError}</p>
+        </div>
+      )}
+
       {/* Corporate Overview */}
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Corporate Overview</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Corporate Overview</h2>
+          <GenerateButton field="corporate_overview" generating={generatingField} onGenerate={handleGenerate} />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Corporate Overview</label>
           <p className="text-xs text-gray-500 mb-2">
@@ -227,7 +316,10 @@ export function CapabilitiesPositioningTab({
 
       {/* Core Services */}
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Core Services</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Core Services</h2>
+          <GenerateButton field="core_services_summary" generating={generatingField} onGenerate={handleGenerate} />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Core Services Summary</label>
           <p className="text-xs text-gray-500 mb-2">
@@ -252,7 +344,10 @@ export function CapabilitiesPositioningTab({
 
       {/* Enterprise Win Themes */}
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Enterprise Win Themes</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Enterprise Win Themes</h2>
+          <GenerateButton field="enterprise_win_themes" generating={generatingField} onGenerate={handleGenerate} />
+        </div>
         <p className="text-xs text-gray-500 mb-3">
           Reusable win themes that highlight your competitive advantages. Example: &ldquo;Proven transition methodology with zero disruption to operations&rdquo;
         </p>
@@ -315,7 +410,10 @@ export function CapabilitiesPositioningTab({
 
       {/* Key Differentiators */}
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Key Differentiators</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Key Differentiators</h2>
+          <GenerateButton field="key_differentiators_summary" generating={generatingField} onGenerate={handleGenerate} />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Key Differentiators Summary</label>
           <p className="text-xs text-gray-500 mb-2">
@@ -340,7 +438,10 @@ export function CapabilitiesPositioningTab({
 
       {/* Standard Management Approach */}
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Standard Management Approach</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Standard Management Approach</h2>
+          <GenerateButton field="standard_management_approach" generating={generatingField} onGenerate={handleGenerate} />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Standard Management Approach</label>
           <p className="text-xs text-gray-500 mb-2">
@@ -365,7 +466,10 @@ export function CapabilitiesPositioningTab({
 
       {/* Elevator Pitch & Descriptions (migrated from old profile page) */}
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Elevator Pitch & Company Descriptions</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Elevator Pitch & Company Descriptions</h2>
+          <GenerateButton field="elevator_pitch_and_descriptions" generating={generatingField} onGenerate={handleGenerate} />
+        </div>
         <div className="space-y-4">
 
           <div>
@@ -482,5 +586,34 @@ export function CapabilitiesPositioningTab({
         </button>
       </div>
     </div>
+  );
+}
+
+function GenerateButton({
+  field,
+  generating,
+  onGenerate,
+}: {
+  field: GeneratableField;
+  generating: GeneratableField | null;
+  onGenerate: (f: GeneratableField) => void;
+}) {
+  const isGenerating = generating === field;
+  const anyGenerating = generating !== null;
+
+  return (
+    <button
+      type="button"
+      disabled={anyGenerating}
+      onClick={() => onGenerate(field)}
+      className="inline-flex items-center gap-1.5 rounded-md border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+    >
+      {isGenerating ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Sparkles className="h-3.5 w-3.5" />
+      )}
+      {isGenerating ? 'Generating...' : 'Generate with AI'}
+    </button>
   );
 }

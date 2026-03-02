@@ -301,7 +301,7 @@ function CompanyDashboard() {
               icon={BarChart3}
               title="Past Performance"
               description="Contract history and achievements"
-              onClick={() => router.push('/company/past-performance')}
+              onClick={() => router.push('/company/profile?tab=past-performance')}
             />
             <ActionCard
               icon={Users}

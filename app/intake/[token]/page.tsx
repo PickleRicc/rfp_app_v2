@@ -6,6 +6,7 @@ import { Tier1TabLayout, type Tab } from '@/app/components/tier1/Tier1TabLayout'
 import { CorporateIdentityTab } from '@/app/components/tier1/CorporateIdentityTab';
 import { VehiclesCertificationsTab } from '@/app/components/tier1/VehiclesCertificationsTab';
 import { CapabilitiesPositioningTab } from '@/app/components/tier1/CapabilitiesPositioningTab';
+import { PastPerformanceTab } from '@/app/components/tier1/PastPerformanceTab';
 import { Tier1CompletenessBar } from '@/app/components/tier1/Tier1CompletenessBar';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
 import { FileText, Shield, CheckCircle2 } from 'lucide-react';
@@ -13,6 +14,7 @@ import { FileText, Shield, CheckCircle2 } from 'lucide-react';
 const TABS: Tab[] = [
   { id: 'corporate-identity', label: 'Corporate Identity' },
   { id: 'vehicles-certifications', label: 'Vehicles & Certifications' },
+  { id: 'past-performance', label: 'Past Performance' },
   { id: 'capabilities-positioning', label: 'Capabilities & Positioning' },
 ];
 
@@ -139,14 +141,15 @@ export default function PublicIntakePage() {
         </div>
 
         <div className="mb-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
-          <div className="flex gap-3">
+            <div className="flex gap-3">
             <CheckCircle2 className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
             <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Three sections to complete:</p>
+              <p className="font-medium mb-1">Four sections to complete:</p>
               <ol className="list-decimal list-inside space-y-0.5 text-blue-700">
                 <li><strong>Corporate Identity</strong> — Company name, registration, contacts, and classification</li>
                 <li><strong>Vehicles & Certifications</strong> — Contract vehicles, ISO/CMMI, DCAA, and clearances</li>
-                <li><strong>Capabilities & Positioning</strong> — Corporate overview, services, win themes, and differentiators</li>
+                <li><strong>Past Performance</strong> — Upload documents or manually enter contract history</li>
+                <li><strong>Capabilities & Positioning</strong> — Corporate overview, services, win themes, and differentiators (AI-assisted)</li>
               </ol>
             </div>
           </div>
@@ -182,6 +185,13 @@ export default function PublicIntakePage() {
               <CapabilitiesPositioningTab
                 companyId={companyId}
                 initialProfileData={profileData}
+                onSaved={fetchProfile}
+                fetchFn={fetchWithToken}
+              />
+            )}
+            {activeTab === 'past-performance' && (
+              <PastPerformanceTab
+                companyId={companyId}
                 onSaved={fetchProfile}
                 fetchFn={fetchWithToken}
               />
