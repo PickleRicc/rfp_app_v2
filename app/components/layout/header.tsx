@@ -64,14 +64,14 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/80 backdrop-blur-md">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-20 items-center justify-between">
+        <div className="flex h-32 items-center justify-between">
           <Link href="/solicitations" className="flex items-center">
             <Image
               src="/ClicklessAI.png"
               alt="ClicklessAI"
-              width={240}
-              height={60}
-              className="h-14 w-auto"
+              width={520}
+              height={130}
+              className="h-32 w-auto"
               priority
             />
           </Link>

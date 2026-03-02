@@ -14,9 +14,9 @@ export default function AppHeader() {
               <Image
                 src="/ClicklessAI.png"
                 alt="ClicklessAI"
-                width={240}
-                height={60}
-                className="h-14 w-auto"
+                width={520}
+                height={130}
+                className="h-32 w-auto"
                 priority
               />
             </Link>
