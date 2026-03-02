@@ -98,7 +98,7 @@ export async function PUT(
     }
 
     if (body.uei_number !== undefined) {
-      const ueiResult = validateUEI(body.uei_number);
+      const ueiResult = validateUEI(body.uei_number as string);
       if (!ueiResult.valid) {
         return NextResponse.json(
           { error: `Invalid UEI: ${ueiResult.error}` },
@@ -108,7 +108,7 @@ export async function PUT(
     }
 
     if (body.cage_code !== undefined) {
-      const cageResult = validateCAGE(body.cage_code);
+      const cageResult = validateCAGE(body.cage_code as string);
       if (!cageResult.valid) {
         return NextResponse.json(
           { error: `Invalid CAGE code: ${cageResult.error}` },
