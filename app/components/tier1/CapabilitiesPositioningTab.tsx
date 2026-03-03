@@ -493,7 +493,7 @@ export function CapabilitiesPositioningTab({
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
-              Elevator Pitch <span className="text-red-500">*</span>
+              Elevator Pitch <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
             </label>
             <p className="text-xs text-muted-foreground mb-2">
               Describe your company in 2-3 sentences. Used in proposal cover letters and brief company overviews.

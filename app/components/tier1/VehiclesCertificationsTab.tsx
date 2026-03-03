@@ -361,7 +361,7 @@ export function VehiclesCertificationsTab({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Vehicle Name <span className="text-red-500">*</span>
+                  Vehicle Name <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
                 </label>
                 <input
                   type="text"
@@ -373,7 +373,7 @@ export function VehiclesCertificationsTab({
               </div>
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Vehicle Type <span className="text-red-500">*</span>
+                  Vehicle Type <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
                 </label>
                 <select
                   value={vehicleForm.vehicle_type}
@@ -704,7 +704,7 @@ export function VehiclesCertificationsTab({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  Certification Type <span className="text-red-500">*</span>
+                  Certification Type <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
                 </label>
                 <select
                   value={certForm.certification_type}

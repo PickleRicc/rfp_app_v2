@@ -20,7 +20,7 @@
   --destructive: #e7000b;
   --destructive-foreground: #f5f5f5;
   --border: #2a2a2a;
-  --input: #2a2a2a;
+  --input: #404040;
   --ring: #4c4aca;
   --chart-1: #4c4aca;
   --chart-2: #6b6bdf;
@@ -68,7 +68,7 @@
   --destructive: #ff6467;
   --destructive-foreground: #262626;
   --border: #2a2a2a;
-  --input: #333333;
+  --input: #404040;
   --ring: #4c4aca;
   --sidebar: #080808;
   --sidebar-foreground: #ffffff;

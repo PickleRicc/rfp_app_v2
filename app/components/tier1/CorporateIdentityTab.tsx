@@ -361,7 +361,7 @@ export function CorporateIdentityTab({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
-                Legal Entity Name <span className="text-red-500">*</span>
+                Legal Entity Name <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
               </label>
               <input
                 type="text"
@@ -374,7 +374,7 @@ export function CorporateIdentityTab({
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
-                Company Name / DBA <span className="text-red-500">*</span>
+                Company Name / DBA <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
               </label>
               <input
                 type="text"
@@ -526,7 +526,7 @@ export function CorporateIdentityTab({
           {/* UEI */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
-              UEI Number <span className="text-red-500">*</span>
+              UEI Number <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
               {renderSamBadge()}
             </label>
             <input
@@ -550,7 +550,7 @@ export function CorporateIdentityTab({
           {/* CAGE */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
-              CAGE Code <span className="text-red-500">*</span>
+              CAGE Code <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
             </label>
             <input
               type="text"
@@ -606,7 +606,7 @@ export function CorporateIdentityTab({
           {/* Primary NAICS */}
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
-              Primary NAICS Code <span className="text-red-500">*</span>
+              Primary NAICS Code <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
             </label>
             <div className="flex gap-3">
               <div className="w-36">
@@ -708,7 +708,7 @@ export function CorporateIdentityTab({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
-                Year Founded <span className="text-red-500">*</span>
+                Year Founded <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
               </label>
               <input
                 type="number"
@@ -722,7 +722,7 @@ export function CorporateIdentityTab({
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
-                Employee Count <span className="text-red-500">*</span>
+                Employee Count <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>
               </label>
               <input
                 type="number"

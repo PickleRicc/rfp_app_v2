@@ -562,7 +562,7 @@ function ContractForm({
 }) {
   const input = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50';
   const label = 'block text-sm font-medium text-foreground mb-1';
-  const req = <span className="text-red-500">*</span>;
+  const req = <span className="text-muted-foreground text-xs font-normal ml-1">(required)</span>;
 
   const addTag = (list: 'task_areas' | 'tools_used' | 'relevance_tags', val: string, clearFn: (v: string) => void) => {
     if (val.trim()) {
