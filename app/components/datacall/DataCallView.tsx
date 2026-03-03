@@ -22,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   DataCallFormSchema,
+  DataCallFormField,
   DataCallGetResponse,
   OpportunityDetails,
   PastPerformanceRef,
@@ -54,6 +55,8 @@ interface ValidationError {
   sectionId: string;
   fieldKey: string;
   message: string;
+  /** True when this error is for a compliance-blocking field. Blocking errors prevent data call completion. */
+  blocking?: boolean;
 }
 
 // ============================================================
@@ -316,6 +319,64 @@ function isSectionComplete(
 }
 
 // ============================================================
+// Field-level validation (numeric, date, allowed values)
+// ============================================================
+
+/**
+ * Validate a single field value against its validation rules.
+ * Returns an error message string or null if valid.
+ */
+function validateFieldValue(
+  field: DataCallFormField,
+  val: unknown,
+  prefix?: string
+): string | null {
+  if (!field.validation) return null;
+  const v = field.validation;
+  const label = prefix ? `${prefix}: ${field.label}` : field.label;
+
+  // Numeric validation (type: 'number')
+  if (field.type === 'number' && val !== '' && val != null) {
+    const num = typeof val === 'number' ? val : parseFloat(String(val));
+    if (isNaN(num)) {
+      return `${label} must be a valid number`;
+    }
+    if (v.min !== undefined && num < v.min) {
+      return v.validation_hint ?? `${label} must be at least ${v.min}`;
+    }
+    if (v.max !== undefined && num > v.max) {
+      return v.validation_hint ?? `${label} must be at most ${v.max}`;
+    }
+  }
+
+  // Allowed values validation (for select fields with restricted options)
+  if (v.allowed_values && val !== '' && val != null) {
+    if (!v.allowed_values.includes(String(val))) {
+      return v.validation_hint ?? `${label}: "${val}" is not an accepted value`;
+    }
+  }
+
+  // Date recency validation
+  if (v.recency_cutoff_date && val !== '' && val != null) {
+    const dateVal = new Date(String(val));
+    const cutoff = new Date(v.recency_cutoff_date);
+    if (!isNaN(dateVal.getTime()) && dateVal < cutoff) {
+      return v.validation_hint ?? `${label}: date is outside the recency window (${v.recency_description ?? 'requirement not met'})`;
+    }
+  }
+
+  // Pattern validation
+  if (v.pattern && val !== '' && val != null) {
+    const regex = new RegExp(v.pattern);
+    if (!regex.test(String(val))) {
+      return v.validation_hint ?? `${label} does not match the required format`;
+    }
+  }
+
+  return null;
+}
+
+// ============================================================
 // Validation (run on Complete Data Call)
 // ============================================================
 
@@ -340,7 +401,19 @@ function validateDataCall(
               sectionId: section.id,
               fieldKey: `${field.key}_${i}`,
               message: `Reference ${i + 1}: ${field.label} is required`,
+              blocking: field.blocking,
             });
+          } else if (field.validation) {
+            // Validate field value (e.g., recency date check)
+            const valError = validateFieldValue(field, val, `Reference ${i + 1}`);
+            if (valError) {
+              errors.push({
+                sectionId: section.id,
+                fieldKey: `${field.key}_${i}`,
+                message: valError,
+                blocking: field.blocking,
+              });
+            }
           }
         });
       });
@@ -364,6 +437,7 @@ function validateDataCall(
                 sectionId: section.id,
                 fieldKey: `${field.key}_${i}`,
                 message: `Personnel ${i + 1}: ${field.label} is required`,
+                blocking: field.blocking,
               });
             }
           } else {
@@ -373,6 +447,7 @@ function validateDataCall(
                 sectionId: section.id,
                 fieldKey: `${field.key}_${i}`,
                 message: `Personnel ${i + 1}: ${field.label} is required`,
+                blocking: field.blocking,
               });
             }
           }
@@ -401,6 +476,7 @@ function validateDataCall(
               sectionId: section.id,
               fieldKey: `${field.key}_${i}`,
               message: `Item ${i + 1}: ${field.label} is required`,
+              blocking: field.blocking,
             });
           }
         });
@@ -408,30 +484,48 @@ function validateDataCall(
       continue;
     }
 
-    // Static sections
+    // Static sections (opportunity_details, technical_approach, compliance_verification)
     if (sectionData && typeof sectionData === "object" && !Array.isArray(sectionData)) {
       const dataObj = sectionData as Record<string, unknown>;
-      const requiredFields = section.fields.filter((f) => f.required);
-      requiredFields.forEach((field) => {
+
+      // Check all required fields + all fields with validation rules
+      const fieldsToValidate = section.fields.filter((f) => f.required || f.validation);
+      fieldsToValidate.forEach((field) => {
         if (field.type === "file") {
           const hasFile = files.some(
             (f) => f.field_key === field.key && f.section === "compliance_verification"
           );
-          if (!hasFile) {
+          if (!hasFile && field.required) {
             errors.push({
               sectionId: section.id,
               fieldKey: field.key,
               message: `${field.label} is required`,
+              blocking: field.blocking,
             });
           }
         } else {
           const val = dataObj[field.key];
-          if (val === "" || val == null) {
+
+          // Required check
+          if (field.required && (val === "" || val == null)) {
             errors.push({
               sectionId: section.id,
               fieldKey: field.key,
               message: `${field.label} is required`,
+              blocking: field.blocking,
             });
+          }
+          // Validation rules (only when a value exists)
+          else if (val !== "" && val != null && field.validation) {
+            const valError = validateFieldValue(field, val);
+            if (valError) {
+              errors.push({
+                sectionId: section.id,
+                fieldKey: field.key,
+                message: valError,
+                blocking: field.blocking,
+              });
+            }
           }
         }
       });
@@ -887,33 +981,79 @@ export function DataCallView({ solicitationId, companyId }: DataCallViewProps) {
       )}
 
       {/* ---- Validation error summary ---- */}
-      {validationTriggered && validationErrors.length > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500" />
-            <div>
-              <p className="text-sm font-semibold text-red-800">
-                {validationErrors.length} field
-                {validationErrors.length !== 1 ? "s" : ""} in{" "}
-                {sectionErrorMap.size} section
-                {sectionErrorMap.size !== 1 ? "s" : ""} need attention
-              </p>
-              <ul className="mt-1 space-y-0.5">
-                {Array.from(sectionErrorMap.entries()).map(([sid, errs]) => {
-                  const sectionTitle =
-                    schema.sections.find((s) => s.id === sid)?.title ?? sid;
-                  return (
-                    <li key={sid} className="text-xs text-red-700">
-                      <strong>{sectionTitle}:</strong>{" "}
-                      {errs.map((e) => e.message).join(", ")}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+      {validationTriggered && validationErrors.length > 0 && (() => {
+        const blockingErrors = validationErrors.filter((e) => e.blocking);
+        const advisoryErrors = validationErrors.filter((e) => !e.blocking);
+
+        return (
+          <div className="space-y-3">
+            {/* Blocking compliance errors — shown prominently */}
+            {blockingErrors.length > 0 && (
+              <div className="rounded-xl border-2 border-red-400 bg-red-50 p-4">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
+                  <div>
+                    <p className="text-sm font-bold text-red-900">
+                      {blockingErrors.length} Compliance-Blocking Field
+                      {blockingErrors.length !== 1 ? "s" : ""} — Must Resolve Before Draft
+                    </p>
+                    <p className="mt-0.5 text-xs text-red-700">
+                      These fields are required by the RFP and must be confirmed before proposal generation can begin.
+                    </p>
+                    <ul className="mt-2 space-y-0.5">
+                      {blockingErrors.map((e, idx) => {
+                        const sectionTitle =
+                          schema.sections.find((s) => s.id === e.sectionId)?.title ?? e.sectionId;
+                        return (
+                          <li key={idx} className="text-xs text-red-800">
+                            <span className="mr-1 inline-block rounded bg-red-200 px-1 py-0.5 text-[10px] font-bold uppercase text-red-900">
+                              Blocking
+                            </span>
+                            <strong>{sectionTitle}:</strong> {e.message}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Advisory (non-blocking) errors */}
+            {advisoryErrors.length > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-500" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">
+                      {advisoryErrors.length} additional field
+                      {advisoryErrors.length !== 1 ? "s" : ""} need attention
+                    </p>
+                    <ul className="mt-1 space-y-0.5">
+                      {Array.from(
+                        advisoryErrors.reduce((map, e) => {
+                          const arr = map.get(e.sectionId) ?? [];
+                          arr.push(e);
+                          map.set(e.sectionId, arr);
+                          return map;
+                        }, new Map<string, ValidationError[]>())
+                      ).map(([sid, errs]) => {
+                        const sectionTitle =
+                          schema.sections.find((s) => s.id === sid)?.title ?? sid;
+                        return (
+                          <li key={sid} className="text-xs text-amber-700">
+                            <strong>{sectionTitle}:</strong>{" "}
+                            {errs.map((e) => e.message).join(", ")}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ---- Summary panel ---- */}
       <div className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-3">

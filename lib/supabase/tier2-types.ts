@@ -265,6 +265,45 @@ export interface TechnologySelection {
 // ===== FORM SCHEMA INTERFACES =====
 
 /**
+ * Validation rules attached to a DataCallFormField.
+ * Applied during data call completion validation and the pre-draft gate.
+ * Enables structured enforcement of numeric thresholds, date ranges,
+ * pattern matching, and cross-field comparisons.
+ */
+export interface DataCallFieldValidation {
+  /** Minimum numeric value (inclusive). For type: 'number' fields. */
+  min?: number;
+
+  /** Maximum numeric value (inclusive). For type: 'number' fields. */
+  max?: number;
+
+  /**
+   * List of acceptable values for select-type fields.
+   * When set, the submitted value must be one of these options.
+   * Used to enforce clearance level meets RFP requirement.
+   */
+  allowed_values?: string[];
+
+  /** Regex pattern the value must match (e.g., "^\\d+(/\\d+)?$" for SPRS score format) */
+  pattern?: string;
+
+  /** Human-readable description of what the validation expects (shown in error messages) */
+  validation_hint?: string;
+
+  /**
+   * ISO date string — the field value (a date) must be on or after this date.
+   * Used for past performance recency validation: end_date must be >= cutoff.
+   */
+  recency_cutoff_date?: string;
+
+  /**
+   * Human-readable description of the recency requirement.
+   * e.g., "Within 3 years of solicitation date"
+   */
+  recency_description?: string;
+}
+
+/**
  * A single field definition within a data call form section.
  * Drives rendering logic in the accordion form UI.
  * Each field has an RFP source citation so users understand why it exists.
@@ -281,6 +320,27 @@ export interface DataCallFormField {
 
   /** Whether the user must provide a value before marking the section complete */
   required: boolean;
+
+  /**
+   * When true, this field is a compliance-critical blocking input.
+   * The data call cannot be completed and drafts cannot be generated
+   * until all blocking fields have confirmed, validated values.
+   *
+   * Blocking fields are visually distinguished in the UI with a red
+   * compliance badge and are listed in the pre-draft compliance summary.
+   *
+   * Examples: facility clearance level, SPRS score, DoD 8570 certs,
+   * past performance recency dates, backup personnel names.
+   */
+  blocking?: boolean;
+
+  /**
+   * Structured validation rules for the field value.
+   * Applied during "Complete Data Call" and the pre-draft compliance gate.
+   * When validation fails, the field shows a specific error message
+   * derived from validation_hint or computed from the rule.
+   */
+  validation?: DataCallFieldValidation;
 
   /**
    * RFP source citation explaining why this field exists.

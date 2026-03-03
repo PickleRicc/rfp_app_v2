@@ -26,6 +26,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { requireStaffOrResponse } from '@/lib/auth';
 import { inngest } from '@/lib/inngest/client';
+import { generateDataCallSchema } from '@/lib/ingestion/data-call-generator';
+import { validateBlockingFields } from '@/lib/validation/blocking-validators';
 import type {
   ProposalDraft,
   DraftVolume,
@@ -435,6 +437,32 @@ export async function POST(
         { error: 'Data call must be completed before generating draft' },
         { status: 400 }
       );
+    }
+
+    // Pre-draft compliance gate: re-validate all blocking fields.
+    // Handles edge case where extractions were re-run after data call completion
+    // (e.g., new amendment added), which may introduce new blocking requirements.
+    const { data: fullDataCall } = await supabase
+      .from('data_call_responses')
+      .select('opportunity_details, past_performance, key_personnel, technical_approach, compliance_verification, service_area_approaches, site_staffing, technology_selections')
+      .eq('solicitation_id', solicitationId)
+      .eq('company_id', companyId)
+      .maybeSingle();
+
+    if (fullDataCall) {
+      const schema = await generateDataCallSchema(solicitationId, companyId);
+      const blockingErrors = validateBlockingFields(schema, fullDataCall as Record<string, unknown>);
+
+      if (blockingErrors.length > 0) {
+        return NextResponse.json(
+          {
+            error: 'Cannot generate draft: compliance-blocking fields need attention',
+            code: 'BLOCKING_FIELDS_INVALID',
+            blocking_errors: blockingErrors,
+          },
+          { status: 422 }
+        );
+      }
     }
 
     // Fetch Section L volume_structure for creating draft_volumes

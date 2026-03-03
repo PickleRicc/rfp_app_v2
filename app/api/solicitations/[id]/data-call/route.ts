@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/client';
 import { requireStaffOrResponse } from '@/lib/auth';
 import { generateDataCallSchema } from '@/lib/ingestion/data-call-generator';
+import { validateBlockingFields } from '@/lib/validation/blocking-validators';
 import type {
   DataCallResponse,
   DataCallFile,
@@ -77,7 +78,8 @@ export async function GET(
     }
 
     // Generate the RFP-specific form schema from compliance extractions
-    const schema = await generateDataCallSchema(solicitationId);
+    // Pass companyId to enable Tier 1 company intake pre-fill (facility clearance, certs, NAICS)
+    const schema = await generateDataCallSchema(solicitationId, companyId);
 
     // Fetch any existing saved data call response for this solicitation + company
     const { data: response, error: responseError } = await supabase
@@ -215,6 +217,21 @@ export async function PUT(
       upsertData.status = body.status;
       // Set completed_at when marking as completed
       if (body.status === 'completed') {
+        // Server-side blocking field validation: verify all compliance-critical fields
+        // are populated and valid before allowing the data call to be marked complete.
+        const schema = await generateDataCallSchema(solicitationId, companyId);
+        const blockingErrors = validateBlockingFields(schema, body as Record<string, unknown>);
+
+        if (blockingErrors.length > 0) {
+          return NextResponse.json(
+            {
+              error: 'Cannot complete data call: compliance-blocking fields are missing or invalid',
+              blocking_errors: blockingErrors,
+            },
+            { status: 422 }
+          );
+        }
+
         upsertData.completed_at = now;
       }
     }
