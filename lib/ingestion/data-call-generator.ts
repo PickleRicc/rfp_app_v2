@@ -25,6 +25,7 @@ import type {
   DataCallFormSchema,
   DataCallSection,
   DataCallFormField,
+  DataCallFieldValidation,
 } from '@/lib/supabase/tier2-types';
 import type { ISOCMMIStatus } from '@/lib/supabase/company-types';
 
@@ -135,6 +136,7 @@ function buildOpportunityDetailsSection(
       label:        'Prime / Sub Role',
       type:         'select',
       required:     true,
+      blocking:     true,
       rfp_citation: null,
       options:      ['prime', 'sub', 'teaming'],
       placeholder:  'Select role',
@@ -235,6 +237,15 @@ function buildPastPerformanceSection(
   const recency = getExtractionValue<string>(extractions, 'past_performance', 'recency_requirement');
   const relevanceCriteria = getExtractionValue<string[]>(extractions, 'past_performance', 'relevance_criteria');
 
+  // Recency window as numeric years — used for date validation
+  const recencyYears = getExtractionValue<number>(extractions, 'past_performance', 'recency_years');
+  let recencyCutoffDate: string | undefined;
+  if (recencyYears && recencyYears > 0) {
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - recencyYears);
+    recencyCutoffDate = cutoff.toISOString().split('T')[0]; // YYYY-MM-DD
+  }
+
   let description = `Provide ${dynamicCount} past performance reference${dynamicCount !== 1 ? 's' : ''} that demonstrate relevant experience.`;
   if (recency) {
     description += ` Recency requirement: ${recency}.`;
@@ -284,6 +295,24 @@ function buildPastPerformanceSection(
       required:     true,
       rfp_citation: buildCitation(extractions, 'past_performance', 'recency_requirement'),
       placeholder:  'e.g., Jan 2021 — Dec 2023',
+    },
+    {
+      key:          'performance_end_date',
+      label:        'Contract End Date',
+      type:         'text',
+      required:     !!recencyYears,
+      blocking:     !!recencyYears,
+      rfp_citation: buildCitation(extractions, 'past_performance', 'recency_years'),
+      placeholder:  recencyYears
+        ? `Must be within ${recencyYears} years (after ${recencyCutoffDate}). Format: YYYY-MM-DD`
+        : 'e.g., 2023-12-31 (YYYY-MM-DD format)',
+      validation:   recencyCutoffDate
+        ? {
+            recency_cutoff_date: recencyCutoffDate,
+            recency_description: recency ?? `Within ${recencyYears} years`,
+            validation_hint: `Contract must have ended on or after ${recencyCutoffDate} to meet the ${recency ?? `${recencyYears}-year`} recency requirement`,
+          }
+        : undefined,
     },
     {
       key:          'relevance_summary',
@@ -359,12 +388,23 @@ function buildKeyPersonnelSection(
   );
   const keyPersonnelCitation = buildCitation(extractions, 'key_personnel', 'positions');
 
+  // Backup personnel requirement from extraction
+  const backupRequired = getExtractionValue<boolean | string>(
+    extractions, 'key_personnel', 'backup_personnel_required'
+  );
+  const isBackupRequired = backupRequired === true || backupRequired === 'true'
+    || (typeof backupRequired === 'string' && backupRequired.toLowerCase().includes('yes'));
+
   let description = dynamicCount > 0
     ? `${dynamicCount} key personnel position${dynamicCount !== 1 ? 's' : ''} required by the RFP. Provide named candidates with resumes and any required Letters of Commitment.`
     : 'Provide key personnel information for proposed team members. Add positions as required by your technical approach.';
 
   if (locRequirements) {
     description += ` LOC requirement: ${locRequirements}.`;
+  }
+
+  if (isBackupRequired) {
+    description += ' IMPORTANT: RFP requires backup/alternate personnel for each key position.';
   }
 
   // Build default_values from extracted positions (role pre-filled per position)
@@ -426,6 +466,33 @@ function buildKeyPersonnelSection(
       placeholder:  'Upload signed LOC',
     },
   ];
+
+  // Backup personnel fields — blocking when RFP mandates backup/alternate personnel
+  if (isBackupRequired) {
+    fields.push(
+      {
+        key:          'backup_name',
+        label:        'Backup / Alternate Personnel Name',
+        type:         'text',
+        required:     true,
+        blocking:     true,
+        rfp_citation: buildCitation(extractions, 'key_personnel', 'backup_personnel_required'),
+        placeholder:  'Full legal name of backup candidate for this position',
+        validation:   {
+          validation_hint: 'RFP requires named backup personnel for each key position. Proposal cannot proceed without a backup candidate.',
+        },
+      },
+      {
+        key:          'backup_qualifications',
+        label:        'Backup Personnel Qualifications',
+        type:         'textarea',
+        required:     true,
+        blocking:     true,
+        rfp_citation: buildCitation(extractions, 'key_personnel', 'backup_personnel_required'),
+        placeholder:  'Education, certifications, years of experience for backup candidate',
+      }
+    );
+  }
 
   const section: DataCallSection = {
     id:          'key_personnel',
@@ -617,6 +684,38 @@ function buildComplianceVerificationSection(
     placeholder:  'List certifications held by proposed personnel (e.g., CISSP, PMP, AWS SA Pro)',
   });
 
+  // DoD 8570/8140 Certification Requirements — per-position blocking confirmations
+  // When extraction detects specific mandatory certification requirements per position,
+  // generate a blocking confirmation field for each position/cert combination.
+  const certReqs = getExtractionValue<Array<{
+    position_title: string;
+    certifications: string[];
+    iat_level?: string | null;
+  }>>(extractions, 'key_personnel', 'certification_requirements');
+
+  if (certReqs && Array.isArray(certReqs) && certReqs.length > 0) {
+    for (const req of certReqs) {
+      if (!req.position_title || !req.certifications || req.certifications.length === 0) continue;
+
+      const certList = req.certifications.join(', ');
+      const iatNote = req.iat_level ? ` (${req.iat_level})` : '';
+      const fieldKey = `cert_${req.position_title.toLowerCase().replace(/[^a-z0-9]/g, '_')}_confirmed`;
+
+      fields.push({
+        key:          fieldKey,
+        label:        `${req.position_title}: Required Certifications Confirmed${iatNote}`,
+        type:         'boolean',
+        required:     true,
+        blocking:     true,
+        rfp_citation: buildCitation(extractions, 'key_personnel', 'certification_requirements'),
+        placeholder:  `Confirm proposed ${req.position_title} holds: ${certList}${iatNote}`,
+        validation:   {
+          validation_hint: `RFP requires ${req.position_title} to hold: ${certList}${iatNote}. Proposal cannot proceed without confirmation.`,
+        },
+      });
+    }
+  }
+
   // Facility clearance — required when DD254 is required or clearance levels specified
   const clearanceRequired = dd254Required === true || dd254Required === 'true' || dd254Required === 'yes'
     || (clearanceLevels && clearanceLevels.length > 0);
@@ -626,11 +725,27 @@ function buildComplianceVerificationSection(
   const companyHasClearance = companyData?.has_facility_clearance === true;
   const companyClearanceLevel = companyData?.clearance_level ?? null;
 
+  // Extract the specific RFP-required clearance level for validation
+  const rfpRequiredClearanceLevel = getExtractionValue<string>(
+    extractions, 'security_reqs', 'required_facility_clearance_level'
+  );
+
+  // Build allowed clearance levels for validation: only levels >= RFP requirement
+  const clearanceLevelOrder = ['Confidential', 'Secret', 'Top Secret', 'Top Secret/SCI'];
+  let allowedLevels: string[] | undefined;
+  if (rfpRequiredClearanceLevel) {
+    const minIdx = clearanceLevelOrder.indexOf(rfpRequiredClearanceLevel);
+    if (minIdx >= 0) {
+      allowedLevels = clearanceLevelOrder.slice(minIdx);
+    }
+  }
+
   fields.push({
     key:           'facility_clearance_confirmed',
     label:         'Facility Clearance Confirmed',
     type:          'boolean',
     required:      !!clearanceRequired,
+    blocking:      !!clearanceRequired,
     rfp_citation:  buildCitation(extractions, 'security_reqs', 'dd254_required'),
     default_value: companyHasClearance ? true : undefined,
     placeholder:   companyHasClearance && companyClearanceLevel
@@ -641,12 +756,22 @@ function buildComplianceVerificationSection(
   });
 
   // Facility clearance level — pre-filled from Tier 1 intake, required when RFP specifies clearance
+  // Blocking: validates that submitted level meets the RFP requirement
   if (clearanceRequired || companyHasClearance) {
+    const clearanceValidation: DataCallFieldValidation | undefined = allowedLevels
+      ? {
+          allowed_values: allowedLevels,
+          validation_hint: `Clearance level must be ${rfpRequiredClearanceLevel} or higher (RFP requirement)`,
+        }
+      : undefined;
+
     fields.push({
       key:           'facility_clearance_level',
       label:         'Facility Clearance Level',
       type:          'select',
       required:      !!clearanceRequired,
+      blocking:      !!clearanceRequired,
+      validation:    clearanceValidation,
       rfp_citation:  buildCitation(extractions, 'security_reqs', 'clearance_levels'),
       options:       ['Confidential', 'Secret', 'Top Secret', 'Top Secret/SCI'],
       default_value: companyClearanceLevel ?? undefined,
@@ -671,16 +796,51 @@ function buildComplianceVerificationSection(
     });
   }
 
-  // NIST 800-171 score — required when nist_800_171_required
+  // NIST 800-171 SPRS score — numeric with threshold validation
+  // Blocking: system will not proceed to draft if RFP requires NIST compliance and score is missing/invalid
   const nistIsRequired = nistRequired === true || nistRequired === 'true' || nistRequired === 'yes';
+  const sprsMinimum = getExtractionValue<number>(extractions, 'security_reqs', 'sprs_minimum_score');
+  const sprsValidation: DataCallFieldValidation = {
+    min: sprsMinimum ?? -203,  // SPRS scores range from -203 to 110
+    max: 110,
+    validation_hint: sprsMinimum
+      ? `SPRS score must be at least ${sprsMinimum} (RFP threshold). Valid range: -203 to 110.`
+      : 'SPRS score must be between -203 and 110',
+  };
+
   fields.push({
     key:          'nist_800_171_score',
     label:        'NIST SP 800-171 SPRS Score',
-    type:         'text',
+    type:         'number',
     required:     nistIsRequired,
-    rfp_citation: buildCitation(extractions, 'security_reqs', 'nist_800_171_required'),
-    placeholder:  'e.g., 82/110 — enter your SPRS self-assessment score',
+    blocking:     nistIsRequired,
+    validation:   sprsValidation,
+    rfp_citation: buildCitation(extractions, 'security_reqs', 'sprs_score'),
+    placeholder:  sprsMinimum
+      ? `RFP requires minimum score of ${sprsMinimum}. Enter your current SPRS score.`
+      : 'Enter your SPRS self-assessment score (-203 to 110)',
   });
+
+  // Retention rate — numeric percentage, blocking when RFP specifies a threshold
+  const retentionRateRequired = getExtractionValue<number>(
+    extractions, 'past_performance', 'retention_rate_required'
+  );
+  if (retentionRateRequired !== null && retentionRateRequired > 0) {
+    fields.push({
+      key:          'employee_retention_rate',
+      label:        'Employee Retention Rate (%)',
+      type:         'number',
+      required:     true,
+      blocking:     true,
+      validation:   {
+        min: retentionRateRequired,
+        max: 100,
+        validation_hint: `RFP requires minimum ${retentionRateRequired}% staff retention rate`,
+      },
+      rfp_citation: buildCitation(extractions, 'past_performance', 'retention_rate_required'),
+      placeholder:  `RFP requires minimum ${retentionRateRequired}%. Enter your retention rate.`,
+    });
+  }
 
   // Required attachments — shown as informational checklist, NOT required uploads.
   // Proposal volumes (Technical, Management, PP, Cost, PWS, QASP, SSP, POA&M, resumes,

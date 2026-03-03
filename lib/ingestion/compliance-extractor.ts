@@ -1469,6 +1469,16 @@ Extract the following fields and return ONLY valid JSON:
     "found": true | false,
     "confidence": "high" | "medium" | "low",
     "value": "10 pages for Past Performance volume"
+  },
+  "recency_years": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": 3
+  },
+  "retention_rate_required": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": 85
   }
 }
 
@@ -1477,6 +1487,8 @@ Rules:
 - "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
 - references_required: capture total number and breakdown (prime vs sub)
 - relevance_criteria: capture each criterion as a separate list item
+- recency_years: extract only the NUMERIC number of years (e.g., 3 for "within 3 years", 5 for "within 5 years"). Return null if not specified or cannot be parsed as a number.
+- retention_rate_required: extract the NUMERIC minimum staff retention percentage if the RFP specifies a measurable retention threshold (e.g., 85 for "85% retention rate"). Return null if not specified.
 - Return empty arrays [] if no items found for list fields
 - Return null for the "value" if "found" is false`,
         },
@@ -1501,6 +1513,8 @@ Rules:
       subcontractor_pp_evaluated: 'Subcontractor PP Evaluated',
       ppq_form:                   'PPQ Form',
       page_limit:                 'Page Limit',
+      recency_years:              'Recency Window (Years)',
+      retention_rate_required:    'Retention Rate Required',
     };
 
     for (const [fieldName, label] of Object.entries(fieldLabels)) {
@@ -1556,7 +1570,7 @@ export async function extractKeyPersonnel(documentTexts: string[]): Promise<Extr
 
 Find the content that defines which positions are key personnel, their required qualifications, clearance levels, resume format, and Letter of Commitment (LOC) requirements.
 
-Signal keywords: "key personnel", "resume", "resumes", "letter of commitment", "LOC", "qualifications", "certifications", "DoD 8570", "DoD 8140", "clearance", "secret", "top secret", "TS/SCI", "years of experience", "education requirement", "degree", "program manager", "project manager", "shall not count against page limit"
+Signal keywords: "key personnel", "resume", "resumes", "letter of commitment", "LOC", "qualifications", "certifications", "DoD 8570", "DoD 8140", "DoDM 8140", "IAT", "IAM", "IASAE", "clearance", "secret", "top secret", "TS/SCI", "years of experience", "education requirement", "degree", "program manager", "project manager", "shall not count against page limit", "backup", "alternate", "substitute", "replacement"
 
 Solicitation text:
 ${textSample}
@@ -1591,6 +1605,22 @@ Extract the following fields and return ONLY valid JSON:
     "found": true | false,
     "confidence": "high" | "medium" | "low",
     "value": "Resumes and LOCs do NOT count against the Technical volume page limit"
+  },
+  "backup_personnel_required": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Yes — backup/alternate personnel required for all key positions"
+  },
+  "certification_requirements": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": [
+      {
+        "position_title": "ISSO",
+        "certifications": ["CISSP", "Security+"],
+        "iat_level": "IAT Level II"
+      }
+    ]
   }
 }
 
@@ -1599,6 +1629,8 @@ Rules:
 - "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
 - positions: capture ALL positions designated as key personnel with their requirements
 - clearance: capture the specific level required (e.g., "Secret", "Top Secret", "TS/SCI")
+- backup_personnel_required: true if the RFP explicitly requires backup, alternate, or substitute personnel for key positions. Include the RFP language if found.
+- certification_requirements: extract SPECIFIC mandatory certifications per position (e.g., DoD 8570/8140, PMP, CISSP). Only include certifications that are explicitly REQUIRED, not preferred. Include IAT/IAM level if specified.
 - Return empty arrays [] if no items found for list fields
 - Return null for the "value" if "found" is false`,
         },
@@ -1617,10 +1649,12 @@ Rules:
     const results: ExtractionResult[] = [];
 
     const fieldLabels: Record<string, string> = {
-      positions:                'Key Personnel Positions',
-      resume_format:            'Resume Format Requirements',
-      loc_requirements:         'LOC Requirements',
-      counts_against_page_limit: 'Counts Against Page Limit',
+      positions:                  'Key Personnel Positions',
+      resume_format:              'Resume Format Requirements',
+      loc_requirements:           'LOC Requirements',
+      counts_against_page_limit:  'Counts Against Page Limit',
+      backup_personnel_required:  'Backup Personnel Required',
+      certification_requirements: 'Certification Requirements',
     };
 
     for (const [fieldName, label] of Object.entries(fieldLabels)) {
@@ -1719,6 +1753,16 @@ Extract the following fields and return ONLY valid JSON:
     "found": true | false,
     "confidence": "high" | "medium" | "low",
     "value": "Minimum SPRS score of 110 required at time of proposal submission"
+  },
+  "sprs_minimum_score": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": 110
+  },
+  "required_facility_clearance_level": {
+    "found": true | false,
+    "confidence": "high" | "medium" | "low",
+    "value": "Secret"
   }
 }
 
@@ -1727,6 +1771,8 @@ Rules:
 - "confidence": "high" if clearly stated, "medium" if partially stated, "low" if inferred
 - clearance_levels: list ALL clearance levels mentioned (facility, personnel, specific positions)
 - dd254_required: note attachment reference if applicable
+- sprs_minimum_score: extract the NUMERIC threshold only (e.g., 110), not the description. Return null if no numeric threshold found.
+- required_facility_clearance_level: the MINIMUM facility clearance level required. Use one of: "Confidential", "Secret", "Top Secret", "Top Secret/SCI". Return null if not specified.
 - Return empty arrays [] if no items found for list fields
 - Return null for the "value" if "found" is false`,
         },
@@ -1745,13 +1791,15 @@ Rules:
     const results: ExtractionResult[] = [];
 
     const fieldLabels: Record<string, string> = {
-      dd254_required:        'DD254 Required',
-      clearance_levels:      'Clearance Levels',
-      cmmc_level:            'CMMC Level',
-      nist_800_171_required: 'NIST 800-171 Required',
-      cui_requirements:      'CUI Requirements',
-      ssp_required:          'SSP Required',
-      sprs_score:            'SPRS Score Requirement',
+      dd254_required:                   'DD254 Required',
+      clearance_levels:                 'Clearance Levels',
+      cmmc_level:                       'CMMC Level',
+      nist_800_171_required:            'NIST 800-171 Required',
+      cui_requirements:                 'CUI Requirements',
+      ssp_required:                     'SSP Required',
+      sprs_score:                       'SPRS Score Requirement',
+      sprs_minimum_score:               'SPRS Minimum Score Threshold',
+      required_facility_clearance_level: 'Required Facility Clearance Level',
     };
 
     for (const [fieldName, label] of Object.entries(fieldLabels)) {
