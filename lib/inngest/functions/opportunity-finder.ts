@@ -9,7 +9,7 @@ import {
 import { assembleOpportunityScorerPrompt } from '@/lib/capture/opportunity-scorer-prompt';
 import {
   comprehensiveOpportunitySearch,
-  type SamApiOpportunity,
+  type TangoOpportunity,
 } from '@/lib/samgov/client';
 import type {
   ParsedCompanyProfile,
@@ -19,48 +19,27 @@ import type {
 } from '@/lib/supabase/capture-types';
 
 /**
- * Convert SAM.gov API response format to our internal format.
+ * Convert Tango API response to our internal opportunity format.
  */
-function normalizeSamOpportunity(raw: SamApiOpportunity): SamOpportunity {
+function normalizeOpportunity(raw: TangoOpportunity): SamOpportunity {
   return {
-    notice_id: raw.noticeId,
+    notice_id: raw.opportunity_id,
     title: raw.title,
-    solicitation_number: raw.solicitationNumber,
-    department: raw.department || raw.fullParentPathName || 'Unknown',
-    sub_tier: raw.subTier,
-    office: raw.office,
-    posted_date: raw.postedDate,
-    response_deadline: raw.responseDeadLine,
-    type: raw.type,
-    base_type: raw.baseType,
-    naics_code: raw.naicsCode,
-    classification_code: raw.classificationCode,
-    set_aside: raw.typeOfSetAside,
-    set_aside_description: raw.typeOfSetAsideDescription,
-    active: raw.active === 'Yes' || raw.active === 'true',
-    description: raw.description,
-    resource_links: raw.resourceLinks,
-    point_of_contact: raw.pointOfContact?.map((poc) => ({
-      type: poc.type,
-      full_name: poc.fullName,
-      email: poc.email,
-      phone: poc.phone,
-      title: poc.title,
-    })),
-    place_of_performance: raw.placeOfPerformance
-      ? {
-          state: raw.placeOfPerformance.state?.code || raw.placeOfPerformance.state?.name,
-          zip: raw.placeOfPerformance.zip,
-          city: raw.placeOfPerformance.city?.name,
-        }
-      : undefined,
-    award: raw.award
-      ? {
-          date: raw.award.date,
-          number: raw.award.number,
-          amount: raw.award.amount ? parseFloat(raw.award.amount) : undefined,
-          awardee_name: raw.award.awardee?.name,
-        }
+    solicitation_number: raw.solicitation_number ?? undefined,
+    department: (raw.department as string) || (raw.agency as string) || 'Unknown',
+    sub_tier: (raw.sub_tier as string) || undefined,
+    office: (raw.office as string) || undefined,
+    posted_date: (raw.posted_date as string) || '',
+    response_deadline: raw.response_deadline ?? undefined,
+    type: (raw.type as string) || (raw.notice_type as string) || 'Opportunity',
+    naics_code: raw.naics_code ?? undefined,
+    classification_code: raw.psc_code ?? undefined,
+    set_aside: (raw.set_aside as string) || undefined,
+    set_aside_description: (raw.set_aside_description as string) || undefined,
+    active: raw.active ?? true,
+    description: raw.description ?? undefined,
+    point_of_contact: raw.point_of_contact
+      ? (raw.point_of_contact as SamOpportunity['point_of_contact'])
       : undefined,
   };
 }
@@ -208,8 +187,8 @@ export const opportunityFinder = inngest.createFunction(
       return parseClaudeJSON<ParsedCompanyProfile>(text);
     });
 
-    // ── Step 3: Search SAM.gov for matching opportunities ──
-    const searchResults = await step.run('search-sam-gov', async () => {
+    // ── Step 3: Search Tango API for matching opportunities ──
+    const searchResults = await step.run('search-tango-opportunities', async () => {
       const result = await comprehensiveOpportunitySearch({
         naicsCodes: parsedProfile.naics_codes,
         keywords: parsedProfile.keywords,
@@ -219,7 +198,7 @@ export const opportunityFinder = inngest.createFunction(
       });
 
       return {
-        opportunities: result.opportunities.map(normalizeSamOpportunity),
+        opportunities: result.opportunities.map(normalizeOpportunity),
         totalSearched: result.totalSearched,
       };
     });
