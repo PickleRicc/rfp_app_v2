@@ -9,6 +9,7 @@ import {
   Database,
   CheckCircle2,
   Crosshair,
+  Search,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ import { Button } from "@/app/components/ui/button";
 import { useCompany } from "@/lib/context/CompanyContext";
 import { RawUploadFlow } from "@/app/components/capture/RawUploadFlow";
 import { DatabaseFlow } from "@/app/components/capture/DatabaseFlow";
+import { OpportunityFinderFlow } from "@/app/components/capture/OpportunityFinderFlow";
 import type { AnalysisMode } from "@/lib/supabase/capture-types";
 
 type Step = "mode" | "details" | "upload" | "analyzing";
@@ -77,7 +79,7 @@ function NewAnalysisPageInner() {
           title: title.trim(),
           solicitation_number: solicitationNumber.trim() || undefined,
           agency: agency.trim() || undefined,
-          company_id: mode === "database" ? selectedCompanyId : undefined,
+          company_id: (mode === "database" || mode === "finder") ? selectedCompanyId : undefined,
         }),
       });
 
@@ -116,7 +118,7 @@ function NewAnalysisPageInner() {
   const steps = [
     { num: 1, label: "Select Mode" },
     { num: 2, label: "Details" },
-    { num: 3, label: "Upload & Analyze" },
+    { num: 3, label: mode === "finder" ? "Upload & Search" : "Upload & Analyze" },
   ];
 
   return (
@@ -177,7 +179,27 @@ function NewAnalysisPageInner() {
 
       {/* Step 1: Mode selection */}
       {currentStep === "mode" && (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <button
+            onClick={() => handleSelectMode("finder")}
+            className="group rounded-xl border-2 border-emerald-300 bg-card p-6 text-left transition-all hover:border-emerald-500 hover:shadow-md ring-2 ring-emerald-100"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-100 transition-colors group-hover:bg-emerald-200">
+              <Search className="h-6 w-6 text-emerald-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">
+              Opportunity Finder
+            </h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Upload company data and AI will find matching federal
+              opportunities on SAM.gov with full solicitation details.
+            </p>
+            <div className="mt-4 flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+              Select this mode
+              <ArrowRight className="h-4 w-4" />
+            </div>
+          </button>
+
           <button
             onClick={() => handleSelectMode("raw")}
             className="group rounded-xl border-2 border-border bg-card p-6 text-left transition-all hover:border-primary hover:shadow-md"
@@ -237,10 +259,16 @@ function NewAnalysisPageInner() {
               <div
                 className={cn(
                   "flex h-8 w-8 items-center justify-center rounded-lg",
-                  mode === "raw" ? "bg-blue-100" : "bg-purple-100"
+                  mode === "finder"
+                    ? "bg-emerald-100"
+                    : mode === "raw"
+                    ? "bg-blue-100"
+                    : "bg-purple-100"
                 )}
               >
-                {mode === "raw" ? (
+                {mode === "finder" ? (
+                  <Search className="h-4 w-4 text-emerald-600" />
+                ) : mode === "raw" ? (
                   <Upload className="h-4 w-4 text-blue-600" />
                 ) : (
                   <Database className="h-4 w-4 text-purple-600" />
@@ -248,11 +276,16 @@ function NewAnalysisPageInner() {
               </div>
               <div>
                 <h2 className="text-base font-semibold text-foreground">
-                  Analysis Details
+                  {mode === "finder" ? "Search Details" : "Analysis Details"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  {mode === "raw" ? "Raw Upload" : "Company Database"} mode
-                  {mode === "database" &&
+                  {mode === "finder"
+                    ? "Opportunity Finder"
+                    : mode === "raw"
+                    ? "Raw Upload"
+                    : "Company Database"}{" "}
+                  mode
+                  {(mode === "database" || mode === "finder") &&
                     selectedCompany &&
                     ` — ${selectedCompany.company_name}`}
                 </p>
@@ -276,50 +309,58 @@ function NewAnalysisPageInner() {
                   setTitle(e.target.value);
                   setCreateError(null);
                 }}
-                placeholder="e.g., DISA Cloud Migration Services Evaluation"
+                placeholder={
+                  mode === "finder"
+                    ? "e.g., Acme Corp IT Services Opportunity Search"
+                    : "e.g., DISA Cloud Migration Services Evaluation"
+                }
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
 
-            <div className="space-y-1">
-              <label
-                htmlFor="sol-number"
-                className="block text-sm font-medium text-foreground"
-              >
-                Solicitation Number{" "}
-                <span className="text-xs font-normal text-muted-foreground">
-                  (optional)
-                </span>
-              </label>
-              <input
-                id="sol-number"
-                type="text"
-                value={solicitationNumber}
-                onChange={(e) => setSolicitationNumber(e.target.value)}
-                placeholder="e.g., W911NF-24-R-0001"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
+            {mode !== "finder" && (
+              <>
+                <div className="space-y-1">
+                  <label
+                    htmlFor="sol-number"
+                    className="block text-sm font-medium text-foreground"
+                  >
+                    Solicitation Number{" "}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      (optional)
+                    </span>
+                  </label>
+                  <input
+                    id="sol-number"
+                    type="text"
+                    value={solicitationNumber}
+                    onChange={(e) => setSolicitationNumber(e.target.value)}
+                    placeholder="e.g., W911NF-24-R-0001"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
 
-            <div className="space-y-1">
-              <label
-                htmlFor="agency"
-                className="block text-sm font-medium text-foreground"
-              >
-                Agency{" "}
-                <span className="text-xs font-normal text-muted-foreground">
-                  (optional)
-                </span>
-              </label>
-              <input
-                id="agency"
-                type="text"
-                value={agency}
-                onChange={(e) => setAgency(e.target.value)}
-                placeholder="e.g., Department of Defense"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
+                <div className="space-y-1">
+                  <label
+                    htmlFor="agency"
+                    className="block text-sm font-medium text-foreground"
+                  >
+                    Agency{" "}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      (optional)
+                    </span>
+                  </label>
+                  <input
+                    id="agency"
+                    type="text"
+                    value={agency}
+                    onChange={(e) => setAgency(e.target.value)}
+                    placeholder="e.g., Department of Defense"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </>
+            )}
 
             {createError && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3">
@@ -353,10 +394,16 @@ function NewAnalysisPageInner() {
         </div>
       )}
 
-      {/* Step 3: Upload & Analyze */}
+      {/* Step 3: Upload & Analyze / Search */}
       {currentStep === "upload" && analysisId && (
         <>
-          {mode === "raw" ? (
+          {mode === "finder" ? (
+            <OpportunityFinderFlow
+              analysisId={analysisId}
+              companyId={selectedCompanyId}
+              onSearchStarted={handleAnalysisStarted}
+            />
+          ) : mode === "raw" ? (
             <RawUploadFlow
               analysisId={analysisId}
               onAnalysisStarted={handleAnalysisStarted}

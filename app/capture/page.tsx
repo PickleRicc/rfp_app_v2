@@ -9,6 +9,7 @@ import {
   Crosshair,
   Database,
   Upload,
+  Search,
   ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -163,13 +164,19 @@ export default function CapturePage() {
           </p>
 
           <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <Button asChild className="gap-2">
+              <Link href="/capture/new?mode=finder">
+                <Search className="h-4 w-4" />
+                Find Opportunities
+              </Link>
+            </Button>
             <Button asChild variant="outline" className="gap-2">
               <Link href="/capture/new?mode=raw">
                 <Upload className="h-4 w-4" />
                 Raw Upload Analysis
               </Link>
             </Button>
-            <Button asChild className="gap-2">
+            <Button asChild variant="outline" className="gap-2">
               <Link href="/capture/new?mode=database">
                 <Database className="h-4 w-4" />
                 Company Database Analysis
@@ -228,12 +235,18 @@ export default function CapturePage() {
 
                     <td className="px-4 py-4">
                       <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                        {analysis.mode === "raw" ? (
+                        {analysis.mode === "finder" ? (
+                          <Search className="h-3.5 w-3.5" />
+                        ) : analysis.mode === "raw" ? (
                           <Upload className="h-3.5 w-3.5" />
                         ) : (
                           <Database className="h-3.5 w-3.5" />
                         )}
-                        {analysis.mode === "raw" ? "Raw Upload" : "Database"}
+                        {analysis.mode === "finder"
+                          ? "Finder"
+                          : analysis.mode === "raw"
+                          ? "Raw Upload"
+                          : "Database"}
                       </span>
                     </td>
 
