@@ -33,7 +33,9 @@ export const SET_ASIDE_CODES: Record<string, string> = {
 /** Shape string requesting all fields we need for opportunity scoring */
 const OPPORTUNITY_FULL_SHAPE =
   'opportunity_id,title,solicitation_number,description,response_deadline,active,' +
-  'naics_code,psc_code';
+  'naics_code,psc_code,posted_date,type,department,sub_tier,office,' +
+  'set_aside,set_aside_description,notice_type,point_of_contact(*),' +
+  'agency';
 
 export interface TangoOpportunity {
   opportunity_id: string;
