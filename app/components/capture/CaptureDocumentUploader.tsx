@@ -21,7 +21,7 @@ interface UploadedFile {
 
 interface CaptureDocumentUploaderProps {
   analysisId: string;
-  documentType: "rfp" | "past_performance";
+  documentType: "rfp" | "past_performance" | "company_data";
   label: string;
   description: string;
   accept?: string;

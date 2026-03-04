@@ -66,9 +66,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!body.mode || !['raw', 'database'].includes(body.mode)) {
+    if (!body.mode || !['raw', 'database', 'finder'].includes(body.mode)) {
       return NextResponse.json(
-        { error: 'Mode must be "raw" or "database"' },
+        { error: 'Mode must be "raw", "database", or "finder"' },
         { status: 400 }
       );
     }

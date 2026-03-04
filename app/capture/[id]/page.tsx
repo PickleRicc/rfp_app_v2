@@ -11,6 +11,7 @@ import {
   FileText,
   Upload,
   Database,
+  Search,
   RefreshCw,
   Trash2,
   Play,
@@ -18,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/app/components/ui/button";
 import { OpportunityReportView } from "@/app/components/capture/OpportunityReportView";
+import { OpportunityFinderResults } from "@/app/components/capture/OpportunityFinderResults";
 import type {
   OpportunityAnalysis,
   OpportunityDocument,
@@ -122,7 +124,10 @@ export default function AnalysisDetailPage({
   const handleRetry = async () => {
     setIsRetrying(true);
     try {
-      const response = await fetch(`/api/capture/${id}/analyze`, {
+      const endpoint = analysis?.mode === "finder"
+        ? `/api/capture/${id}/find-opportunities`
+        : `/api/capture/${id}/analyze`;
+      const response = await fetch(endpoint, {
         method: "POST",
       });
       if (response.ok) {
@@ -205,12 +210,18 @@ export default function AnalysisDetailPage({
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1">
-                {analysis.mode === "raw" ? (
+                {analysis.mode === "finder" ? (
+                  <Search className="h-3.5 w-3.5" />
+                ) : analysis.mode === "raw" ? (
                   <Upload className="h-3.5 w-3.5" />
                 ) : (
                   <Database className="h-3.5 w-3.5" />
                 )}
-                {analysis.mode === "raw" ? "Raw Upload" : "Company Database"}
+                {analysis.mode === "finder"
+                  ? "Opportunity Finder"
+                  : analysis.mode === "raw"
+                  ? "Raw Upload"
+                  : "Company Database"}
               </span>
               {analysis.solicitation_number && (
                 <span>Sol: {analysis.solicitation_number}</span>
@@ -253,25 +264,43 @@ export default function AnalysisDetailPage({
       {analysis.status === "analyzing" && (
         <div className="flex flex-col items-center gap-4 rounded-xl border border-border bg-card p-12 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Crosshair className="h-8 w-8 animate-pulse text-primary" />
+            {analysis.mode === "finder" ? (
+              <Search className="h-8 w-8 animate-pulse text-primary" />
+            ) : (
+              <Crosshair className="h-8 w-8 animate-pulse text-primary" />
+            )}
           </div>
           <h3 className="text-lg font-semibold text-foreground">
-            Analyzing Opportunity
+            {analysis.mode === "finder"
+              ? "Finding Opportunities"
+              : "Analyzing Opportunity"}
           </h3>
           <p className="max-w-md text-sm text-muted-foreground">
-            Cross-referencing {rfpDocs.length} solicitation document
-            {rfpDocs.length !== 1 ? "s" : ""} against{" "}
-            {analysis.mode === "raw"
-              ? `${ppDocs.length} past performance document${
-                  ppDocs.length !== 1 ? "s" : ""
-                }`
-              : "company database records"}
-            . This may take a few minutes.
+            {analysis.mode === "finder" ? (
+              <>
+                Parsing your company data, searching SAM.gov for matching
+                opportunities, and scoring results by relevance. This may take a
+                few minutes.
+              </>
+            ) : (
+              <>
+                Cross-referencing {rfpDocs.length} solicitation document
+                {rfpDocs.length !== 1 ? "s" : ""} against{" "}
+                {analysis.mode === "raw"
+                  ? `${ppDocs.length} past performance document${
+                      ppDocs.length !== 1 ? "s" : ""
+                    }`
+                  : "company database records"}
+                . This may take a few minutes.
+              </>
+            )}
           </p>
           <div className="flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             <span className="text-sm text-muted-foreground">
-              Analysis in progress...
+              {analysis.mode === "finder"
+                ? "Searching opportunities..."
+                : "Analysis in progress..."}
             </span>
           </div>
         </div>
@@ -343,8 +372,16 @@ export default function AnalysisDetailPage({
         </div>
       )}
 
-      {/* Complete state — show the report */}
+      {/* Complete state — Finder mode shows OpportunityFinderResults */}
       {analysis.status === "complete" &&
+        analysis.mode === "finder" &&
+        analysis.finder_report && (
+          <OpportunityFinderResults report={analysis.finder_report} />
+        )}
+
+      {/* Complete state — Raw/Database mode shows the report */}
+      {analysis.status === "complete" &&
+        analysis.mode !== "finder" &&
         analysis.report &&
         analysis.overall_fit_rating &&
         analysis.overall_score != null && (
@@ -356,14 +393,16 @@ export default function AnalysisDetailPage({
         )}
 
       {/* Complete but no report data */}
-      {analysis.status === "complete" && !analysis.report && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
-          <AlertCircle className="mx-auto mb-2 h-5 w-5 text-amber-500" />
-          <p className="text-sm text-amber-800">
-            Analysis completed but no report data was generated.
-          </p>
-        </div>
-      )}
+      {analysis.status === "complete" &&
+        !analysis.report &&
+        !analysis.finder_report && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
+            <AlertCircle className="mx-auto mb-2 h-5 w-5 text-amber-500" />
+            <p className="text-sm text-amber-800">
+              Analysis completed but no report data was generated.
+            </p>
+          </div>
+        )}
     </div>
   );
 }
