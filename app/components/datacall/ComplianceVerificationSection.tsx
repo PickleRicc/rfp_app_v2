@@ -202,6 +202,8 @@ export function ComplianceVerificationSection({
     org_certifications: data?.org_certifications ?? {},
     individual_certifications: data?.individual_certifications ?? [],
     facility_clearance_confirmed: data?.facility_clearance_confirmed ?? null,
+    facility_clearance_level: data?.facility_clearance_level ?? "",
+    facility_clearance_sponsoring_agency: data?.facility_clearance_sponsoring_agency ?? "",
     nist_800_171_score: data?.nist_800_171_score ?? "",
     required_attachments: data?.required_attachments ?? {},
   };
@@ -329,6 +331,14 @@ export function ComplianceVerificationSection({
     (f) => f.key === "facility_clearance_confirmed"
   );
 
+  const clearanceLevelField = section.fields.find(
+    (f) => f.key === "facility_clearance_level"
+  );
+
+  const clearanceSponsorField = section.fields.find(
+    (f) => f.key === "facility_clearance_sponsoring_agency"
+  );
+
   const nistField = section.fields.find((f) => f.key === "nist_800_171_score");
 
   const attachmentFields = section.fields.filter(
@@ -439,7 +449,7 @@ export function ComplianceVerificationSection({
 
       {/* ---- Facility Clearance ---- */}
       {clearanceField && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <hr className="border-border" />
           <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-background px-4 py-3">
             <div className="flex-1 space-y-0.5">
@@ -467,6 +477,61 @@ export function ComplianceVerificationSection({
               label="Toggle facility clearance confirmation"
             />
           </div>
+
+          {/* Clearance Level — shown whenever the schema includes the field */}
+          {clearanceLevelField && (
+            <div className="space-y-1 pl-1">
+              <label className="block text-sm font-medium text-foreground">
+                {clearanceLevelField.label ?? "Facility Clearance Level"}
+                {clearanceLevelField.required && <RequiredMark />}
+              </label>
+              {clearanceLevelField.rfp_citation && (
+                <Citation text={clearanceLevelField.rfp_citation} />
+              )}
+              <select
+                value={safeData.facility_clearance_level ?? ""}
+                onChange={(e) =>
+                  update("facility_clearance_level", e.target.value)
+                }
+                className="w-full max-w-xs rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">
+                  {clearanceLevelField.placeholder ?? "Select clearance level..."}
+                </option>
+                {(clearanceLevelField.options ?? ["Confidential", "Secret", "Top Secret", "Top Secret/SCI"]).map(
+                  (opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  )
+                )}
+              </select>
+              {clearanceLevelField.validation?.validation_hint && (
+                <p className="text-xs text-amber-700">
+                  {clearanceLevelField.validation.validation_hint}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Sponsoring Agency — shown when pre-populated from Tier 1 intake */}
+          {clearanceSponsorField && (
+            <div className="space-y-1 pl-1">
+              <label className="block text-sm font-medium text-foreground">
+                {clearanceSponsorField.label ?? "Sponsoring Agency"}
+                {clearanceSponsorField.required && <RequiredMark />}
+              </label>
+              <input
+                type="text"
+                value={safeData.facility_clearance_sponsoring_agency ?? ""}
+                onChange={(e) =>
+                  update("facility_clearance_sponsoring_agency", e.target.value)
+                }
+                placeholder={clearanceSponsorField.placeholder ?? "e.g., Department of Defense"}
+                className="w-full max-w-sm rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
         </div>
       )}
 

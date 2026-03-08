@@ -183,6 +183,12 @@ export interface ComplianceVerification {
   /** Whether facility clearance has been confirmed (null = N/A for this RFP) */
   facility_clearance_confirmed: boolean | null;
 
+  /** Facility clearance level (e.g., "Secret", "Top Secret", "TS/SCI") */
+  facility_clearance_level?: string;
+
+  /** Agency sponsoring the facility clearance */
+  facility_clearance_sponsoring_agency?: string;
+
   /** NIST SP 800-171 SPRS score (e.g., "82/110") */
   nist_800_171_score: string;
 

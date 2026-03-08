@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS opportunity_analyses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID REFERENCES company_profiles(id) ON DELETE SET NULL,
-  mode TEXT NOT NULL CHECK (mode IN ('raw', 'database')),
+  mode TEXT NOT NULL CHECK (mode IN ('raw', 'database', 'finder')),
   title TEXT NOT NULL,
   agency TEXT,
   solicitation_number TEXT,
@@ -44,30 +44,37 @@ CREATE INDEX IF NOT EXISTS idx_opportunity_documents_analysis ON opportunity_doc
 ALTER TABLE opportunity_analyses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE opportunity_documents ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own analyses" ON opportunity_analyses;
 CREATE POLICY "Users can view own analyses"
   ON opportunity_analyses FOR SELECT
   USING (auth.uid() = created_by);
 
+DROP POLICY IF EXISTS "Users can insert own analyses" ON opportunity_analyses;
 CREATE POLICY "Users can insert own analyses"
   ON opportunity_analyses FOR INSERT
   WITH CHECK (auth.uid() = created_by);
 
+DROP POLICY IF EXISTS "Users can update own analyses" ON opportunity_analyses;
 CREATE POLICY "Users can update own analyses"
   ON opportunity_analyses FOR UPDATE
   USING (auth.uid() = created_by);
 
+DROP POLICY IF EXISTS "Users can delete own analyses" ON opportunity_analyses;
 CREATE POLICY "Users can delete own analyses"
   ON opportunity_analyses FOR DELETE
   USING (auth.uid() = created_by);
 
+DROP POLICY IF EXISTS "Users can view docs for own analyses" ON opportunity_documents;
 CREATE POLICY "Users can view docs for own analyses"
   ON opportunity_documents FOR SELECT
   USING (analysis_id IN (SELECT id FROM opportunity_analyses WHERE created_by = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can insert docs for own analyses" ON opportunity_documents;
 CREATE POLICY "Users can insert docs for own analyses"
   ON opportunity_documents FOR INSERT
   WITH CHECK (analysis_id IN (SELECT id FROM opportunity_analyses WHERE created_by = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can delete docs for own analyses" ON opportunity_documents;
 CREATE POLICY "Users can delete docs for own analyses"
   ON opportunity_documents FOR DELETE
   USING (analysis_id IN (SELECT id FROM opportunity_analyses WHERE created_by = auth.uid()));

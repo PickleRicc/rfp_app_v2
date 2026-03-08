@@ -118,6 +118,8 @@ function emptyComplianceVerification(): ComplianceVerification {
     org_certifications: {},
     individual_certifications: [],
     facility_clearance_confirmed: null,
+    facility_clearance_level: "",
+    facility_clearance_sponsoring_agency: "",
     nist_800_171_score: "",
     required_attachments: {},
   };
@@ -627,13 +629,7 @@ function renderSection(
         <ComplianceVerificationSection
           section={section}
           data={
-            (formData["compliance_verification"] as ComplianceVerification) ?? {
-              org_certifications: {},
-              individual_certifications: [],
-              facility_clearance_confirmed: null,
-              nist_800_171_score: "",
-              required_attachments: {},
-            }
+            (formData["compliance_verification"] as ComplianceVerification) ?? emptyComplianceVerification()
           }
           onChange={(val) => updateSection("compliance_verification", val)}
           files={files}
