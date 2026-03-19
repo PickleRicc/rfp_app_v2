@@ -12,6 +12,7 @@ import { touchupRewriter } from '@/lib/inngest/functions/touchup-rewriter';
 import { touchupPackageScorer } from '@/lib/inngest/functions/touchup-package-scorer';
 import { opportunityAnalyzer } from '@/lib/inngest/functions/opportunity-analyzer';
 import { opportunityFinder } from '@/lib/inngest/functions/opportunity-finder';
+import { companyResearcher } from '@/lib/inngest/functions/company-researcher';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -28,5 +29,6 @@ export const { GET, POST, PUT } = serve({
     touchupPackageScorer,
     opportunityAnalyzer,
     opportunityFinder,
+    companyResearcher,
   ],
 });

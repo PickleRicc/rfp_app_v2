@@ -16,6 +16,8 @@ import {
   User,
   FolderOpen,
   Crosshair,
+  Telescope,
+  Radar,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -30,6 +32,8 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 const navigation = [
   { name: "Solicitations", href: "/solicitations", icon: FolderOpen },
   { name: "Capture", href: "/capture", icon: Crosshair },
+  { name: "Research", href: "/research", icon: Telescope },
+  { name: "Opportunities", href: "/opportunities", icon: Radar },
   { name: "Company Data", href: "/company/profile", icon: Building2 },
   { name: "All Companies", href: "/companies", icon: Users },
 ];
