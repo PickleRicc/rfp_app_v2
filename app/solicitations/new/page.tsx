@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
+import { AlertBanner } from "@/app/components/ui/alert-banner";
 import { SolicitationUploader } from "@/app/components/solicitation/SolicitationUploader";
 import { DocumentClassificationTable } from "@/app/components/solicitation/DocumentClassificationTable";
 import { useCompany } from "@/lib/context/CompanyContext";
@@ -189,6 +192,15 @@ export default function NewSolicitationPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
+      {/* Back link */}
+      <Link
+        href="/solicitations"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Back to Solicitations
+      </Link>
+
       {/* Page header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">New Solicitation Package</h1>
@@ -198,36 +210,34 @@ export default function NewSolicitationPage() {
       </div>
 
       {/* Step indicator */}
-      <div className="mb-8 flex items-center gap-4">
+      <div className="mb-8 flex items-center gap-3">
         {[
-          { num: 1, label: "Create" },
+          { num: 1, label: "Details" },
           { num: 2, label: "Upload" },
           { num: 3, label: "Review" },
         ].map((s, i) => (
-          <div key={s.num} className="flex items-center gap-4">
+          <div key={s.num} className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
                   stepNumber > s.num
-                    ? "bg-green-500 text-white"
+                    ? "bg-success text-success-foreground"
                     : stepNumber === s.num
-                    ? "bg-primary text-white"
+                    ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground"
                 }`}
               >
                 {stepNumber > s.num ? <CheckCircle2 className="h-4 w-4" /> : s.num}
               </div>
               <span
-                className={`text-sm font-medium ${
+                className={`text-sm font-medium transition-colors ${
                   stepNumber === s.num ? "text-foreground" : "text-muted-foreground"
                 }`}
               >
                 {s.label}
               </span>
             </div>
-            {i < 2 && (
-              <div className="h-px w-8 bg-border" />
-            )}
+            {i < 2 && <div className="h-px w-10 bg-border" />}
           </div>
         ))}
       </div>
@@ -242,21 +252,17 @@ export default function NewSolicitationPage() {
           </div>
           <div className="p-6 space-y-4">
             {!selectedCompanyId && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <p className="text-sm text-amber-800">
-                  No company selected. Please select a company from the header.
-                </p>
-              </div>
+              <AlertBanner
+                variant="warning"
+                message="No company selected. Please select a company from the header."
+              />
             )}
 
-            <div className="space-y-1">
-              <label
-                htmlFor="sol-number"
-                className="block text-sm font-medium text-foreground"
-              >
-                Solicitation Number <span className="text-red-500">*</span>
+            <div className="space-y-1.5">
+              <label htmlFor="sol-number" className="block text-sm font-medium text-foreground">
+                Solicitation Number <span className="text-destructive">*</span>
               </label>
-              <input
+              <Input
                 id="sol-number"
                 type="text"
                 value={solicitationNumber}
@@ -265,53 +271,44 @@ export default function NewSolicitationPage() {
                   setCreateError(null);
                 }}
                 placeholder="e.g., W911NF-24-R-0001"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
               {detectedSolicitationNumber && (
-                <p className="mt-1 text-xs text-green-600">
+                <p className="text-xs text-success">
                   Detected from uploaded documents: {detectedSolicitationNumber}
                 </p>
               )}
             </div>
 
-            <div className="space-y-1">
-              <label
-                htmlFor="sol-title"
-                className="block text-sm font-medium text-foreground"
-              >
-                Title <span className="text-muted-foreground text-xs font-normal">(optional)</span>
+            <div className="space-y-1.5">
+              <label htmlFor="sol-title" className="block text-sm font-medium text-foreground">
+                Title{" "}
+                <span className="text-xs font-normal text-muted-foreground">(optional)</span>
               </label>
-              <input
+              <Input
                 id="sol-title"
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., Advanced Research for Autonomous Systems"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
 
-            <div className="space-y-1">
-              <label
-                htmlFor="sol-agency"
-                className="block text-sm font-medium text-foreground"
-              >
-                Agency <span className="text-muted-foreground text-xs font-normal">(optional)</span>
+            <div className="space-y-1.5">
+              <label htmlFor="sol-agency" className="block text-sm font-medium text-foreground">
+                Agency{" "}
+                <span className="text-xs font-normal text-muted-foreground">(optional)</span>
               </label>
-              <input
+              <Input
                 id="sol-agency"
                 type="text"
                 value={agency}
                 onChange={(e) => setAgency(e.target.value)}
                 placeholder="e.g., Army Research Laboratory"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
 
             {createError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm text-red-700">{createError}</p>
-              </div>
+              <AlertBanner variant="error" message={createError} />
             )}
 
             <Button

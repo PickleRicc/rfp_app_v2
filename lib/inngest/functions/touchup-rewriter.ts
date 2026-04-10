@@ -33,6 +33,12 @@ import {
 } from '@/lib/generation/docx/generator';
 import { parseMarkdownToDocx } from '@/lib/generation/docx/markdown-parser';
 import { buildColorPalette } from '@/lib/generation/docx/colors';
+import {
+  embedAiDiagrams,
+  findDiagramInsertionPoint,
+  findContentInsertionIndex,
+} from '@/lib/generation/docx/diagram-embedder';
+import type { DiagramSpec } from '@/lib/generation/exhibits/diagram-types';
 import { snapshotVersion } from '@/lib/supabase/touchup-version-helper';
 import { logPipelineEvent } from '@/lib/logging/pipeline-logger';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
@@ -108,7 +114,7 @@ export const touchupRewriter = inngest.createFunction(
 
       const { data: draftVol } = await supabase
         .from('draft_volumes')
-        .select('content_markdown, page_limit')
+        .select('content_markdown, page_limit, diagram_specs')
         .eq('id', touchupVol.original_volume_id)
         .single();
 
@@ -153,6 +159,8 @@ export const touchupRewriter = inngest.createFunction(
         { data: certs }, { data: pers }, { data: pp },
         { data: naics }, { data: vehicles },
         { data: dataCallFiles },
+        { data: strategyRow },
+        { data: smeRows },
       ] = await Promise.all([
         supabase.from('certifications').select('*').eq('company_id', companyId),
         supabase.from('personnel').select('*').eq('company_id', companyId),
@@ -163,6 +171,10 @@ export const touchupRewriter = inngest.createFunction(
           .select('id, section, field_key, filename, extracted_text')
           .eq('data_call_response_id', dataCall.id)
           .not('extracted_text', 'is', null),
+        supabase.from('solicitation_strategies').select('*')
+          .eq('solicitation_id', solicitationId).eq('company_id', companyId).maybeSingle(),
+        supabase.from('sme_contributions').select('*')
+          .eq('solicitation_id', solicitationId).eq('company_id', companyId).eq('approved', true),
       ]);
 
       const previousRewriteMarkdown = touchupVol.content_markdown as string | null;
@@ -175,6 +187,7 @@ export const touchupRewriter = inngest.createFunction(
         draftMarkdown: draftVol.content_markdown as string,
         previousRewriteMarkdown,
         pageLimit: draftVol.page_limit as number | null,
+        diagramSpecs: (draftVol as Record<string, unknown>).diagram_specs as unknown[] || [],
         gapAnalysis: touchupVol.gap_analysis as unknown as GapAnalysis,
         complianceScore: (touchupVol.compliance_score as number | null) ?? undefined,
         companyProfile: company as CompanyProfile,
@@ -190,6 +203,8 @@ export const touchupRewriter = inngest.createFunction(
         siteStaffing: (dataCall as DataCallResponse).site_staffing || [],
         technologySelections: (dataCall as DataCallResponse).technology_selections || [],
         dataCallFiles: dataCallFiles || [],
+        strategy: strategyRow ?? null,
+        smeContributions: smeRows || [],
       };
     });
 
@@ -222,56 +237,83 @@ export const touchupRewriter = inngest.createFunction(
         status: 'rewriting', rewriting_started_at: now, updated_at: now,
       }).eq('id', touchupVolumeId);
 
-      // Build and filter RFP checklists for this volume
-      const fullChecklists = buildRfpChecklists(fetchResult.extractions);
-      const volNameLower = fetchResult.volumeName.toLowerCase();
-      const volumeTypeStr = volNameLower.includes('technical') || volNameLower.includes('approach') ? 'technical' :
-        volNameLower.includes('management') || volNameLower.includes('staffing') ? 'management' :
-        volNameLower.includes('past perf') ? 'past_performance' :
-        volNameLower.includes('cost') || volNameLower.includes('price') ? 'cost_price' : 'technical';
-      const volumeChecklists = filterChecklistForVolume(fullChecklists, volumeTypeStr, fetchResult.extractions);
+      try {
+        // Build and filter RFP checklists for this volume
+        const fullChecklists = buildRfpChecklists(fetchResult.extractions);
+        const volNameLower = fetchResult.volumeName.toLowerCase();
+        const volumeTypeStr = volNameLower.includes('technical') || volNameLower.includes('approach') ? 'technical' :
+          volNameLower.includes('management') || volNameLower.includes('staffing') ? 'management' :
+          volNameLower.includes('past perf') ? 'past_performance' :
+          volNameLower.includes('cost') || volNameLower.includes('price') ? 'cost_price' : 'technical';
+        const volumeChecklists = filterChecklistForVolume(fullChecklists, volumeTypeStr, fetchResult.extractions);
 
-      const promptData: RewritePromptData = {
-        companyProfile: fetchResult.companyProfile,
-        dataCallResponse: fetchResult.dataCallResponse,
-        extractions: fetchResult.extractions,
-        personnel: fetchResult.personnel,
-        pastPerformance: fetchResult.pastPerformance,
-        certifications: fetchResult.certifications,
-        contractVehicles: fetchResult.contractVehicles,
-        naicsCodes: fetchResult.naicsCodes,
-        pageLimit: fetchResult.pageLimit,
-        serviceAreaApproaches: fetchResult.serviceAreaApproaches,
-        siteStaffing: fetchResult.siteStaffing,
-        technologySelections: fetchResult.technologySelections,
-        dataCallFiles: fetchResult.dataCallFiles,
-        rfpChecklists: volumeChecklists,
-      };
+        const promptData: RewritePromptData = {
+          companyProfile: fetchResult.companyProfile,
+          dataCallResponse: fetchResult.dataCallResponse,
+          extractions: fetchResult.extractions,
+          personnel: fetchResult.personnel,
+          pastPerformance: fetchResult.pastPerformance,
+          certifications: fetchResult.certifications,
+          contractVehicles: fetchResult.contractVehicles,
+          naicsCodes: fetchResult.naicsCodes,
+          pageLimit: fetchResult.pageLimit,
+          serviceAreaApproaches: fetchResult.serviceAreaApproaches,
+          siteStaffing: fetchResult.siteStaffing,
+          technologySelections: fetchResult.technologySelections,
+          dataCallFiles: fetchResult.dataCallFiles,
+          rfpChecklists: volumeChecklists,
+          strategy: fetchResult.strategy,
+          smeContributions: fetchResult.smeContributions,
+        };
 
-      const { systemPrompt, userPrompt } = assembleTouchupPrompt(
-        fetchResult.volumeName, fetchResult.draftMarkdown, fetchResult.gapAnalysis, promptData,
-        fetchResult.complianceScore
-      );
+        const { systemPrompt, userPrompt } = assembleTouchupPrompt(
+          fetchResult.volumeName, fetchResult.draftMarkdown, fetchResult.gapAnalysis, promptData,
+          fetchResult.complianceScore
+        );
 
-      const stream = anthropic.messages.stream({
-        model: MODEL,
-        max_tokens: 32768,
-        temperature: 0.3,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      });
-      const response = await stream.finalMessage();
+        const stream = anthropic.messages.stream({
+          model: MODEL,
+          max_tokens: 32768,
+          temperature: 0.3,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+        });
+        const response = await stream.finalMessage();
 
-      if (response.stop_reason === 'max_tokens') {
-        console.warn(`[touchup-rewriter] Rewrite for "${fetchResult.volumeName}" hit max_tokens`);
+        if (response.stop_reason === 'max_tokens') {
+          console.warn(`[touchup-rewriter] Rewrite for "${fetchResult.volumeName}" hit max_tokens`);
+        }
+
+        const rewrittenMarkdown = response.content
+          .filter(b => b.type === 'text')
+          .map(b => (b as { type: 'text'; text: string }).text)
+          .join('\n');
+
+        if (!rewrittenMarkdown || rewrittenMarkdown.trim().length < 50) {
+          throw new Error('Claude returned empty or insufficient rewrite content');
+        }
+
+        return { rewrittenMarkdown };
+      } catch (err) {
+        // Mark volume as failed so UI stops polling and shows retry
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[touchup-rewriter] Rewrite step failed for "${fetchResult.volumeName}":`, errMsg);
+
+        await supabase.from('touchup_volumes').update({
+          status: 'failed',
+          error_message: `Rewrite failed: ${errMsg}`,
+          rewriting_completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq('id', touchupVolumeId);
+
+        await logPipelineEvent(solicitationId, 'touchup-rewrite-volume', 'failed', {
+          volume_name: fetchResult.volumeName,
+          error: errMsg,
+          step: 'rewrite-volume',
+        });
+
+        throw err;
       }
-
-      const rewrittenMarkdown = response.content
-        .filter(b => b.type === 'text')
-        .map(b => (b as { type: 'text'; text: string }).text)
-        .join('\n');
-
-      return { rewrittenMarkdown };
     });
 
     // ─── Step 3b: Layer 3 — Post-rewrite content validation ────────────────
@@ -398,6 +440,35 @@ export const touchupRewriter = inngest.createFunction(
           fetchResult.companyProfile.secondary_color
         );
         const contentStructure = parseMarkdownToDocx(finalMarkdown, colorPalette);
+
+        // Re-embed diagrams from the original draft volume
+        if (fetchResult.diagramSpecs && fetchResult.diagramSpecs.length > 0 && contentStructure.sections) {
+          try {
+            const specs = fetchResult.diagramSpecs as DiagramSpec[];
+            const embeddedDiagrams = await embedAiDiagrams(specs, colorPalette);
+            for (const diagram of embeddedDiagrams) {
+              const sectionIdx = findDiagramInsertionPoint(
+                diagram.placement?.sectionKeywords || [],
+                diagram.id,
+                contentStructure.sections
+              );
+              if (sectionIdx < contentStructure.sections.length) {
+                const section = contentStructure.sections[sectionIdx];
+                const contentIdx = findContentInsertionIndex(
+                  section,
+                  diagram.placement?.sectionKeywords || [],
+                  diagram.id
+                );
+                section.content.splice(contentIdx, 0, ...diagram.elements);
+              }
+            }
+            console.log(`[touchup-rewriter] Re-embedded ${embeddedDiagrams.length} diagram(s) in "${fetchResult.volumeName}"`);
+          } catch (diagramErr) {
+            console.warn(`[touchup-rewriter] Diagram re-embedding failed for "${fetchResult.volumeName}":`, diagramErr);
+            // Non-fatal — volume generates without diagrams
+          }
+        }
+
         const volumeType = deriveVolumeTypeForGenerator(fetchResult.volumeName);
 
         const sectionMExtraction = fetchResult.extractions.section_m || [];
@@ -470,18 +541,37 @@ export const touchupRewriter = inngest.createFunction(
           console.warn(`[touchup-rewriter] DOCX upload failed for "${fetchResult.volumeName}":`, uploadError.message);
         }
 
+        // Save in two steps to avoid payload size issues on large volumes:
+        // Step A: Save the large content (markdown can be 100K+ chars)
         await supabase.from('touchup_volumes').update({
-          status: 'completed',
           content_markdown: finalMarkdown,
+        }).eq('id', touchupVolumeId);
+
+        // Step B: Save metadata + set status to completed (small payload, guaranteed to succeed)
+        const { error: statusError } = await supabase.from('touchup_volumes').update({
+          status: 'completed',
           file_path: filePath,
           word_count: wordCount,
           page_estimate: pageEstimate,
           page_limit_status: pageLimitStatus,
           human_input_count: humanInputCount,
           regression_reversions: reversions.length > 0 ? reversions as unknown as Record<string, unknown>[] : null,
+          diagram_specs: fetchResult.diagramSpecs.length > 0 ? fetchResult.diagramSpecs : null,
           rewriting_completed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }).eq('id', touchupVolumeId);
+
+        // If status update fails, force it with minimal payload
+        if (statusError) {
+          console.error(`[touchup-rewriter] Status update failed for "${fetchResult.volumeName}": ${statusError.message}`);
+          await supabase.from('touchup_volumes').update({
+            status: 'completed',
+            file_path: filePath,
+            word_count: wordCount,
+            rewriting_completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }).eq('id', touchupVolumeId);
+        }
 
         console.log(`[touchup-rewriter] "${fetchResult.volumeName}" complete: ${wordCount} words, ${reversions.length} reversions, ${humanInputCount} human inputs`);
 

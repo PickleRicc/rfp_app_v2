@@ -1,12 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ConditionalStaffLayout } from "./components/layout/ConditionalStaffLayout";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -14,8 +9,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RFP Response Tool - Multi-Company Management",
-  description: "AI-powered RFP response generation for multiple contractor companies",
+  title: "ClicklessAI — RFP Response Tool",
+  description: "AI-powered RFP response generation for government contractors",
 };
 
 export default function RootLayout({
@@ -25,9 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} font-mono antialiased`}
-      >
+      <body className={`${geistMono.variable} font-mono antialiased`}>
         <ConditionalStaffLayout>{children}</ConditionalStaffLayout>
       </body>
     </html>

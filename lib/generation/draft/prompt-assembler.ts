@@ -18,7 +18,10 @@ import type {
   ContractVehicle,
   NaicsCode,
 } from '@/lib/supabase/company-types';
-import type { DataCallResponse } from '@/lib/supabase/tier2-types';
+import type { DataCallResponse, SmeContribution } from '@/lib/supabase/tier2-types';
+import type { SolicitationStrategy } from '@/lib/supabase/strategy-types';
+import type { BoeAssessment } from '@/lib/supabase/boe-types';
+import type { P2wAnalysis } from '@/lib/supabase/p2w-types';
 import type {
   ComplianceExtractionsByCategory,
   SectionMFields,
@@ -120,6 +123,34 @@ export interface VolumePromptData {
 
   /** RFP checklists from Layer A — sections, technologies, CDRLs, metrics */
   rfpChecklists?: RfpChecklists;
+
+  /**
+   * Proposal Manager strategy for this solicitation (Phase 8.5).
+   * When present, a strategy brief is injected as the FIRST block in the user prompt,
+   * before all data sections, setting writer intent before data context.
+   */
+  strategy?: SolicitationStrategy | null;
+
+  /**
+   * Approved SME contributions for this solicitation.
+   * Only approved entries should be passed — filtered by the Inngest generator.
+   * Injected after personnel docs and before Section M factors.
+   */
+  smeContributions?: SmeContribution[];
+
+  /**
+   * BOE (Basis of Estimate) assessment for this solicitation.
+   * When present, staffing summary and narrative are injected after the volume body
+   * to give the AI a grounded staffing model derived directly from the SOW/PWS.
+   */
+  boeAssessment?: BoeAssessment | null;
+
+  /**
+   * P2W (Price-to-Win) rate analysis for this solicitation.
+   * Only injected for cost/price volumes — competitive rate data is price-sensitive
+   * and must not appear in technical or management volumes.
+   */
+  p2wAnalysis?: P2wAnalysis | null;
 }
 
 /**
@@ -1368,6 +1399,117 @@ ${buildChecklistEnforcementBlock(data.rfpChecklists)}
 ${buildSparseDataInstruction()}`;
 }
 
+// ===== BOE / P2W CONTEXT HELPERS =====
+
+/**
+ * Build a BOE (Basis of Estimate) staffing context block for volume prompts.
+ *
+ * For cost/price volumes: full BOE table (labor category | FTE | annual hours) plus narrative.
+ * For management/technical volumes: FTE totals by category only, with a pointer to the C/P volume.
+ * Returns '' when no usable BOE data is present.
+ */
+function buildBoeContextBlock(
+  boeAssessment: BoeAssessment | null | undefined,
+  volumeType: string
+): string {
+  if (!boeAssessment || !boeAssessment.boe_table || boeAssessment.boe_table.length === 0) {
+    return '';
+  }
+
+  const boeTable = boeAssessment.boe_table;
+
+  if (volumeType === 'cost_price') {
+    // Full BOE table + narrative for cost/price volumes
+    const tableRows = boeTable
+      .map(row => `  ${row.labor_category} | ${row.fte_count} FTE | ${row.total_annual_hours.toLocaleString()} hrs/yr`)
+      .join('\n');
+
+    const narrative = boeAssessment.narrative_markdown
+      ? `\nBOE NARRATIVE:\n${boeAssessment.narrative_markdown}\n`
+      : '';
+
+    const totalFte = boeAssessment.total_fte_proposed != null
+      ? `\nTOTAL PROPOSED FTEs: ${boeAssessment.total_fte_proposed}`
+      : '';
+
+    const confidence = boeAssessment.sow_confidence
+      ? `\nSOW CONFIDENCE: ${boeAssessment.sow_confidence.toUpperCase()}`
+      : '';
+
+    return `\n=== BASIS OF ESTIMATE (INDEPENDENT STAFFING ASSESSMENT) ===
+The following staffing model was derived directly from the SOW/PWS requirements.
+Use these labor categories, FTE counts, and annual hours as your pricing baseline.
+
+STAFFING TABLE (Labor Category | FTE Count | Annual Hours):
+${tableRows}${totalFte}${confidence}${narrative}
+=== END BOE ===\n\n`;
+  }
+
+  // For management and technical volumes: summarized FTE totals by category
+  // Aggregate FTEs by labor category across all task areas
+  const fteTotals = new Map<string, number>();
+  for (const row of boeTable) {
+    fteTotals.set(row.labor_category, (fteTotals.get(row.labor_category) ?? 0) + row.fte_count);
+  }
+
+  const summaryRows = Array.from(fteTotals.entries())
+    .map(([cat, fte]) => `  ${cat}: ${fte} FTE`)
+    .join('\n');
+
+  const totalFte = boeAssessment.total_fte_proposed != null
+    ? `\nTotal Proposed FTEs: ${boeAssessment.total_fte_proposed}`
+    : '';
+
+  return `\n=== BASIS OF ESTIMATE (INDEPENDENT STAFFING ASSESSMENT) ===
+Use the following FTE summary when discussing staffing levels in this volume.
+Full BOE detail (task-area breakdown, hours, rationale) is in the Cost/Price volume.
+
+FTE SUMMARY BY LABOR CATEGORY:
+${summaryRows}${totalFte}
+
+Note: These counts are derived from the independent BOE analysis of the SOW/PWS requirements.
+=== END BOE SUMMARY ===\n\n`;
+}
+
+/**
+ * Build a P2W (Price-to-Win) competitive rate benchmarks block for cost/price prompts.
+ *
+ * Only injected for cost/price volumes — rate data is competitive intelligence and must
+ * not appear in technical or management volumes where evaluators may see it out of context.
+ * Returns '' for all other volume types.
+ */
+function buildP2wRatesBlock(
+  p2wAnalysis: P2wAnalysis | null | undefined,
+  volumeType: string
+): string {
+  // P2W is price-sensitive — only expose to cost/price volume
+  if (volumeType !== 'cost_price') return '';
+  if (!p2wAnalysis || !p2wAnalysis.rate_table || p2wAnalysis.rate_table.length === 0) return '';
+
+  const rateRows = p2wAnalysis.rate_table
+    .map(row => `  ${row.labor_category}: $${row.recommended_target.toFixed(2)}/hr (${row.rate_confidence} confidence)`)
+    .join('\n');
+
+  const totalCostNote = p2wAnalysis.total_cost_target != null
+    ? `\nESTIMATED TOTAL CONTRACT VALUE (target): $${p2wAnalysis.total_cost_target.toLocaleString()}`
+    : '';
+
+  const igceNote = p2wAnalysis.igce_comparison_note
+    ? `\nIGCE COMPARISON: ${p2wAnalysis.igce_comparison_note}`
+    : '';
+
+  return `\n=== COMPETITIVE RATE BENCHMARKS (use recommended_target rates in pricing) ===
+These rates are based on BLS OES and GSA Schedule benchmarks.
+Use the recommended_target as your pricing baseline when writing rate justification narrative.
+
+RECOMMENDED HOURLY RATES BY LABOR CATEGORY:
+${rateRows}${totalCostNote}${igceNote}
+
+Note: These benchmarks are derived from publicly available BLS OES wage data and GSA Schedule pricing.
+Reference the methodology (BLS OES + GSA Schedule analysis) when explaining your price reasonableness approach.
+=== END RATE BENCHMARKS ===\n\n`;
+}
+
 // ===== MAIN EXPORTED FUNCTIONS =====
 
 const ROMAN_NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
@@ -1401,6 +1543,144 @@ function deriveVolumeLabel(volumeName: string, volumeOrder: number): string {
  * @param data         - Bundle of Tier 1, Tier 2, and extraction data plus page limit
  * @returns            System prompt, user prompt, and target word count
  */
+// ===== STRATEGY + SME INJECTION BLOCKS =====
+
+/**
+ * Build the Proposal Manager strategy brief block.
+ * Injected as the FIRST block in the user prompt before all data sections.
+ * When present, this sets the writer's strategic intent before they see any data.
+ */
+function buildStrategyBlock(
+  strategy: SolicitationStrategy | null | undefined,
+  volumeName: string
+): string {
+  if (!strategy) return '';
+
+  const parts: string[] = [
+    '=== PROPOSAL MANAGER STRATEGY BRIEF ===',
+    'CRITICAL: Follow these strategic directions throughout this volume. They override default approach.',
+  ];
+
+  if (strategy.win_theme_priorities?.length) {
+    parts.push('\nWIN THEME PRIORITY ORDER (weave these in sequence — #1 is most important):');
+    strategy.win_theme_priorities.forEach((t, i) => {
+      parts.push(`  ${i + 1}. ${t}`);
+    });
+  }
+
+  if (strategy.risk_posture && strategy.risk_posture !== 'balanced') {
+    const postureCopy: Record<string, string> = {
+      aggressive: 'AGGRESSIVE POSTURE — Lead with bold claims backed by metrics. Push win themes hard in every section. Use competitive language.',
+      conservative: 'CONSERVATIVE POSTURE — Compliance-first, measured tone. Let facts and data speak. Minimize unsupported claims.',
+    };
+    parts.push(`\nRISK POSTURE: ${postureCopy[strategy.risk_posture] || strategy.risk_posture.toUpperCase()}`);
+  }
+
+  const volStrategy = strategy.volume_strategies?.find(
+    (v) => v.volume_name === volumeName
+  );
+
+  if (volStrategy?.approach_notes?.trim()) {
+    parts.push(`\nVOLUME APPROACH (follow these PM instructions for this volume):\n${volStrategy.approach_notes}`);
+  }
+
+  if (volStrategy?.emphasis_areas?.length) {
+    parts.push(`\nEMPHASIS AREAS (lead with these topics, put them first in relevant sections):`);
+    volStrategy.emphasis_areas.forEach((a) => parts.push(`  - ${a}`));
+  }
+
+  if (strategy.agency_intel?.trim()) {
+    parts.push(`\nAGENCY INTELLIGENCE (inform your framing and tone):\n${strategy.agency_intel}`);
+  }
+
+  if (strategy.competitive_notes?.trim()) {
+    parts.push(`\nCOMPETITIVE CONTEXT:\n${strategy.competitive_notes}`);
+  }
+
+  parts.push('=== END STRATEGY BRIEF ===');
+  return parts.join('\n') + '\n\n';
+}
+
+/**
+ * Phase 3C — Win theme solicitation adaptation.
+ *
+ * Produces an ordered list of win themes adapted to the specific solicitation.
+ * Starts from the PM's strategy win theme priorities if available; otherwise
+ * falls back to the company's enterprise win themes. Each theme is annotated
+ * with the Section M evaluation factor it most closely aligns with, so proposal
+ * writers can explicitly reference the criterion that the theme addresses.
+ *
+ * @param companyProfile        - Tier 1 company profile (source of enterprise_win_themes)
+ * @param strategy              - PM strategy for this solicitation (may be null/undefined)
+ * @param sectionMEvalFactors   - Flat list of eval factor names extracted from Section M
+ * @returns                     Annotated win theme strings, Tier 2-priority order
+ */
+export function buildAdaptedWinThemes(
+  companyProfile: CompanyProfile,
+  strategy: SolicitationStrategy | null | undefined,
+  sectionMEvalFactors: string[]
+): string[] {
+  // Source: strategy priorities (solicitation-specific) take precedence over enterprise themes
+  const baseThemes: string[] =
+    strategy?.win_theme_priorities?.length
+      ? strategy.win_theme_priorities
+      : companyProfile.enterprise_win_themes || [];
+
+  if (baseThemes.length === 0) return [];
+
+  return baseThemes.map((theme) => {
+    // Build a keyword set from the theme text for fuzzy matching
+    const themeWords = theme
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((w) => w.length > 3);
+
+    // Find the first eval factor whose text shares a keyword with this theme
+    const matchingFactor = sectionMEvalFactors.find((factor) => {
+      const factorLower = factor.toLowerCase();
+      return themeWords.some((word) => factorLower.includes(word));
+    });
+
+    return matchingFactor
+      ? `${theme} (aligns with Section M: ${matchingFactor})`
+      : theme;
+  });
+}
+
+/**
+ * Build the SME contributions block for a specific volume.
+ * Only includes approved contributions matching the volume name.
+ * Injected after personnel docs and before Section M factors.
+ */
+function buildSmeContributionsBlock(
+  smeContributions: SmeContribution[] | undefined,
+  volumeName: string
+): string {
+  const relevant = (smeContributions ?? []).filter(
+    (c) => c.approved && c.volume_name === volumeName
+  );
+  if (!relevant.length) return '';
+
+  const parts: string[] = [
+    '=== SME EXPERT CONTRIBUTIONS (AUTHORITATIVE SOURCE MATERIAL) ===',
+    'The following content was authored by certified subject matter experts assigned to this bid.',
+    'MANDATORY: You MUST incorporate this content into the relevant sections of this volume.',
+    'Paraphrase only minimally to fit narrative flow. Do NOT omit, skip, contradict, or fabricate beyond what is provided.',
+    '',
+  ];
+
+  relevant.forEach((c, i) => {
+    parts.push(`--- SME CONTRIBUTION ${i + 1} ---`);
+    parts.push(`TOPIC: ${c.topic}`);
+    parts.push(`CONTRIBUTOR: ${c.contributor_name}${c.contributor_title ? ` — ${c.contributor_title}` : ''}`);
+    parts.push(`CONTENT:\n${c.content}`);
+    parts.push('');
+  });
+
+  parts.push('=== END SME CONTRIBUTIONS ===');
+  return parts.join('\n') + '\n\n';
+}
+
 export function assembleVolumePrompt(
   volumeName: string,
   volumeOrder: number,
@@ -1479,26 +1759,40 @@ COMPANY IDENTITY:
 ${complianceInstructions}
 ${buildBlockquoteInstruction()}`;
 
+  // ─── Strategy brief — prepended before all data context ─────────────────
+  const strategyBlock = buildStrategyBlock(data.strategy, volumeName);
+
   // ─── Volume-Specific User Prompt ─────────────────────────────────────────
-  let userPrompt: string;
+  let volumeBody: string;
 
   switch (volumeType) {
     case 'technical':
-      userPrompt = buildTechnicalPrompt(volumeName, volumeOrder, data, targetWordCount);
+      volumeBody = buildTechnicalPrompt(volumeName, volumeOrder, data, targetWordCount);
       break;
     case 'management':
-      userPrompt = buildManagementPrompt(volumeName, volumeOrder, data, targetWordCount);
+      volumeBody = buildManagementPrompt(volumeName, volumeOrder, data, targetWordCount);
       break;
     case 'past_performance':
-      userPrompt = buildPastPerformancePrompt(volumeName, volumeOrder, data, targetWordCount);
+      volumeBody = buildPastPerformancePrompt(volumeName, volumeOrder, data, targetWordCount);
       break;
     case 'cost_price':
-      userPrompt = buildCostPricePrompt(volumeName, volumeOrder, data, targetWordCount);
+      volumeBody = buildCostPricePrompt(volumeName, volumeOrder, data, targetWordCount);
       break;
     default:
-      userPrompt = buildDefaultPrompt(volumeName, volumeOrder, data, targetWordCount);
+      volumeBody = buildDefaultPrompt(volumeName, volumeOrder, data, targetWordCount);
       break;
   }
+
+  // ─── BOE / P2W context blocks — injected after volume body ──────────────
+  const volumeTypeStr = volumeType as string;
+  const boeBlock = buildBoeContextBlock(data.boeAssessment, volumeTypeStr);
+  const p2wBlock = buildP2wRatesBlock(data.p2wAnalysis, volumeTypeStr);
+
+  // ─── SME contributions — appended after volume body, before instructions ──
+  const smeBlock = buildSmeContributionsBlock(data.smeContributions, volumeName);
+
+  // Order: strategy → volume body → BOE → P2W → SME (highest authority last)
+  const userPrompt = strategyBlock + volumeBody + boeBlock + p2wBlock + smeBlock;
 
   return {
     systemPrompt,
@@ -1600,4 +1894,46 @@ export function assembleComplianceMatrixData(
   });
 
   return matrixEntries;
+}
+
+/**
+ * Phase 3E — Dual past performance merge.
+ *
+ * Combines Tier 1 past performance records (from the company profile's
+ * `past_performance` table) with Tier 2 RFP-specific overrides (from the
+ * data call response's `past_performance` array).
+ *
+ * Deduplication rule: when a Tier 2 entry shares a `contract_number` with a
+ * Tier 1 entry, the Tier 2 version wins (it is more specific to this RFP).
+ * Tier 2 entries are placed first (highest priority); non-duplicate Tier 1
+ * entries follow.
+ *
+ * Both arrays are typed as `unknown[]` because at call-site the caller may hold
+ * heterogeneous DB rows. Use null-safe casting to read `contract_number`.
+ *
+ * @param tier1PP - Past performance records from the Tier 1 company profile table
+ * @param tier2PP - Past performance entries from the Tier 2 data call response
+ * @returns       Merged array: Tier 2 entries first, then non-duplicate Tier 1 entries
+ */
+export function mergePastPerformance(
+  tier1PP: unknown[],
+  tier2PP: unknown[]
+): unknown[] {
+  // Collect contract numbers present in Tier 2 for deduplication
+  const tier2ContractNumbers = new Set<unknown>();
+  for (const item of tier2PP) {
+    const cn = (item as Record<string, unknown>).contract_number;
+    if (cn != null) {
+      tier2ContractNumbers.add(cn);
+    }
+  }
+
+  // Keep only Tier 1 records whose contract_number does not appear in Tier 2
+  const uniqueTier1 = tier1PP.filter((item) => {
+    const cn = (item as Record<string, unknown>).contract_number;
+    return cn == null || !tier2ContractNumbers.has(cn);
+  });
+
+  // Tier 2 first (RFP-specific, highest priority), then remaining Tier 1
+  return [...tier2PP, ...uniqueTier1];
 }

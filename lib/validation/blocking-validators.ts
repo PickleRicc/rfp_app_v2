@@ -14,6 +14,7 @@
 import type {
   DataCallFormSchema,
   DataCallFormField,
+  DataCallResponse,
   PastPerformanceRef,
   KeyPersonnelEntry,
 } from '@/lib/supabase/tier2-types';
@@ -181,4 +182,48 @@ export function validateBlockingFields(
   }
 
   return errors;
+}
+
+/**
+ * Cross-reference key personnel names in a data call response against
+ * personnel table records. Returns an array of non-blocking warning strings
+ * when a named individual in key_personnel has no matching record in the
+ * provided personnelRecords array (checked against full_name and name fields).
+ *
+ * This function is informational only — it does NOT block draft generation.
+ */
+export function validatePersonnelNameConsistency(
+  dataCallResponse: DataCallResponse,
+  personnelRecords: unknown[]
+): string[] {
+  const warnings: string[] = [];
+
+  const keyPersonnel = dataCallResponse.key_personnel ?? [];
+
+  for (const entry of keyPersonnel) {
+    // Only warn when an explicit name has been entered
+    if (!entry.name || entry.name.trim() === '') continue;
+
+    const enteredName = entry.name.trim().toLowerCase();
+
+    const hasMatch = personnelRecords.some((record) => {
+      if (record == null || typeof record !== 'object') return false;
+      const rec = record as Record<string, unknown>;
+
+      const fullName =
+        typeof rec['full_name'] === 'string' ? rec['full_name'].trim().toLowerCase() : null;
+      const name =
+        typeof rec['name'] === 'string' ? rec['name'].trim().toLowerCase() : null;
+
+      return fullName === enteredName || name === enteredName;
+    });
+
+    if (!hasMatch) {
+      warnings.push(
+        `Key Personnel mismatch: ${entry.role || 'Unknown'} role lists '${entry.name}' but no matching personnel record found. Check for name variations.`
+      );
+    }
+  }
+
+  return warnings;
 }

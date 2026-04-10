@@ -17,6 +17,7 @@
 import ExcelJS from 'exceljs';
 import type { DataCallResponse } from '@/lib/supabase/tier2-types';
 import type { ComplianceExtractionsByCategory } from '@/lib/supabase/compliance-types';
+import type { BoeAssessment, BoeTableRow } from '@/lib/supabase/boe-types';
 
 export interface CostPriceWorkbookData {
   companyName: string;
@@ -27,6 +28,8 @@ export interface CostPriceWorkbookData {
   siteStaffing: { site_name: string; proposed_fte_count: string | number }[];
   laborCategories: LaborCategory[];
   clinStructure: ClinItem[];
+  /** Optional BOE assessment — when present, BOE-derived labor categories take precedence */
+  boeAssessment?: BoeAssessment | null;
 }
 
 interface LaborCategory {
@@ -405,6 +408,47 @@ function buildSanitizedSheet(ws: ExcelJS.Worksheet, data: CostPriceWorkbookData)
 }
 
 /**
+ * Derive labor categories from a BOE assessment.
+ *
+ * Aggregates FTE counts and annual hours across all task areas for each unique labor category.
+ * BOE is the authoritative staffing model — prefer this over manually entered personnel records.
+ *
+ * Returns null when no usable BOE data is present (caller should fall back to extractLaborCategories).
+ */
+export function laborCategoriesFromBoe(
+  boeAssessment: BoeAssessment | null | undefined
+): LaborCategory[] | null {
+  if (!boeAssessment || !boeAssessment.boe_table || boeAssessment.boe_table.length === 0) {
+    return null;
+  }
+
+  // Aggregate FTE and hours by labor category across task areas
+  const categoryMap = new Map<string, { quantity: number; totalHours: number; rowCount: number }>();
+
+  for (const row of boeAssessment.boe_table as BoeTableRow[]) {
+    const existing = categoryMap.get(row.labor_category);
+    if (existing) {
+      existing.quantity += row.fte_count;
+      existing.totalHours += row.total_annual_hours;
+      existing.rowCount += 1;
+    } else {
+      categoryMap.set(row.labor_category, {
+        quantity: row.fte_count,
+        totalHours: row.total_annual_hours,
+        rowCount: 1,
+      });
+    }
+  }
+
+  return Array.from(categoryMap.entries()).map(([title, agg]) => ({
+    title,
+    quantity: agg.quantity,
+    hourlyRate: 0, // Rate to be filled from P2W analysis or manual input
+    annualHours: agg.quantity > 0 ? Math.round(agg.totalHours / agg.quantity) : 1920,
+  }));
+}
+
+/**
  * Builds labor categories from personnel records and data call.
  */
 export function extractLaborCategories(
@@ -439,15 +483,19 @@ export function extractLaborCategories(
 export async function generateCostPriceWorkbook(
   data: CostPriceWorkbookData
 ): Promise<Buffer> {
+  // Prefer BOE-derived labor categories over manual inputs — BOE is the authoritative staffing model
+  const resolvedLaborCategories = laborCategoriesFromBoe(data.boeAssessment) ?? data.laborCategories;
+  const workbookData: CostPriceWorkbookData = { ...data, laborCategories: resolvedLaborCategories };
+
   const wb = new ExcelJS.Workbook();
-  wb.creator = data.companyName;
+  wb.creator = workbookData.companyName;
   wb.created = new Date();
 
   const summaryWs = wb.addWorksheet('Summary');
-  buildSummarySheet(summaryWs, data);
+  buildSummarySheet(summaryWs, workbookData);
 
   const laborWs = wb.addWorksheet('Labor');
-  buildLaborSheet(laborWs, data);
+  buildLaborSheet(laborWs, workbookData);
 
   const odcWs = wb.addWorksheet('ODCs');
   buildODCSheet(odcWs);
@@ -456,7 +504,7 @@ export async function generateCostPriceWorkbook(
   buildIndirectSheet(indirectWs);
 
   const sanitizedWs = wb.addWorksheet('Sanitized');
-  buildSanitizedSheet(sanitizedWs, data);
+  buildSanitizedSheet(sanitizedWs, workbookData);
 
   const buffer = await wb.xlsx.writeBuffer();
   return Buffer.from(buffer);

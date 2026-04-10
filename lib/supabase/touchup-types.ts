@@ -36,8 +36,8 @@ export const TOUCHUP_STATUS_COLORS: Record<TouchupStatus, string> = {
 
 export const TOUCHUP_VOLUME_STATUS_LABELS: Record<TouchupVolumeStatus, string> = {
   pending:    'Pending',
-  scoring:    'Scoring',
-  scored:     'Scored',
+  scoring:    'Analyzing',
+  scored:     'Analyzed',
   rewriting:  'Rewriting',
   completed:  'Complete',
   failed:     'Failed',

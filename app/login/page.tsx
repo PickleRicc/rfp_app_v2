@@ -2,10 +2,11 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { FileText } from "lucide-react";
+import { AlertBanner } from "@/app/components/ui/alert-banner";
 
 export default function LoginPage() {
   return (
@@ -47,16 +48,26 @@ function LoginForm() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-8">
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <FileText className="h-7 w-7 text-primary-foreground" />
+        {/* Brand */}
+        <div className="flex flex-col items-center gap-4">
+          <Image
+            src="/ClicklessAI.png"
+            alt="ClicklessAI"
+            width={260}
+            height={65}
+            className="h-12 w-auto"
+            priority
+          />
+          <div className="text-center">
+            <h1 className="text-xl font-bold text-foreground">Staff Sign In</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">RFP Response Tool</p>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Staff sign in</h1>
-          <p className="text-sm text-muted-foreground">RFP Response Tool</p>
         </div>
+
+        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
+          <div className="space-y-1.5">
+            <label htmlFor="email" className="block text-sm font-medium text-foreground">
               Email
             </label>
             <Input
@@ -67,11 +78,10 @@ function LoginForm() {
               placeholder="you@example.com"
               required
               autoComplete="email"
-              className="w-full"
             />
           </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
+          <div className="space-y-1.5">
+            <label htmlFor="password" className="block text-sm font-medium text-foreground">
               Password
             </label>
             <Input
@@ -81,14 +91,11 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full"
             />
           </div>
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
+          {error && <AlertBanner variant="error" message={error} />}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Signing in…" : "Sign in"}
           </Button>
         </form>
       </div>

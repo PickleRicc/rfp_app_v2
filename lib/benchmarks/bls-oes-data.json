@@ -1,0 +1,119 @@
+{
+  "vintage": "BLS OES May 2024",
+  "description": "National Occupational Employment and Wage Statistics — federal contractor relevant categories",
+  "national_rates": {
+    "Software Developer": {
+      "soc_code": "15-1252",
+      "median_hourly": 61.54,
+      "p75_hourly": 79.23,
+      "p90_hourly": 98.46
+    },
+    "Systems Administrator": {
+      "soc_code": "15-1244",
+      "median_hourly": 41.00,
+      "p75_hourly": 52.15,
+      "p90_hourly": 64.38
+    },
+    "Information Security Analyst": {
+      "soc_code": "15-1212",
+      "median_hourly": 58.33,
+      "p75_hourly": 75.40,
+      "p90_hourly": 94.87
+    },
+    "Network Engineer": {
+      "soc_code": "15-1241",
+      "median_hourly": 46.50,
+      "p75_hourly": 59.81,
+      "p90_hourly": 74.23
+    },
+    "Project Manager (IT)": {
+      "soc_code": "15-1299",
+      "median_hourly": 64.90,
+      "p75_hourly": 84.13,
+      "p90_hourly": 104.81
+    },
+    "Database Administrator": {
+      "soc_code": "15-1245",
+      "median_hourly": 48.08,
+      "p75_hourly": 62.02,
+      "p90_hourly": 77.40
+    },
+    "Help Desk Technician": {
+      "soc_code": "15-1232",
+      "median_hourly": 24.65,
+      "p75_hourly": 31.28,
+      "p90_hourly": 40.14
+    },
+    "Cloud Architect": {
+      "soc_code": "15-1299",
+      "median_hourly": 72.60,
+      "p75_hourly": 94.23,
+      "p90_hourly": 118.27
+    },
+    "Cybersecurity Engineer": {
+      "soc_code": "15-1212",
+      "median_hourly": 62.50,
+      "p75_hourly": 81.25,
+      "p90_hourly": 101.92
+    },
+    "Data Scientist": {
+      "soc_code": "15-2051",
+      "median_hourly": 56.73,
+      "p75_hourly": 74.04,
+      "p90_hourly": 94.71
+    },
+    "Business Analyst": {
+      "soc_code": "13-1111",
+      "median_hourly": 42.48,
+      "p75_hourly": 55.29,
+      "p90_hourly": 70.19
+    },
+    "Technical Writer": {
+      "soc_code": "27-3042",
+      "median_hourly": 38.81,
+      "p75_hourly": 50.19,
+      "p90_hourly": 63.94
+    },
+    "Quality Assurance Analyst": {
+      "soc_code": "15-1253",
+      "median_hourly": 46.08,
+      "p75_hourly": 59.81,
+      "p90_hourly": 75.77
+    },
+    "Program Manager": {
+      "soc_code": "11-9041",
+      "median_hourly": 72.11,
+      "p75_hourly": 94.02,
+      "p90_hourly": 116.25
+    },
+    "DevOps Engineer": {
+      "soc_code": "15-1299",
+      "median_hourly": 57.69,
+      "p75_hourly": 75.00,
+      "p90_hourly": 94.23
+    }
+  },
+  "msa_location_quotients": {
+    "Washington-Arlington-Alexandria DC-VA-MD-WV": 1.22,
+    "San Jose-Sunnyvale-Santa Clara CA": 1.45,
+    "Seattle-Tacoma-Bellevue WA": 1.28,
+    "San Francisco-Oakland-Hayward CA": 1.38,
+    "Boston-Cambridge-Nashua MA-NH": 1.18,
+    "New York-Newark-Jersey City NY-NJ-PA": 1.25,
+    "Austin-Round Rock TX": 1.15,
+    "Denver-Aurora-Lakewood CO": 1.10,
+    "San Diego-Carlsbad CA": 1.12,
+    "Baltimore-Columbia-Towson MD": 1.18,
+    "Huntsville AL": 1.08,
+    "Colorado Springs CO": 1.05,
+    "Reston-Herndon VA": 1.20,
+    "Dayton OH": 0.95,
+    "Hampton Roads VA": 1.08,
+    "National (no MSA adjustment)": 1.00
+  },
+  "federal_contractor_loaded_rate_multipliers": {
+    "small_business": 1.85,
+    "large_business": 2.10,
+    "note": "Typical fully-loaded multipliers (direct labor × fringe × overhead × G&A × fee). Adjust based on company rate structure."
+  }
+}

@@ -17,6 +17,8 @@ import type {
 import type { GapAnalysis } from '@/lib/supabase/touchup-types';
 import type { RfpChecklists } from '@/lib/generation/pipeline/soo-checklist-builder';
 import { formatChecklistForPrompt } from '@/lib/generation/pipeline/soo-checklist-builder';
+import type { SmeContribution } from '@/lib/supabase/tier2-types';
+import type { SolicitationStrategy } from '@/lib/supabase/strategy-types';
 
 export interface RewritePromptData {
   companyProfile: CompanyProfile;
@@ -39,6 +41,8 @@ export interface RewritePromptData {
     extracted_text: string | null;
   }>;
   rfpChecklists?: RfpChecklists;
+  strategy?: SolicitationStrategy | null;
+  smeContributions?: SmeContribution[];
 }
 
 export interface RewritePromptResult {
@@ -249,6 +253,56 @@ function buildConditionalInjections(
   return parts.length > 0 ? '\n' + parts.join('\n') : '';
 }
 
+function buildRewriteStrategyBlock(strategy: SolicitationStrategy | null | undefined, volumeName: string): string {
+  if (!strategy) return '';
+
+  const parts: string[] = ['=== PROPOSAL STRATEGY (apply throughout rewrite) ==='];
+
+  if (strategy.win_theme_priorities.length > 0) {
+    parts.push('Win Theme Priorities (in order):');
+    strategy.win_theme_priorities.forEach((t, i) => parts.push(`  ${i + 1}. ${t}`));
+  }
+
+  parts.push(`Risk Posture: ${strategy.risk_posture.toUpperCase()}`);
+
+  const volStrategy = strategy.volume_strategies.find(
+    v => v.volume_name.toLowerCase() === volumeName.toLowerCase()
+  );
+  if (volStrategy) {
+    if (volStrategy.approach_notes) {
+      parts.push(`\nVolume Approach Notes:\n${volStrategy.approach_notes}`);
+    }
+    if (volStrategy.emphasis_areas.length > 0) {
+      parts.push(`Emphasis Areas: ${volStrategy.emphasis_areas.join(', ')}`);
+    }
+  }
+
+  if (strategy.agency_intel) {
+    parts.push(`\nAgency Intel:\n${strategy.agency_intel}`);
+  }
+  if (strategy.competitive_notes) {
+    parts.push(`\nCompetitive Notes:\n${strategy.competitive_notes}`);
+  }
+
+  return parts.join('\n') + '\n\n';
+}
+
+function buildRewriteSmeBlock(smeContributions: SmeContribution[] | undefined, volumeName: string): string {
+  if (!smeContributions || smeContributions.length === 0) return '';
+
+  const volumeContributions = smeContributions.filter(
+    c => c.approved && c.volume_name.toLowerCase() === volumeName.toLowerCase()
+  );
+  if (volumeContributions.length === 0) return '';
+
+  const parts: string[] = ['\n=== SME CONTRIBUTIONS (authoritative — use verbatim where possible) ==='];
+  volumeContributions.forEach(c => {
+    parts.push(`\n[${c.topic}] — by ${c.contributor_name}${c.contributor_title ? `, ${c.contributor_title}` : ''}:`);
+    parts.push(c.content);
+  });
+  return parts.join('\n');
+}
+
 export function assembleTouchupPrompt(
   volumeName: string,
   draftMarkdown: string,
@@ -286,6 +340,7 @@ You are performing a TOUCHUP REWRITE of a first-draft proposal volume. A complia
 9. PRIORITIZE BY SEVERITY: Address FATAL and DEFICIENCY findings first (these are the biggest score drags). Then WEAKNESS. Only address ENHANCEMENT findings if space permits without weakening existing content.
 
 CRITICAL RULES:
+- DIAGRAM REFERENCES: If the first draft contains figure references like "[Figure: ...]" or "See Figure X", preserve them in the same locations in the rewrite. These mark where diagrams will be inserted in the final document. Do not remove, relocate, or add new figure references.
 - Never fabricate specific facts — if data is not in the source materials, use [HUMAN INPUT REQUIRED: description]
 - [HUMAN INPUT REQUIRED] is distinct from [PLACEHOLDER] — it means the AI has exhausted all source data
 - Mirror Section M evaluation factor language word-for-word where possible
@@ -319,9 +374,12 @@ KEY PERSONNEL NAME AUTHORITY:
   const pageLimitInstr = buildPageLimitInstruction(targetWordCount, data.pageLimit);
   const gapSummary = formatGapSummary(gapAnalysis, complianceScore);
 
+  const strategyBlock = buildRewriteStrategyBlock(data.strategy, volumeName);
+  const smeBlock = buildRewriteSmeBlock(data.smeContributions, volumeName);
+
   const userPrompt = `Rewrite this proposal volume to fill all compliance gaps.
 
-=== VOLUME ===
+${strategyBlock}=== VOLUME ===
 ${volumeName}
 
 === PAGE LIMIT ===
@@ -360,7 +418,7 @@ Service Area Approaches: ${JSON.stringify(data.serviceAreaApproaches || [], null
 Site Staffing: ${JSON.stringify(data.siteStaffing || [], null, 1)}
 Technology Selections: ${JSON.stringify(data.technologySelections || [], null, 1)}
 Compliance Verification: ${JSON.stringify(data.dataCallResponse.compliance_verification || {}, null, 1)}
-${buildRewritePersonnelDocs(data.dataCallFiles)}
+${buildRewritePersonnelDocs(data.dataCallFiles)}${smeBlock}
 ${buildRewriterChecklistBlock(data.rfpChecklists)}${buildConditionalInjections(data.extractions, data.rfpChecklists)}
 === FIRST DRAFT TO REWRITE ===
 ${draftMarkdown}

@@ -51,9 +51,16 @@ import { generateCostPriceWorkbook, extractLaborCategories } from '@/lib/generat
 import { runPostGenerationValidation } from '@/lib/generation/pipeline/cert-validator';
 import { validateGeneratedContent, type ContentValidationData } from '@/lib/generation/pipeline/content-validator';
 import {
-  generateVolumeDiagrams,
+  embedAiDiagrams,
   findDiagramInsertionPoint,
+  findContentInsertionIndex,
 } from '@/lib/generation/docx/diagram-embedder';
+import {
+  generateDiagramSpecs,
+  extractRfpDiagramRequirements,
+  extractStrategyDiagramRequests,
+} from '@/lib/generation/exhibits/diagram-spec-generator';
+import type { DiagramSpec } from '@/lib/generation/exhibits/diagram-types';
 import type { CompanyProfile } from '@/lib/supabase/company-types';
 import type { DataCallResponse } from '@/lib/supabase/tier2-types';
 import type {
@@ -205,10 +212,11 @@ export const proposalDraftGenerator = inngest.createFunction(
   { id: 'proposal-draft-generator' },
   { event: 'proposal.draft.generate' },
   async ({ event, step }) => {
-    const { solicitationId, companyId, draftId, graphicsProfile } = event.data as {
+    const { solicitationId, companyId, draftId, strategyId, graphicsProfile } = event.data as {
       solicitationId: string;
       companyId: string;
       draftId: string;
+      strategyId?: string;
       graphicsProfile?: 'minimal' | 'standard';
     };
 
@@ -216,7 +224,7 @@ export const proposalDraftGenerator = inngest.createFunction(
     const {
       companyProfile, dataCallResponse, extractions, draftVolumes,
       solicitation, certifications, personnel, pastPerformance, naicsCodes, contractVehicles,
-      dataCallFiles,
+      dataCallFiles, strategy, smeContributions, boeAssessment, p2wAnalysis,
     } = await step.run(
       'fetch-all-data',
       async () => {
@@ -301,7 +309,7 @@ export const proposalDraftGenerator = inngest.createFunction(
           .eq('id', solicitationId)
           .maybeSingle();
 
-        // Fetch Tier 1 related collections for appendices
+        // Fetch Tier 1 collections, strategy, SME contributions, BOE, and P2W in parallel
         const [
           { data: certifications },
           { data: personnel },
@@ -309,6 +317,10 @@ export const proposalDraftGenerator = inngest.createFunction(
           { data: naicsCodes },
           { data: contractVehicles },
           { data: dataCallFiles },
+          { data: strategyRow },
+          { data: smeRows },
+          { data: boeRow },
+          { data: p2wRow },
         ] = await Promise.all([
           supabase.from('certifications').select('*').eq('company_id', companyId),
           supabase.from('personnel').select('*').eq('company_id', companyId),
@@ -319,6 +331,28 @@ export const proposalDraftGenerator = inngest.createFunction(
             .select('id, section, field_key, filename, extracted_text')
             .eq('data_call_response_id', (dataCall as DataCallResponse).id)
             .not('extracted_text', 'is', null),
+          // Strategy: load by strategyId if provided, else fall back to solicitation lookup
+          strategyId
+            ? supabase.from('solicitation_strategies').select('*').eq('id', strategyId).maybeSingle()
+            : supabase.from('solicitation_strategies').select('*').eq('solicitation_id', solicitationId).eq('company_id', companyId).maybeSingle(),
+          // SME contributions: only approved entries injected into prompts
+          supabase.from('sme_contributions')
+            .select('*')
+            .eq('solicitation_id', solicitationId)
+            .eq('company_id', companyId)
+            .eq('approved', true),
+          // BOE assessment for staffing model context
+          supabase.from('boe_assessments')
+            .select('*')
+            .eq('solicitation_id', solicitationId)
+            .eq('company_id', companyId)
+            .maybeSingle(),
+          // P2W analysis for competitive rate benchmarks
+          supabase.from('p2w_analyses')
+            .select('*')
+            .eq('solicitation_id', solicitationId)
+            .eq('company_id', companyId)
+            .maybeSingle(),
         ]);
 
         // Fetch draft_volumes ordered by volume_order
@@ -367,6 +401,10 @@ export const proposalDraftGenerator = inngest.createFunction(
           naicsCodes: naicsCodes || [],
           contractVehicles: contractVehicles || [],
           dataCallFiles: dataCallFiles || [],
+          strategy: strategyRow ?? null,
+          smeContributions: smeRows || [],
+          boeAssessment: boeRow ?? null,
+          p2wAnalysis: p2wRow ?? null,
         };
       }
     );
@@ -431,6 +469,10 @@ export const proposalDraftGenerator = inngest.createFunction(
             technologySelections: dataCallResponse.technology_selections || [],
             dataCallFiles: dataCallFiles || [],
             rfpChecklists: volumeChecklists,
+            strategy: strategy ?? undefined,
+            smeContributions: smeContributions || [],
+            boeAssessment: boeAssessment ?? null,
+            p2wAnalysis: p2wAnalysis ?? null,
           };
 
           // Assemble volume-specific AI prompts
@@ -442,8 +484,8 @@ export const proposalDraftGenerator = inngest.createFunction(
 
           // Scale max_tokens to page limit: ~1.5 tokens/word with 15% markdown overhead
           const maxTokens = volume.page_limit
-            ? Math.min(16384, Math.max(8192, Math.round(volume.page_limit * 250 * 1.7)))
-            : 16384;
+            ? Math.min(32768, Math.max(8192, Math.round(volume.page_limit * 250 * 1.7)))
+            : 32768;
 
           // Call Claude to generate content (streaming to avoid SDK timeout)
           const claudeResponse = await anthropic.messages
@@ -460,6 +502,11 @@ export const proposalDraftGenerator = inngest.createFunction(
               ],
             })
             .finalMessage();
+
+          // Check for truncation
+          if (claudeResponse.stop_reason === 'max_tokens') {
+            console.warn(`[draft-generator] Volume "${volume.volume_name}" hit max_tokens limit (${maxTokens}). Output may be truncated.`);
+          }
 
           // Extract markdown content from Claude response
           const rawMarkdown = claudeResponse.content
@@ -612,23 +659,78 @@ export const proposalDraftGenerator = inngest.createFunction(
           // Derive volume type for the DOCX generator
           const volumeType = deriveVolumeTypeForGenerator(volume.volume_name);
 
-          // Generate and embed diagrams for 'standard' graphics profile
+          // Generate and embed AI diagrams for 'standard' graphics profile
+          // Uses SVG templates — no Chromium, no CLI, works on Vercel serverless
+          let diagramSpecs = null;
           if (graphicsProfile === 'standard' && contentStructure.sections) {
             try {
-              const diagrams = await generateVolumeDiagrams(
+              // Build context for spec generator from available pipeline data
+              const personnelContext = (personnel || [])
+                .filter((p: any) => p.proposed_roles?.some((r: any) => r.is_key_personnel))
+                .map((p: any) => {
+                  const role = p.proposed_roles?.find((r: any) => r.is_key_personnel);
+                  return {
+                    role: role?.role_title || 'Staff',
+                    name: p.full_name || undefined,
+                    clearance: p.clearance_level || undefined,
+                  };
+                });
+
+              const serviceAreas = (dataCallResponse.service_area_approaches || [])
+                .map((s: any) => s.service_area_name || s.area || '')
+                .filter(Boolean);
+
+              const technologies = (dataCallResponse.technology_selections || [])
+                .map((t: any) => t.technology_name || t.name || '')
+                .filter(Boolean);
+
+              const specResult = await generateDiagramSpecs({
+                volumeMarkdown: validatedMarkdown,
+                volumeName: volume.volume_name,
                 volumeType,
-                personnel || [],
-                companyProfile.company_name
-              );
-              for (const diagram of diagrams) {
-                const insertIdx = findDiagramInsertionPoint(
-                  diagram.id,
-                  contentStructure.sections
-                );
-                if (insertIdx < contentStructure.sections.length) {
-                  // Append diagram elements at the end of the matching section's content
-                  contentStructure.sections[insertIdx].content.push(...diagram.elements);
+                context: {
+                  companyName: companyProfile.company_name,
+                  personnel: personnelContext,
+                  serviceAreas,
+                  technologies,
+                },
+                requiredFromRfp: extractRfpDiagramRequirements(extractions, volume.volume_name),
+                requiredFromStrategy: extractStrategyDiagramRequests(strategy, volume.volume_name),
+                maxDiagrams: 3,
+              }).catch((err: Error) => {
+                console.warn(`[draft-generator] Diagram spec generation failed for "${volume.volume_name}":`, err.message);
+                return { specs: [], success: false };
+              });
+
+              if (specResult.specs.length > 0) {
+                let allDiagramSpecs: DiagramSpec[] = specResult.specs;
+
+                // For cost/price volumes, prepend BOE diagram specs — they are required, not AI-suggested
+                if (volumeType === 'price' && boeAssessment?.diagram_specs) {
+                  const boeSpecs = boeAssessment.diagram_specs as DiagramSpec[];
+                  allDiagramSpecs = [...boeSpecs, ...allDiagramSpecs];
                 }
+
+                diagramSpecs = allDiagramSpecs;
+                const embeddedDiagrams = await embedAiDiagrams(allDiagramSpecs, colorPalette);
+                for (const diagram of embeddedDiagrams) {
+                  const sectionIdx = findDiagramInsertionPoint(
+                    diagram.placement?.sectionKeywords || [],
+                    diagram.id,
+                    contentStructure.sections
+                  );
+                  if (sectionIdx < contentStructure.sections.length) {
+                    const section = contentStructure.sections[sectionIdx];
+                    // Find precise subsection position instead of appending at end
+                    const contentIdx = findContentInsertionIndex(
+                      section,
+                      diagram.placement?.sectionKeywords || [],
+                      diagram.id
+                    );
+                    section.content.splice(contentIdx, 0, ...diagram.elements);
+                  }
+                }
+                console.log(`[draft-generator] Embedded ${embeddedDiagrams.length} AI diagram(s) in "${volume.volume_name}"`);
               }
             } catch (diagramErr) {
               console.warn(`[draft-generator] Diagram embedding failed for "${volume.volume_name}":`, diagramErr);
@@ -744,6 +846,7 @@ export const proposalDraftGenerator = inngest.createFunction(
                 siteStaffing: siteStaffing as { site_name: string; proposed_fte_count: string | number }[],
                 laborCategories,
                 clinStructure: [],
+                boeAssessment: boeAssessment ?? null,
               });
 
               const excelPath = `drafts/${companyId}/${solicitationId}/${volume.volume_order}_${sanitizedName}.xlsx`;
@@ -765,25 +868,28 @@ export const proposalDraftGenerator = inngest.createFunction(
             }
           }
 
-          // Update draft_volumes with all results
-          await supabase
-            .from('draft_volumes')
-            .update({
-              status: 'completed',
-              word_count: wordCount,
-              page_estimate: pageEstimate,
-              page_limit_status: pageLimitStatus,
-              file_path: filePath,
-              excel_file_path: excelFilePath,
-              content_markdown: validatedMarkdown,
-              validation_warnings: contentValidation.warnings.length > 0
-                ? contentValidation.warnings as unknown as Record<string, unknown>[]
-                : null,
-              generation_completed_at: new Date().toISOString(),
-              error_message: uploadError ? `DOCX upload failed: ${uploadError.message}` : null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', volume.id);
+          // Save in two steps to avoid payload size issues on large volumes:
+          // Step A: Save the large content separately
+          await supabase.from('draft_volumes').update({
+            content_markdown: validatedMarkdown,
+          }).eq('id', volume.id);
+
+          // Step B: Save metadata + status (small payload, reliable)
+          await supabase.from('draft_volumes').update({
+            status: 'completed',
+            word_count: wordCount,
+            page_estimate: pageEstimate,
+            page_limit_status: pageLimitStatus,
+            file_path: filePath,
+            excel_file_path: excelFilePath,
+            diagram_specs: diagramSpecs ?? null,
+            validation_warnings: contentValidation.warnings.length > 0
+              ? contentValidation.warnings as unknown as Record<string, unknown>[]
+              : null,
+            generation_completed_at: new Date().toISOString(),
+            error_message: uploadError ? `DOCX upload failed: ${uploadError.message}` : null,
+            updated_at: new Date().toISOString(),
+          }).eq('id', volume.id);
 
           console.log(`[draft-generator] Volume "${volume.volume_name}" completed: ${wordCount} words, ${pageEstimate} pages, status=${pageLimitStatus}`);
 

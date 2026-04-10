@@ -14,12 +14,12 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { StrategyConfirmation, type GraphicsProfile } from "./StrategyConfirmation";
+import { StrategyBuilder, type GraphicsProfile } from "./StrategyBuilder";
+import { DiagramPreview } from "./DiagramPreview";
 import type {
   DraftGetResponse,
   DraftVolume,
   VolumeStatus,
-  PageLimitStatus,
 } from "@/lib/supabase/draft-types";
 
 // ============================================================
@@ -35,63 +35,32 @@ export interface DraftGenerationViewProps {
 type ViewState = "strategy" | "generating" | "complete";
 
 // ============================================================
-// Page limit progress bar
+// Page info (plain text — no color coding)
 // ============================================================
 
-function PageLimitBar({
+function PageInfo({
   pageEstimate,
   pageLimit,
-  status,
   wordCount,
 }: {
   pageEstimate: number | null;
   pageLimit: number | null;
-  status: PageLimitStatus | null;
   wordCount: number | null;
 }) {
-  // If no page limit, just show raw numbers
-  if (!pageLimit || !pageEstimate) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        {pageEstimate != null ? `${pageEstimate} page${pageEstimate !== 1 ? "s" : ""}` : ""}
-        {wordCount != null ? ` (${wordCount.toLocaleString()} words)` : ""}
-      </p>
-    );
-  }
+  if (pageEstimate == null && wordCount == null) return null;
 
-  const ratio = Math.min(pageEstimate / pageLimit, 1.2); // cap visual at 120%
-  const widthPct = Math.min(ratio * 100, 100);
-
-  const barColors: Record<PageLimitStatus, string> = {
-    under:   "bg-green-500",
-    warning: "bg-amber-400",
-    over:    "bg-red-500",
-  };
-
-  const textColors: Record<PageLimitStatus, string> = {
-    under:   "text-green-700",
-    warning: "text-amber-700",
-    over:    "text-red-700",
-  };
-
-  const barColor = status ? barColors[status] : "bg-gray-300";
-  const textColor = status ? textColors[status] : "text-muted-foreground";
+  const pageText =
+    pageEstimate != null && pageLimit != null
+      ? `${pageEstimate} / ${pageLimit} pages`
+      : pageEstimate != null
+      ? `${pageEstimate} page${pageEstimate !== 1 ? "s" : ""}`
+      : null;
 
   return (
-    <div className="space-y-1">
-      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className={cn("h-full rounded-full transition-all", barColor)}
-          style={{ width: `${widthPct}%` }}
-        />
-      </div>
-      <p className={cn("text-xs font-medium", textColor)}>
-        {pageEstimate} / {pageLimit} pages
-        {wordCount != null ? ` (${wordCount.toLocaleString()} words)` : ""}
-        {status === "over" && " — over limit"}
-        {status === "warning" && " — near limit"}
-      </p>
-    </div>
+    <p className="text-xs text-muted-foreground">
+      {pageText}
+      {wordCount != null ? `${pageText ? " · " : ""}${wordCount.toLocaleString()} words` : ""}
+    </p>
   );
 }
 
@@ -281,13 +250,12 @@ function VolumeCard({
           </button>
         </div>
 
-        {/* Page limit bar */}
+        {/* Page info */}
         {(volume.page_estimate != null || volume.word_count != null) && (
           <div className="mt-3">
-            <PageLimitBar
+            <PageInfo
               pageEstimate={volume.page_estimate}
               pageLimit={volume.page_limit}
-              status={volume.page_limit_status}
               wordCount={volume.word_count}
             />
           </div>
@@ -318,8 +286,11 @@ function VolumeCard({
       {/* Expandable preview */}
       {expanded && volume.content_markdown && (
         <div className="border-t border-border bg-muted/20 px-5 py-4">
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-[600px] overflow-y-auto">
             <SimpleMarkdown content={volume.content_markdown} />
+            {volume.diagram_specs && volume.diagram_specs.length > 0 && (
+              <DiagramPreview specs={volume.diagram_specs} />
+            )}
           </div>
         </div>
       )}
@@ -402,13 +373,11 @@ function CompleteView({
   solicitationId,
   companyId,
   onRegenerate,
-  regenerating,
 }: {
   volumes: DraftVolume[];
   solicitationId: string;
   companyId: string;
   onRegenerate: () => void;
-  regenerating: boolean;
 }) {
   const contentVolumes = volumes.filter(
     (v) => v.volume_name !== "Compliance Matrix"
@@ -482,20 +451,10 @@ function CompleteView({
         <button
           type="button"
           onClick={onRegenerate}
-          disabled={regenerating}
-          className={cn(
-            "flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors",
-            regenerating
-              ? "cursor-not-allowed bg-muted text-muted-foreground border border-border"
-              : "bg-muted text-foreground border border-border hover:bg-muted/80"
-          )}
+          className="flex items-center gap-2 rounded-lg border border-border bg-muted px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted/80"
         >
-          {regenerating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RotateCcw className="h-4 w-4" />
-          )}
-          {regenerating ? "Starting regeneration..." : "Regenerate Draft"}
+          <RotateCcw className="h-4 w-4" />
+          Edit Strategy & Regenerate
         </button>
       </div>
     </div>
@@ -513,7 +472,6 @@ export function DraftGenerationView({
 }: DraftGenerationViewProps) {
   const [view, setView] = useState<ViewState>("strategy");
   const [volumes, setVolumes] = useState<DraftVolume[]>([]);
-  const [regenerating, setRegenerating] = useState(false);
   const [lastGraphicsProfile, setLastGraphicsProfile] = useState<GraphicsProfile>("minimal");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -616,40 +574,10 @@ export function DraftGenerationView({
       .catch(() => {});
   }, [solicitationId, companyId, startPolling]);
 
-  const handleRegenerate = useCallback(async () => {
-    if (regenerating) return;
-    setRegenerating(true);
-    try {
-      const res = await fetch(`/api/solicitations/${solicitationId}/draft`, {
-        method: "POST",
-        headers: {
-          "X-Company-Id": companyId,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ graphicsProfile: lastGraphicsProfile }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        alert(body.error ?? "Failed to start regeneration.");
-        return;
-      }
-      setVolumes([]);
-      setView("generating");
-      startPolling();
-      // Fetch fresh volume list
-      const freshRes = await fetch(`/api/solicitations/${solicitationId}/draft`, {
-        headers: { "X-Company-Id": companyId },
-      });
-      if (freshRes.ok) {
-        const data: DraftGetResponse = await freshRes.json();
-        setVolumes(data.volumes);
-      }
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Regeneration failed.");
-    } finally {
-      setRegenerating(false);
-    }
-  }, [solicitationId, companyId, regenerating, startPolling, lastGraphicsProfile]);
+  const handleRegenerate = useCallback(() => {
+    // Go back to strategy view so user can edit strategy, diagrams, etc. before regenerating
+    setView("strategy");
+  }, []);
 
   // ============================================================
   // Render
@@ -657,7 +585,7 @@ export function DraftGenerationView({
 
   if (view === "strategy") {
     return (
-      <StrategyConfirmation
+      <StrategyBuilder
         solicitationId={solicitationId}
         companyId={companyId}
         onGenerationStarted={handleGenerationStarted}
@@ -699,7 +627,6 @@ export function DraftGenerationView({
       solicitationId={solicitationId}
       companyId={companyId}
       onRegenerate={handleRegenerate}
-      regenerating={regenerating}
     />
   );
 }

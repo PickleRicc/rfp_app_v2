@@ -175,6 +175,22 @@ export interface SectionLFields {
     spacing?: string | null;
     other_rules?: string[] | null;
   };
+
+  /**
+   * Diagrams explicitly required by the solicitation (extracted from Section L / C / H text).
+   * Examples: "provide a CONOPS diagram", "include an organizational chart"
+   * These are treated as mandatory — Claude is instructed to generate them regardless of content analysis.
+   */
+  diagram_requirements?: Array<{
+    /** Matched diagram type from our supported set, or 'custom' if unrecognized */
+    type: string;
+    /** Verbatim text from the RFP that requested this diagram */
+    requirement_text: string;
+    /** Section reference where the requirement was found (e.g., "Section L.2.1") */
+    section_reference?: string;
+    /** Which proposal volume this requirement applies to (null = applies to all) */
+    applies_to_volume?: string | null;
+  }>;
 }
 
 /**
@@ -230,6 +246,15 @@ export interface AdminDataFields {
     clin_number: string;
     description: string;
     type?: string | null;
+  }>;
+
+  /** Structured period of performance broken into labeled base/option periods */
+  period_of_performance_structured?: Array<{
+    label: string;
+    type: 'base' | 'option';
+    duration_months: number;
+    start_date?: string;
+    end_date?: string;
   }>;
 }
 
@@ -327,6 +352,25 @@ export interface CostPriceFields {
 
   /** CLIN pricing structure */
   clin_pricing?: string;
+
+  /** Government-provided staffing table (e.g., from Section J or pricing template) */
+  government_staffing_table?: Array<{
+    labor_category: string;
+    fte_count: number;
+    period_label?: string;
+    source_paragraph?: string;
+  }>;
+
+  /** Independent Government Cost Estimate total value */
+  igce_value?: string | null;
+
+  /** IGCE labor breakout by category */
+  igce_breakdown?: Array<{
+    labor_category?: string;
+    rate?: number;
+    hours?: number;
+    period_label?: string;
+  }>;
 }
 
 /**

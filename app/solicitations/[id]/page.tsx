@@ -10,14 +10,18 @@ import {
   Shield,
   Upload,
   AlertCircle,
+  ArrowLeft,
   Loader2,
   ClipboardCheck,
   Send,
   ScrollText,
   Sparkles,
+  Users,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCompany } from "@/lib/context/CompanyContext";
+import { makeStatusBadge } from "@/app/components/ui/status-badge";
 import { Tier1TabLayout, type Tab } from "@/app/components/tier1/Tier1TabLayout";
 import { DocumentClassificationTable } from "@/app/components/solicitation/DocumentClassificationTable";
 import { AmendmentChainView } from "@/app/components/solicitation/AmendmentChainView";
@@ -25,6 +29,8 @@ import { ReconciliationView } from "@/app/components/solicitation/Reconciliation
 import { TemplateFieldsPanel } from "@/app/components/solicitation/TemplateFieldsPanel";
 import { ComplianceExtractionView } from "@/app/components/solicitation/ComplianceExtractionView";
 import { DataCallView } from "@/app/components/datacall/DataCallView";
+import { BoeView } from "@/app/components/boe/BoeView";
+import { P2wView } from "@/app/components/p2w/P2wView";
 import { DraftGenerationView } from "@/app/components/draft/DraftGenerationView";
 import { TouchupTab } from "@/app/components/touchup/TouchupTab";
 import { PipelineLogsView } from "./components/PipelineLogsView";
@@ -40,34 +46,16 @@ import type { EnrichedReconciliation } from "@/app/components/solicitation/Recon
 // Status badge for the solicitation pipeline status
 // ============================================================
 
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; classes: string }
-> = {
-  uploading: { label: "Uploading", classes: "bg-blue-100 text-blue-700" },
-  classifying: { label: "Classifying", classes: "bg-amber-100 text-amber-700" },
-  reconciling: { label: "Reconciling", classes: "bg-purple-100 text-purple-700" },
-  extracting: { label: "Extracting", classes: "bg-cyan-100 text-cyan-700" },
-  ready: { label: "Ready", classes: "bg-green-100 text-green-700" },
-  failed: { label: "Failed", classes: "bg-red-100 text-red-700" },
+const SOL_DETAIL_STATUS: Record<string, { label: string; classes: string }> = {
+  uploading:   { label: "Uploading",   classes: "bg-blue-500/15 text-blue-400" },
+  classifying: { label: "Classifying", classes: "bg-amber-500/15 text-amber-400" },
+  reconciling: { label: "Reconciling", classes: "bg-purple-500/15 text-purple-400" },
+  extracting:  { label: "Extracting",  classes: "bg-cyan-500/15 text-cyan-400" },
+  ready:       { label: "Ready",       classes: "bg-success/15 text-success" },
+  failed:      { label: "Failed",      classes: "bg-destructive/15 text-destructive" },
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const config = STATUS_CONFIG[status] ?? {
-    label: status,
-    classes: "bg-gray-100 text-gray-600",
-  };
-  return (
-    <span
-      className={cn(
-        "rounded-full px-2.5 py-0.5 text-xs font-medium",
-        config.classes
-      )}
-    >
-      {config.label}
-    </span>
-  );
-}
+const StatusBadge = makeStatusBadge(SOL_DETAIL_STATUS);
 
 // ============================================================
 // Tabs configuration
@@ -94,6 +82,16 @@ const TABS: Tab[] = [
     id: "data-call",
     label: "Data Call",
     icon: <ClipboardCheck className="h-4 w-4" />,
+  },
+  {
+    id: "boe",
+    label: "BOE",
+    icon: <Users className="h-4 w-4" />,
+  },
+  {
+    id: "p2w",
+    label: "P2W",
+    icon: <DollarSign className="h-4 w-4" />,
   },
   {
     id: "draft",
@@ -349,8 +347,8 @@ export default function SolicitationDetailPage() {
   if (!selectedCompanyId) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
-          <p className="text-sm font-medium text-amber-800">
+        <div className="rounded-xl border border-warning/40 bg-warning/10 p-6 text-center">
+          <p className="text-sm font-medium text-warning-foreground">
             No company selected. Please select a company from the header.
           </p>
         </div>
@@ -369,15 +367,16 @@ export default function SolicitationDetailPage() {
   if (error || !solicitation) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-          <AlertCircle className="mx-auto mb-2 h-6 w-6 text-red-500" />
-          <p className="text-sm font-medium text-red-700">
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-6 text-center">
+          <AlertCircle className="mx-auto mb-2 h-6 w-6 text-destructive" />
+          <p className="text-sm font-medium text-foreground">
             {error ?? "Solicitation not found."}
           </p>
           <Link
             href="/solicitations"
-            className="mt-3 inline-block text-xs text-red-600 underline hover:no-underline"
+            className="mt-3 inline-flex items-center gap-1.5 text-xs text-primary underline hover:no-underline"
           >
+            <ArrowLeft className="h-3 w-3" />
             Back to Solicitations
           </Link>
         </div>
@@ -390,6 +389,15 @@ export default function SolicitationDetailPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
+      {/* Back link */}
+      <Link
+        href="/solicitations"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Solicitations
+      </Link>
+
       {/* Page header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -478,6 +486,22 @@ export default function SolicitationDetailPage() {
         {/* ======= DATA CALL TAB ======= */}
         {activeTab === "data-call" && solicitation && selectedCompanyId && (
           <DataCallView
+            solicitationId={solicitation.id}
+            companyId={selectedCompanyId}
+          />
+        )}
+
+        {/* ======= BOE TAB ======= */}
+        {activeTab === "boe" && solicitation && selectedCompanyId && (
+          <BoeView
+            solicitationId={solicitation.id}
+            companyId={selectedCompanyId}
+          />
+        )}
+
+        {/* ======= P2W TAB ======= */}
+        {activeTab === "p2w" && solicitation && selectedCompanyId && (
+          <P2wView
             solicitationId={solicitation.id}
             companyId={selectedCompanyId}
           />

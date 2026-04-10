@@ -114,6 +114,72 @@ function buildCitation(
   return makeCitation(getExtractionLabel(extractions, category, fieldName));
 }
 
+// ===== CONTRACT STYLE DETECTION =====
+
+type DataCallContractStyle = 'it_operations' | 'software_dev' | 'consulting' | 'research' | 'general';
+
+function detectDataCallContractStyle(extractions: ComplianceExtraction[]): DataCallContractStyle {
+  const documentType = getExtractionValue<string>(extractions, 'sow_pws', 'document_type');
+  const totalServiceAreas = getExtractionValue<number>(extractions, 'sow_pws', 'total_service_areas') || 0;
+
+  // Build a single searchable text from all extraction values per category
+  const textByCategory: Record<string, string> = {};
+  for (const row of extractions) {
+    const val = JSON.stringify(row.field_value || '').toLowerCase();
+    textByCategory[row.category] = (textByCategory[row.category] || '') + ' ' + val;
+  }
+  const allText = Object.values(textByCategory).join(' ');
+
+  // Count unique keyword matches (not duplicates from same keyword in multiple rows)
+  function countSignals(text: string, keywords: string[]): number {
+    return keywords.filter(kw => text.includes(kw)).length;
+  }
+
+  // IT ops: search across technology_reqs AND sow_pws (keywords appear in both)
+  const itOpsKeywords = ['servicenow', 'cisco', 'nutanix', 'sccm', 'mecm', 'active directory',
+    'vmware', 'solarwinds', 'jamf', 'puppet', 'ansible', 'service desk', 'help desk',
+    'it operations', 'it support', 'infrastructure', 'network operations', 'noc',
+    'end user', 'desktop support', 'patch management', 'monitoring'];
+  const itOpsText = (textByCategory['technology_reqs'] || '') + ' ' + (textByCategory['sow_pws'] || '');
+  const itOpsSignals = countSignals(itOpsText, itOpsKeywords);
+
+  if ((documentType === 'SOO' || documentType === 'PWS') && (totalServiceAreas >= 3 || itOpsSignals >= 2)) return 'it_operations';
+  if (totalServiceAreas >= 3 && itOpsSignals >= 2) return 'it_operations';
+  if (itOpsSignals >= 3) return 'it_operations';
+
+  // Software dev: search sow_pws + technology_reqs
+  const devKeywords = ['agile', 'sprint', 'sdlc', 'devops', 'devsecops', 'ci/cd',
+    'software development', 'application development', 'coding', 'scrum', 'kanban',
+    'continuous integration', 'microservices', 'api development', 'cloud native'];
+  const devText = (textByCategory['sow_pws'] || '') + ' ' + (textByCategory['technology_reqs'] || '');
+  const devSignals = countSignals(devText, devKeywords);
+  if (devSignals >= 2) return 'software_dev';
+
+  // Research: search operational_context + sow_pws
+  const researchKeywords = ['research', 'laboratory', 'r&d', 'scientific', 'experiment',
+    'prototype', 'proof of concept', 'technical evaluation'];
+  const researchText = (textByCategory['operational_context'] || '') + ' ' + (textByCategory['sow_pws'] || '');
+  const researchSignals = countSignals(researchText, researchKeywords);
+  if (researchSignals >= 2) return 'research';
+
+  // Consulting: search sow_pws + operational_context
+  const consultingKeywords = ['advisory', 'assessment', 'strategy', 'consulting', 'analysis',
+    'recommendation', 'evaluation', 'roadmap', 'maturity model', 'gap analysis'];
+  const consultingText = (textByCategory['sow_pws'] || '') + ' ' + (textByCategory['operational_context'] || '');
+  const consultingSignals = countSignals(consultingText, consultingKeywords);
+  if (consultingSignals >= 2) return 'consulting';
+
+  // Last resort: if document type is SOO or PWS, it's likely IT ops even without strong signals
+  if (documentType === 'SOO' || documentType === 'PWS') return 'it_operations';
+  if (documentType === 'SOW') return 'software_dev';
+
+  // Log for debugging in development
+  console.log('[data-call-generator] Contract style detection: general (no strong signals)',
+    { documentType, totalServiceAreas, itOpsSignals, devSignals, researchSignals, consultingSignals });
+
+  return 'general';
+}
+
 // ===== SECTION BUILDERS =====
 
 /**
@@ -210,7 +276,8 @@ function buildOpportunityDetailsSection(
  * The UI renders dynamic_count copies of these fields with index suffixes.
  */
 function buildPastPerformanceSection(
-  extractions: ComplianceExtraction[]
+  extractions: ComplianceExtraction[],
+  pastPerformanceCount: number = 0
 ): DataCallSection {
   // Determine required reference count
   const referencesRequired = getExtractionValue<number | string>(
@@ -247,6 +314,9 @@ function buildPastPerformanceSection(
   }
 
   let description = `Provide ${dynamicCount} past performance reference${dynamicCount !== 1 ? 's' : ''} that demonstrate relevant experience.`;
+  if (pastPerformanceCount > 0) {
+    description += ` You have ${pastPerformanceCount} past performance record(s) in your company profile that may be applicable.`;
+  }
   if (recency) {
     description += ` Recency requirement: ${recency}.`;
   }
@@ -364,7 +434,8 @@ function buildPastPerformanceSection(
  * If no positions found, dynamic_count = 0 and the UI shows an "Add Personnel" prompt.
  */
 function buildKeyPersonnelSection(
-  extractions: ComplianceExtraction[]
+  extractions: ComplianceExtraction[],
+  personnelCount: number = 0
 ): DataCallSection {
   // Positions from extraction
   interface ExtractedPosition {
@@ -403,6 +474,10 @@ function buildKeyPersonnelSection(
     description += ` LOC requirement: ${locRequirements}.`;
   }
 
+  if (personnelCount > 0) {
+    description += ` You have ${personnelCount} personnel record(s) in your company profile.`;
+  }
+
   if (isBackupRequired) {
     description += ' IMPORTANT: RFP requires backup/alternate personnel for each key position.';
   }
@@ -429,7 +504,9 @@ function buildKeyPersonnelSection(
       type:         'text',
       required:     true,
       rfp_citation: null,
-      placeholder:  'Full legal name',
+      placeholder:  personnelCount > 0
+        ? 'Select from your company personnel records or enter a new candidate name'
+        : 'Full name of proposed candidate',
     },
     {
       key:          'qualifications_summary',
@@ -539,6 +616,25 @@ function buildTechnicalApproachSection(
     description += ` Key task areas: ${areaNames}${moreCount}.`;
   }
 
+  const contractStyle = detectDataCallContractStyle(extractions);
+
+  // Add contract style context to description
+  const styleLabels: Record<DataCallContractStyle, string> = {
+    it_operations: 'IT Operations & Managed Services',
+    software_dev: 'Software Development',
+    consulting: 'Consulting & Advisory',
+    research: 'Research & Development',
+    general: 'Government Services',
+  };
+  description += ` Contract type detected: ${styleLabels[contractStyle]}.`;
+
+  // Check if site staffing section exists to avoid redundant staffing field
+  const hasSiteStaffing = extractions.some(
+    r => r.category === 'operational_context' && r.field_name === 'sites' &&
+      Array.isArray(r.field_value) && (r.field_value as unknown[]).length > 0
+  );
+
+  // Base fields — approach_summary is always required, tools always present
   const fields: DataCallFormField[] = [
     {
       key:          'approach_summary',
@@ -556,14 +652,21 @@ function buildTechnicalApproachSection(
       rfp_citation: sowCitation,
       placeholder:  'Technologies, frameworks, and methodologies to be employed',
     },
-    {
+  ];
+
+  // Only include staffing_model if no dedicated site staffing section
+  if (!hasSiteStaffing) {
+    fields.push({
       key:          'staffing_model',
       label:        'Staffing Model',
       type:         'textarea',
       required:     false,
       rfp_citation: sowCitation,
       placeholder:  'Team structure, labor mix, on-site vs. remote, subcontractor roles',
-    },
+    });
+  }
+
+  fields.push(
     {
       key:          'assumptions',
       label:        'Assumptions',
@@ -580,7 +683,152 @@ function buildTechnicalApproachSection(
       rfp_citation: null,
       placeholder:  'Identified risks and proposed mitigation strategies',
     },
-  ];
+  );
+
+  // Contract-style-specific fields
+  if (contractStyle === 'it_operations') {
+    fields.push(
+      {
+        key: 'service_level_targets',
+        label: 'Service Level Targets & KPIs',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Proposed SLA targets, response/resolution times, uptime commitments, and performance metrics for each service area',
+      },
+      {
+        key: 'change_management_process',
+        label: 'Change & Configuration Management',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Change advisory board process, approval workflows, emergency change procedures, configuration baseline management',
+      },
+      {
+        key: 'incident_response_model',
+        label: 'Incident Response & Escalation',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Tiered escalation path, major incident management, root cause analysis approach, and after-action review process',
+      },
+      {
+        key: 'transition_in_plan',
+        label: 'Transition-In Plan',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Phase-gate transition approach, knowledge transfer from incumbent, shadow period, risk mitigation during cutover',
+      },
+    );
+  } else if (contractStyle === 'software_dev') {
+    fields.push(
+      {
+        key: 'sdlc_methodology',
+        label: 'SDLC Methodology',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Agile/Scrum/SAFe framework, sprint cadence, ceremonies, definition of done, velocity tracking approach',
+      },
+      {
+        key: 'cicd_pipeline',
+        label: 'CI/CD & DevSecOps Pipeline',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Build/test/deploy pipeline, automated testing strategy, static code analysis, container security scanning',
+      },
+      {
+        key: 'test_strategy',
+        label: 'Test Strategy',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Unit, integration, system, UAT, regression testing approach, test automation coverage targets',
+      },
+      {
+        key: 'architecture_approach',
+        label: 'Architecture & Design Approach',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Architecture patterns (microservices, event-driven, etc.), technology stack decisions, scalability approach',
+      },
+    );
+  } else if (contractStyle === 'consulting') {
+    fields.push(
+      {
+        key: 'assessment_methodology',
+        label: 'Assessment Methodology',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Assessment framework, data collection methods, stakeholder interview approach, analysis techniques',
+      },
+      {
+        key: 'deliverable_structure',
+        label: 'Deliverable Structure & Quality',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Deliverable format, review cycles, quality assurance process, acceptance criteria approach',
+      },
+      {
+        key: 'knowledge_transfer',
+        label: 'Knowledge Transfer Plan',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Training approach, documentation standards, organizational readiness assessment, sustainability plan',
+      },
+    );
+  } else if (contractStyle === 'research') {
+    fields.push(
+      {
+        key: 'research_methodology',
+        label: 'Research Methodology',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Research design, data collection, analysis methods, validation approach, reproducibility measures',
+      },
+      {
+        key: 'lab_facilities',
+        label: 'Laboratory & Equipment',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Available laboratory facilities, specialized equipment, access arrangements, safety protocols',
+      },
+      {
+        key: 'publication_plan',
+        label: 'Publication & IP Management',
+        type: 'textarea' as const,
+        required: false,
+        rfp_citation: sowCitation,
+        placeholder: 'Publication timeline, intellectual property handling, data sharing plan, technology transfer approach',
+      },
+    );
+  }
+
+  // Deliverable schedule — conditional on extracted deliverables from SOW/PWS
+  const deliverables = getExtractionValue<Array<{ name: string; frequency?: string; format?: string }>>(
+    extractions, 'sow_pws', 'deliverables'
+  );
+
+  if (deliverables && Array.isArray(deliverables) && deliverables.length > 0) {
+    const delivNames = deliverables.slice(0, 5).map(d => d.name).join(', ');
+    const moreCount = deliverables.length > 5 ? ` and ${deliverables.length - 5} more` : '';
+    fields.push({
+      key: 'cdrl_delivery_plan',
+      label: 'CDRL / Deliverable Delivery Plan',
+      type: 'textarea' as const,
+      required: false,
+      rfp_citation: buildCitation(extractions, 'sow_pws', 'deliverables'),
+      placeholder: `Proposed delivery schedule, review cycles, and quality approach for: ${delivNames}${moreCount}`,
+    });
+  }
 
   return {
     id:          'technical_approach',
@@ -867,22 +1115,22 @@ function buildComplianceVerificationSection(
   if (attachmentList.length > 0) {
     const seenKeys = new Set<string>();
     attachmentList.forEach((attachment) => {
+      // Skip system-generated documents — resumes, technical volumes, org charts,
+      // QASPs, security plans, LOCs, etc. are created by the proposal pipeline.
+      // Only keep fields for attachments the client must actually provide.
+      if (isSystemGenerated(attachment)) return;
+
       const fieldKey = `attachment_${attachment.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_')}`;
       if (seenKeys.has(fieldKey)) return;
       seenKeys.add(fieldKey);
 
-      const generated = isSystemGenerated(attachment);
       fields.push({
         key:          fieldKey,
-        label:        generated
-          ? `Proposal Attachment (system-generated): ${attachment}`
-          : `Required Attachment: ${attachment}`,
+        label:        `Required Attachment: ${attachment}`,
         type:         'file',
         required:     false,
         rfp_citation: buildCitation(extractions, 'section_l', 'required_attachments'),
-        placeholder:  generated
-          ? `This attachment will be generated by the system during proposal creation`
-          : `Upload ${attachment} (optional at this stage)`,
+        placeholder:  `Upload ${attachment} (optional at this stage)`,
       });
     });
   } else {
@@ -893,6 +1141,38 @@ function buildComplianceVerificationSection(
       required:     false,
       rfp_citation: null,
       placeholder:  'Upload any required certifications, forms, or attachments',
+    });
+  }
+
+  // Standards Implementation — conditional on extracted required_standards from technology_reqs
+  const requiredStandards = getExtractionValue<Array<{ name: string; context: string }>>(
+    extractions, 'technology_reqs', 'required_standards'
+  );
+
+  if (requiredStandards && Array.isArray(requiredStandards) && requiredStandards.length > 0) {
+    const standardNames = requiredStandards.map(s => s.name).join(', ');
+    fields.push({
+      key: 'standards_implementation',
+      label: 'Standards Implementation Confirmation',
+      type: 'textarea' as const,
+      required: false,
+      blocking: false,
+      rfp_citation: buildCitation(extractions, 'technology_reqs', 'required_standards'),
+      placeholder: `Describe your implementation approach for required standards: ${standardNames}`,
+    });
+  }
+
+  // CMMC Maturity Gap — conditional on extracted cmmc_level from security_reqs
+  // (cmmcLevel already extracted at the top of this function)
+  if (cmmcLevel) {
+    fields.push({
+      key: 'cmmc_maturity_status',
+      label: `CMMC Level ${cmmcLevel} Readiness`,
+      type: 'textarea' as const,
+      required: false,
+      blocking: false,
+      rfp_citation: buildCitation(extractions, 'security_reqs', 'cmmc_level'),
+      placeholder: `Current CMMC maturity level, target level ${cmmcLevel} readiness, remediation plan for any gaps, timeline to certification`,
     });
   }
 
@@ -959,40 +1239,41 @@ function buildServiceAreaApproachSection(
 
     const citation = detailRow?.field_label ? makeCitation(detailRow.field_label) : makeCitation(`SOW/PWS ${area.code}`);
 
-    fields.push(
-      {
-        key:          `sa_${area.code}_approach`,
-        label:        `${area.code} — ${area.name}: Approach`,
-        type:         'textarea',
-        required:     true,
-        rfp_citation: citation,
-        placeholder:  approachPlaceholder,
-      },
-      {
+    // Always include the core approach field
+    fields.push({
+      key:          `sa_${area.code}_approach`,
+      label:        `${area.code} — ${area.name}: Approach`,
+      type:         'textarea',
+      required:     true,
+      rfp_citation: citation,
+      placeholder:  approachPlaceholder,
+    });
+
+    // Only include tools field when RFP extraction found specific technologies
+    if (detail?.required_technologies && Array.isArray(detail.required_technologies) && (detail.required_technologies as Array<unknown>).length > 0) {
+      fields.push({
         key:          `sa_${area.code}_tools`,
         label:        `${area.code} — ${area.name}: Proposed Tools`,
         type:         'textarea',
         required:     false,
         rfp_citation: citation,
         placeholder:  toolsPlaceholder,
-      },
-      {
+      });
+    }
+
+    // Only include staffing field when RFP extraction found staffing indicators
+    if (detail?.staffing_indicators && Array.isArray(detail.staffing_indicators) && (detail.staffing_indicators as Array<unknown>).length > 0) {
+      fields.push({
         key:          `sa_${area.code}_staffing`,
         label:        `${area.code} — ${area.name}: Proposed Staffing`,
         type:         'textarea',
         required:     false,
         rfp_citation: citation,
         placeholder:  staffingPlaceholder,
-      },
-      {
-        key:          `sa_${area.code}_differentiator`,
-        label:        `${area.code} — ${area.name}: Key Differentiator`,
-        type:         'textarea',
-        required:     false,
-        rfp_citation: null,
-        placeholder:  'What makes your approach to this area better than competitors?',
-      }
-    );
+      });
+    }
+
+    // Differentiator removed — win themes come from the strategy builder, not data call
   }
 
   return {
@@ -1221,12 +1502,24 @@ export async function generateDataCallSchema(
     }
   }
 
+  // Fetch Tier 1 past performance and personnel counts for pre-fill hints
+  let pastPerformanceCount = 0;
+  let personnelCount = 0;
+  if (companyId) {
+    const [ppResult, persResult] = await Promise.all([
+      supabase.from('past_performance').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+      supabase.from('personnel').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+    ]);
+    pastPerformanceCount = ppResult.count ?? 0;
+    personnelCount = persResult.count ?? 0;
+  }
+
   // Build the core 5 sections + optional new sections
   // Pass company intake data to sections that benefit from Tier 1 pre-fill
   const sections: DataCallSection[] = [
     buildOpportunityDetailsSection(rows, companyData),
-    buildPastPerformanceSection(rows),
-    buildKeyPersonnelSection(rows),
+    buildPastPerformanceSection(rows, pastPerformanceCount),
+    buildKeyPersonnelSection(rows, personnelCount),
     buildTechnicalApproachSection(rows),
     buildComplianceVerificationSection(rows, companyData),
   ];
@@ -1240,6 +1533,14 @@ export async function generateDataCallSchema(
 
   const techSelectionSection = buildTechnologySelectionSection(rows);
   if (techSelectionSection) sections.push(techSelectionSection);
+
+  // SME Contributions — always present as the last section
+  sections.push({
+    id:          'sme_contributions',
+    title:       'SME Contributions',
+    description: 'Subject matter experts can add detailed technical narratives here. Approved contributions are injected directly into the AI generation prompt as authoritative source material.',
+    fields:      [],
+  });
 
   return {
     solicitation_id: solicitationId,

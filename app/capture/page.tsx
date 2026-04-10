@@ -5,16 +5,16 @@ import Link from "next/link";
 import {
   Plus,
   Loader2,
-  AlertCircle,
   Crosshair,
   Database,
   Upload,
   Search,
-  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCompany } from "@/lib/context/CompanyContext";
 import { Button } from "@/app/components/ui/button";
+import { AlertBanner } from "@/app/components/ui/alert-banner";
+import { makeStatusBadge } from "@/app/components/ui/status-badge";
 import type {
   OpportunityAnalysis,
   AnalysisStatus,
@@ -26,31 +26,16 @@ import {
   FIT_RATING_COLORS,
 } from "@/lib/supabase/capture-types";
 
-const STATUS_CONFIG: Record<AnalysisStatus, { label: string; classes: string }> = {
-  draft: { label: "Draft", classes: "bg-gray-100 text-gray-700" },
-  uploading: { label: "Uploading", classes: "bg-blue-100 text-blue-700" },
-  ready: { label: "Ready", classes: "bg-indigo-100 text-indigo-700" },
-  analyzing: { label: "Analyzing", classes: "bg-purple-100 text-purple-700" },
-  complete: { label: "Complete", classes: "bg-green-100 text-green-700" },
-  failed: { label: "Failed", classes: "bg-red-100 text-red-700" },
+const CAPTURE_STATUS: Record<AnalysisStatus, { label: string; classes: string }> = {
+  draft:     { label: "Draft",     classes: "bg-muted/50 text-muted-foreground" },
+  uploading: { label: "Uploading", classes: "bg-blue-500/15 text-blue-400" },
+  ready:     { label: "Ready",     classes: "bg-primary/15 text-primary" },
+  analyzing: { label: "Analyzing", classes: "bg-purple-500/15 text-purple-400" },
+  complete:  { label: "Complete",  classes: "bg-success/15 text-success" },
+  failed:    { label: "Failed",    classes: "bg-destructive/15 text-destructive" },
 };
 
-function StatusBadge({ status }: { status: AnalysisStatus }) {
-  const config = STATUS_CONFIG[status] ?? {
-    label: status,
-    classes: "bg-gray-100 text-gray-600",
-  };
-  return (
-    <span
-      className={cn(
-        "rounded-full px-2.5 py-0.5 text-xs font-medium",
-        config.classes
-      )}
-    >
-      {config.label}
-    </span>
-  );
-}
+const StatusBadge = makeStatusBadge(CAPTURE_STATUS);
 
 function FitBadge({ rating }: { rating: FitRating }) {
   return (
@@ -141,16 +126,18 @@ export default function CapturePage() {
       )}
 
       {!loading && error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-          <AlertCircle className="mx-auto mb-2 h-5 w-5 text-red-500" />
-          <p className="text-sm text-red-700">{error}</p>
-          <button
-            onClick={fetchAnalyses}
-            className="mt-2 text-xs text-red-600 underline hover:no-underline"
-          >
-            Try again
-          </button>
-        </div>
+        <AlertBanner
+          variant="error"
+          message={error}
+          action={
+            <button
+              onClick={fetchAnalyses}
+              className="text-xs text-primary underline hover:no-underline"
+            >
+              Try again
+            </button>
+          }
+        />
       )}
 
       {!loading && !error && analyses.length === 0 && (
@@ -213,10 +200,11 @@ export default function CapturePage() {
                 {analyses.map((analysis) => (
                   <tr
                     key={analysis.id}
-                    className="group transition-colors hover:bg-muted/20"
+                    className="group cursor-pointer transition-colors hover:bg-muted/30"
+                    onClick={() => { window.location.href = `/capture/${analysis.id}`; }}
                   >
                     <td className="px-5 py-4">
-                      <Link href={`/capture/${analysis.id}`} className="block">
+                      <Link href={`/capture/${analysis.id}`} onClick={(e) => e.stopPropagation()} className="block">
                         <span className="font-semibold text-primary group-hover:underline">
                           {analysis.title}
                         </span>

@@ -38,6 +38,7 @@ export const DATA_CALL_SECTION_LABELS: Record<string, string> = {
   service_area_approaches:  'Service Area Approaches',
   site_staffing:            'Site Staffing Plan',
   technology_selections:    'Technology Selections',
+  sme_contributions:        'SME Contributions',
 };
 
 /**
@@ -53,6 +54,7 @@ export const DATA_CALL_SECTION_ICONS: Record<string, string> = {
   service_area_approaches:  'Layers',
   site_staffing:            'MapPin',
   technology_selections:    'Cpu',
+  sme_contributions:        'BookOpen',
 };
 
 // ===== SECTION DATA INTERFACES =====
@@ -162,6 +164,9 @@ export interface TechnicalApproach {
 
   /** Identified risks and proposed mitigations */
   risks: string;
+
+  /** Dynamic contract-style-specific fields (IT ops, software dev, consulting, research) */
+  [key: string]: string;
 }
 
 /**
@@ -508,6 +513,73 @@ export interface DataCallFile {
   extracted_text: string | null;
 
   created_at: string;
+}
+
+// ===== SME CONTRIBUTIONS =====
+
+/**
+ * A subject matter expert narrative contribution for a specific proposal volume.
+ * SMEs author free-form content blocks; Proposal Managers approve them before
+ * they are injected into draft generation prompts.
+ * Maps to the sme_contributions table.
+ */
+export interface SmeContribution {
+  id: string;
+
+  /** The solicitation this contribution is for */
+  solicitation_id: string;
+
+  company_id: string;
+
+  /** Which proposal volume this content applies to (e.g. 'Technical Approach') */
+  volume_name: string;
+
+  /** Subject area within the volume (e.g. 'Zero Trust Architecture') */
+  topic: string;
+
+  /** SME-authored free-form narrative — injected verbatim into the generation prompt */
+  content: string;
+
+  /** Full name of the contributing SME */
+  contributor_name: string;
+
+  /** Job title of the contributing SME */
+  contributor_title?: string;
+
+  /** Whether the Proposal Manager has approved this contribution for use in generation */
+  approved: boolean;
+
+  /** Name/email of the PM who approved */
+  approved_by?: string;
+
+  /** ISO timestamp of when this contribution was approved */
+  approved_at?: string;
+
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Request body for POST /api/solicitations/[id]/sme-contributions.
+ */
+export interface SmeContributionCreateRequest {
+  volume_name: string;
+  topic: string;
+  content: string;
+  contributor_name: string;
+  contributor_title?: string;
+}
+
+/**
+ * Request body for PATCH /api/solicitations/[id]/sme-contributions/[contributionId].
+ * All fields optional — supports editing content or toggling approval.
+ */
+export interface SmeContributionUpdateRequest {
+  topic?: string;
+  content?: string;
+  contributor_title?: string;
+  approved?: boolean;
+  approved_by?: string;
 }
 
 // ===== CONVENIENCE TYPES =====

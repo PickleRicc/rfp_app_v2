@@ -1,23 +1,25 @@
 /**
  * Diagram Embedder for Proposal Volumes
  *
- * Generates and embeds PNG diagrams into DOCX content sections based on volume type.
- * Uses the existing Mermaid diagram infrastructure (org-chart, timeline, process-diagram).
+ * Two paths:
  *
- * For 'standard' graphics profile:
- *   - Management volumes: org chart + transition timeline
- *   - Technical volumes: quality control process flow
- *   - Other volume types: no diagrams
+ * NEW (AI-generated SVG) — use embedAiDiagrams():
+ *   Accepts DiagramSpec[] from diagram-spec-generator, renders via SVG templates,
+ *   embeds as native SVG ImageRun in DOCX. No Chromium. No CLI. Works on Vercel.
  *
- * Each diagram is rendered to PNG, read into an ImageRun, and wrapped in a Paragraph.
- * Temp files are cleaned up after embedding.
+ * LEGACY (Mermaid/PNG) — generateVolumeDiagrams() is kept for rollback purposes only.
+ *   Uses Mermaid CLI + Puppeteer → PNG. Silently fails on Vercel serverless.
+ *   Will be removed after 2-sprint stability window.
  */
 
-import { Paragraph, ImageRun, AlignmentType, TextRun } from 'docx';
+import { Paragraph, ImageRun, AlignmentType, TextRun, HeadingLevel } from 'docx';
 import { readFile, unlink } from 'fs/promises';
 import { generateOrgChart } from '../exhibits/org-chart';
 import { generateGanttChart } from '../exhibits/timeline';
 import { generateProcessDiagram, STANDARD_PROCESSES } from '../exhibits/process-diagram';
+import type { DiagramSpec } from '../exhibits/diagram-types';
+import { renderDiagramToEmbeddedDocx } from '../exhibits/diagram-renderer';
+import type { ProposalColorPalette } from './colors';
 
 // ===== TYPES =====
 
@@ -29,6 +31,11 @@ export interface EmbeddedDiagram {
   caption: string;
   /** DOCX Paragraph elements (image + caption) */
   elements: Paragraph[];
+  /** Placement hints from the diagram spec — used for section keyword matching */
+  placement?: {
+    sectionKeywords: string[];
+    position?: 'start' | 'end';
+  };
 }
 
 // ===== HELPERS =====
@@ -147,34 +154,233 @@ export async function generateVolumeDiagrams(
   return diagrams;
 }
 
+// ===== CONTENT-AWARE PLACEMENT ENGINE =====
+
+// Static keyword map per diagram type
+const DIAGRAM_TYPE_KEYWORDS: Record<string, string[]> = {
+  'org-chart': ['organizational', 'org', 'structure', 'management', 'personnel', 'staffing', 'team'],
+  'gantt': ['transition', 'timeline', 'schedule', 'phase', 'plan', 'period'],
+  'process-flow': ['process', 'workflow', 'approach', 'methodology', 'quality', 'procedure'],
+  'bar-chart': ['performance', 'metrics', 'staffing', 'comparison', 'data', 'statistics'],
+  'raci-matrix': ['responsibility', 'raci', 'roles', 'assignment', 'accountability', 'personnel'],
+  'network-diagram': ['architecture', 'network', 'infrastructure', 'system', 'technology', 'topology'],
+  'radar-chart': ['capability', 'strength', 'evaluation', 'criteria', 'assessment'],
+  'swimlane': ['process', 'workflow', 'coordination', 'integration', 'collaboration'],
+  'data-table': ['staffing', 'labor', 'basis of estimate', 'boe', 'rate', 'pricing', 'table'],
+  'comparison-table': ['comparison', 'current state', 'proposed', 'requirement', 'capability'],
+  'milestone-timeline': ['milestone', 'key dates', 'deliverable', 'phase', 'schedule', 'timeline'],
+  'heat-map': ['risk', 'impact', 'coverage', 'intensity', 'matrix'],
+  'quadrant-chart': ['priority', 'effort', 'impact', 'analysis', 'quadrant'],
+  'capability-matrix': ['capability', 'skill', 'competency', 'assessment', 'proficiency'],
+};
+
 /**
- * Find the best content section index to insert a diagram based on keyword matching.
- *
- * @param diagramId - 'org-chart' | 'timeline' | 'process-flow'
- * @param sections - Content sections with titles
- * @returns Index of the best matching section, or fallback position
+ * Build a complete keyword list from all available sources.
  */
-export function findDiagramInsertionPoint(
-  diagramId: string,
-  sections: Array<{ title: string }>
-): number {
-  const keywordMap: Record<string, string[]> = {
-    'org-chart': ['organizational', 'org', 'structure', 'management'],
-    'timeline': ['transition', 'phase-in', 'phase in', 'timeline', 'schedule'],
-    'process-flow': ['quality', 'process', 'qcp', 'control'],
-  };
+function buildKeywordList(keywords: string[], diagramId: string): string[] {
+  const all: string[] = [...(keywords || [])];
 
-  const keywords = keywordMap[diagramId] || [];
-
-  for (let i = 0; i < sections.length; i++) {
-    const titleLower = sections[i].title.toLowerCase();
-    if (keywords.some(kw => titleLower.includes(kw))) {
-      return i;
+  // Add type-based keywords
+  for (const [typeKey, typeKeywords] of Object.entries(DIAGRAM_TYPE_KEYWORDS)) {
+    const idLower = diagramId.toLowerCase();
+    if (idLower.includes(typeKey.replace(/-/g, '_')) || idLower.includes(typeKey)) {
+      all.push(...typeKeywords);
+      break;
     }
   }
 
-  // Fallback: org-chart → first section, timeline → last, process-flow → middle
-  if (diagramId === 'org-chart') return 0;
-  if (diagramId === 'timeline') return Math.max(0, sections.length - 1);
-  return Math.floor(sections.length / 2);
+  // Add tokens from diagram ID
+  const idTokens = diagramId.toLowerCase().split(/[_\-]/).filter(t => t.length > 3);
+  all.push(...idTokens);
+
+  return [...new Set(all.map(k => k.toLowerCase()))].filter(k => k.length > 0);
+}
+
+/**
+ * Score how well a set of keywords matches a section.
+ * Searches H1 title, all H2/H3/H4 subsection headings, and body paragraph text.
+ *
+ * Returns the best content index for inserting the diagram — AFTER the most
+ * relevant subsection heading, not just appended at the end.
+ */
+function scoreSectionForDiagram(
+  section: { title: string; content?: unknown[] },
+  kwLower: string[]
+): { score: number; bestContentIdx: number } {
+  if (kwLower.length === 0) return { score: 0, bestContentIdx: (section.content || []).length };
+
+  const content = (section.content || []) as Paragraph[];
+  let score = 0;
+
+  // Score the H1 title (weight 3x — strong signal)
+  const titleLower = section.title.toLowerCase();
+  score += kwLower.filter(kw => titleLower.includes(kw)).length * 3;
+
+  // Scan content for subsection headings and body text
+  let bestSubIdx = content.length; // Default: end of section
+  let bestSubScore = -1;
+  let currentSubStart = 0;
+  let currentSubScore = 0;
+
+  for (let i = 0; i < content.length; i++) {
+    const el = content[i];
+    if (!(el instanceof Paragraph)) continue;
+
+    // Try to extract text from this paragraph
+    let text = '';
+    try {
+      const json = JSON.stringify((el as unknown as Record<string, unknown>).root || '').toLowerCase();
+      text = json.replace(/<[^>]*>/g, ' ').replace(/[{}"\[\]]/g, ' ');
+    } catch { continue; }
+
+    if (!text || text.length < 3) continue;
+
+    // Check if this is a heading paragraph (H2/H3/H4)
+    const isHeading = text.includes('heading_2') || text.includes('heading_3') || text.includes('heading_4')
+      || text.includes('headinglevel');
+
+    if (isHeading) {
+      // Finalize previous subsection
+      if (currentSubScore > bestSubScore) {
+        bestSubScore = currentSubScore;
+        bestSubIdx = i; // Insert BEFORE this new heading = AFTER previous subsection
+      }
+      currentSubStart = i;
+      currentSubScore = kwLower.filter(kw => text.includes(kw)).length * 2; // heading weight 2x
+      score += Math.min(currentSubScore, 4); // Cap per-heading contribution
+    } else {
+      // Body text (weight 1x, capped)
+      const bodyMatches = kwLower.filter(kw => text.includes(kw)).length;
+      currentSubScore += Math.min(bodyMatches, 2);
+      score += Math.min(bodyMatches, 1);
+    }
+  }
+
+  // Finalize last subsection
+  if (currentSubScore > bestSubScore) {
+    bestSubScore = currentSubScore;
+    bestSubIdx = content.length; // After last content
+  }
+
+  // If we found a subsection match, find the END of that subsection (next heading or end)
+  if (bestSubScore > 0 && bestSubIdx < content.length) {
+    // Walk forward to find end of the matching subsection
+    for (let i = bestSubIdx + 1; i < content.length; i++) {
+      const el = content[i];
+      if (!(el instanceof Paragraph)) continue;
+      try {
+        const json = JSON.stringify((el as unknown as Record<string, unknown>).root || '').toLowerCase();
+        if (json.includes('heading_2') || json.includes('heading_3')) {
+          bestSubIdx = i; // Insert before the NEXT heading
+          break;
+        }
+      } catch { continue; }
+      if (i === content.length - 1) bestSubIdx = content.length;
+    }
+  }
+
+  return { score, bestContentIdx: bestSubIdx };
+}
+
+/**
+ * Find the best section AND subsection position for a diagram.
+ *
+ * Content-aware: scores ALL sections by matching keywords against
+ * H1 title + H2/H3/H4 headings + body text. Returns the section
+ * with the highest relevance score.
+ *
+ * @param keywords - Keywords from spec.placement.sectionKeywords
+ * @param diagramId - Diagram identifier
+ * @param sections - Content sections with titles and content arrays
+ * @returns Index of the best matching section
+ */
+export function findDiagramInsertionPoint(
+  keywords: string[],
+  diagramId: string,
+  sections: Array<{ title: string; content?: unknown[] }>
+): number {
+  if (sections.length === 0) return 0;
+
+  const kwLower = buildKeywordList(keywords, diagramId);
+
+  // Score every section
+  let bestIdx = 0;
+  let bestScore = -1;
+
+  for (let i = 0; i < sections.length; i++) {
+    const { score } = scoreSectionForDiagram(sections[i], kwLower);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = i;
+    }
+  }
+
+  // If no matches at all, use heuristic fallbacks
+  if (bestScore <= 0) {
+    const idLower = diagramId.toLowerCase();
+    if (idLower.includes('org')) return 0;
+    if (idLower.includes('timeline') || idLower.includes('gantt')) return Math.max(0, sections.length - 1);
+    return Math.floor(sections.length / 2);
+  }
+
+  return bestIdx;
+}
+
+/**
+ * Find the precise content index within a section to insert a diagram.
+ * Places the diagram AFTER the most relevant subsection — not at the end.
+ *
+ * Call this after findDiagramInsertionPoint to get subsection-level precision.
+ */
+export function findContentInsertionIndex(
+  section: { title: string; content?: unknown[] },
+  keywords: string[],
+  diagramId: string
+): number {
+  const kwLower = buildKeywordList(keywords, diagramId);
+  const { bestContentIdx } = scoreSectionForDiagram(section, kwLower);
+  return bestContentIdx;
+}
+
+// ===== AI DIAGRAM EMBEDDING (NEW) =====
+
+/**
+ * Render and embed a list of AI-generated DiagramSpecs into DOCX elements.
+ * Replaces generateVolumeDiagrams() for graphicsProfile='standard'.
+ *
+ * Uses SVG template functions — no Chromium, no CLI, works on Vercel serverless.
+ *
+ * @param specs - DiagramSpec[] from generateDiagramSpecs()
+ * @param palette - Company color palette for branding
+ * @returns Array of EmbeddedDiagram ready to insert (empty array on complete failure)
+ */
+export async function embedAiDiagrams(
+  specs: DiagramSpec[],
+  palette: ProposalColorPalette
+): Promise<EmbeddedDiagram[]> {
+  if (!specs || specs.length === 0) return [];
+
+  const results: EmbeddedDiagram[] = [];
+
+  const failed: string[] = [];
+
+  for (const spec of specs) {
+    try {
+      const embedded = renderDiagramToEmbeddedDocx(spec, palette);
+      if (embedded) {
+        results.push(embedded);
+      } else {
+        failed.push(`"${spec.title}" (${spec.type})`);
+      }
+    } catch (err) {
+      failed.push(`"${spec.title}" (${spec.type})`);
+      console.error(`[diagram-embedder] Render failed for "${spec.title}" (${spec.type}, id=${spec.id}):`, err);
+    }
+  }
+
+  if (failed.length > 0) {
+    console.error(`[diagram-embedder] ${failed.length} diagram(s) FAILED to render: ${failed.join(', ')}`);
+  }
+  console.log(`[diagram-embedder] Rendered ${results.length}/${specs.length} diagrams successfully`);
+  return results;
 }

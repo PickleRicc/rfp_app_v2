@@ -20,7 +20,7 @@ export interface TokenValidationError {
 export async function validateIntakeToken(
   tokenValue: string
 ): Promise<TokenValidationResult | TokenValidationError> {
-  if (!tokenValue || typeof tokenValue !== "string" || tokenValue.length < 16) {
+  if (!tokenValue || typeof tokenValue !== "string" || !/^[a-f0-9]{64}$/.test(tokenValue)) {
     return { valid: false, error: "Invalid token", status: 400 };
   }
 

@@ -36,7 +36,7 @@ function Citation({ text }: { text: string }) {
 }
 
 // ============================================================
-// TechnicalApproachSection
+// TechnicalApproachSection — renders ALL fields from section.fields
 // ============================================================
 
 export function TechnicalApproachSection({
@@ -44,12 +44,7 @@ export function TechnicalApproachSection({
   data,
   onChange,
 }: TechnicalApproachSectionProps) {
-  const fieldMeta = Object.fromEntries(section.fields.map((f) => [f.key, f]));
-
-  const update = <K extends keyof TechnicalApproach>(
-    key: K,
-    value: TechnicalApproach[K]
-  ) => {
+  const update = (key: string, value: string) => {
     onChange({ ...data, [key]: value });
   };
 
@@ -62,114 +57,24 @@ export function TechnicalApproachSection({
         </div>
       )}
 
-      {/* approach_summary */}
-      <div className="space-y-1">
-        <label className="block text-sm font-medium text-foreground">
-          {fieldMeta["approach_summary"]?.label ?? "Technical Approach Summary"}
-          {fieldMeta["approach_summary"]?.required && <RequiredMark />}
-        </label>
-        {fieldMeta["approach_summary"]?.rfp_citation && (
-          <Citation text={fieldMeta["approach_summary"].rfp_citation} />
-        )}
-        <textarea
-          value={data?.approach_summary ?? ""}
-          onChange={(e) => update("approach_summary", e.target.value)}
-          placeholder={
-            fieldMeta["approach_summary"]?.placeholder ??
-            "Describe your overall technical approach to this requirement..."
-          }
-          rows={5}
-          style={{ minHeight: "100px" }}
-          className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      {/* tools_and_platforms */}
-      <div className="space-y-1">
-        <label className="block text-sm font-medium text-foreground">
-          {fieldMeta["tools_and_platforms"]?.label ?? "Tools & Platforms"}
-          {fieldMeta["tools_and_platforms"]?.required && <RequiredMark />}
-        </label>
-        {fieldMeta["tools_and_platforms"]?.rfp_citation && (
-          <Citation text={fieldMeta["tools_and_platforms"].rfp_citation} />
-        )}
-        <textarea
-          value={data?.tools_and_platforms ?? ""}
-          onChange={(e) => update("tools_and_platforms", e.target.value)}
-          placeholder={
-            fieldMeta["tools_and_platforms"]?.placeholder ??
-            "List tools, platforms, and technologies you plan to use..."
-          }
-          rows={4}
-          style={{ minHeight: "100px" }}
-          className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      {/* staffing_model */}
-      <div className="space-y-1">
-        <label className="block text-sm font-medium text-foreground">
-          {fieldMeta["staffing_model"]?.label ?? "Staffing Model"}
-          {fieldMeta["staffing_model"]?.required && <RequiredMark />}
-        </label>
-        {fieldMeta["staffing_model"]?.rfp_citation && (
-          <Citation text={fieldMeta["staffing_model"].rfp_citation} />
-        )}
-        <textarea
-          value={data?.staffing_model ?? ""}
-          onChange={(e) => update("staffing_model", e.target.value)}
-          placeholder={
-            fieldMeta["staffing_model"]?.placeholder ??
-            "Describe your proposed staffing model..."
-          }
-          rows={4}
-          style={{ minHeight: "100px" }}
-          className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      {/* assumptions */}
-      <div className="space-y-1">
-        <label className="block text-sm font-medium text-foreground">
-          {fieldMeta["assumptions"]?.label ?? "Assumptions"}
-          {fieldMeta["assumptions"]?.required && <RequiredMark />}
-        </label>
-        {fieldMeta["assumptions"]?.rfp_citation && (
-          <Citation text={fieldMeta["assumptions"].rfp_citation} />
-        )}
-        <textarea
-          value={data?.assumptions ?? ""}
-          onChange={(e) => update("assumptions", e.target.value)}
-          placeholder={
-            fieldMeta["assumptions"]?.placeholder ?? "List key assumptions..."
-          }
-          rows={4}
-          style={{ minHeight: "100px" }}
-          className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      {/* risks */}
-      <div className="space-y-1">
-        <label className="block text-sm font-medium text-foreground">
-          {fieldMeta["risks"]?.label ?? "Risks & Mitigations"}
-          {fieldMeta["risks"]?.required && <RequiredMark />}
-        </label>
-        {fieldMeta["risks"]?.rfp_citation && (
-          <Citation text={fieldMeta["risks"].rfp_citation} />
-        )}
-        <textarea
-          value={data?.risks ?? ""}
-          onChange={(e) => update("risks", e.target.value)}
-          placeholder={
-            fieldMeta["risks"]?.placeholder ??
-            "Identify risks and mitigation strategies..."
-          }
-          rows={4}
-          style={{ minHeight: "100px" }}
-          className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
+      {/* Render every field from the schema dynamically */}
+      {section.fields.map((field) => (
+        <div key={field.key} className="space-y-1">
+          <label className="block text-sm font-medium text-foreground">
+            {field.label}
+            {field.required && <RequiredMark />}
+          </label>
+          {field.rfp_citation && <Citation text={field.rfp_citation} />}
+          <textarea
+            value={(data?.[field.key] as string) ?? ""}
+            onChange={(e) => update(field.key, e.target.value)}
+            placeholder={field.placeholder ?? ""}
+            rows={field.key === "approach_summary" ? 5 : 4}
+            style={{ minHeight: "100px" }}
+            className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      ))}
     </div>
   );
 }

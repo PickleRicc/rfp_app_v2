@@ -144,6 +144,13 @@ export interface DraftVolume {
   /** Raw markdown content for in-app preview rendering (set when completed) */
   content_markdown: string | null;
 
+  /**
+   * AI-generated diagram specifications for in-browser preview.
+   * Null when graphicsProfile='minimal' or diagram generation was skipped.
+   * Used by DiagramPreview component in the Draft tab.
+   */
+  diagram_specs: import('@/lib/generation/exhibits/diagram-types').DiagramSpec[] | null;
+
   /** Error details (null unless status = 'failed') */
   error_message: string | null;
 
